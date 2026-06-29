@@ -8,6 +8,7 @@ Built for the **WeMakeDevs × Cognee** hackathon, *The Hangover Part AI: Where's
 |---|---|
 | **Live console** | https://contextfirewall.vercel.app |
 | **Live API (docs)** | https://himanshukumarjha-contextfirewall.hf.space/health · [`/docs`](https://himanshukumarjha-contextfirewall.hf.space/docs) |
+| **Demo video** | https://pub.hyperagent.com/api/published/pbf01KW9YQEZY_WK8T6EPDES8FMT04/contextfirewall_demo.mp4 |
 | **Source** | https://github.com/himanshu748/ContextFirewall |
 
 > Open the console and click **Run the firewall**: 10 remembered facts from a sample agent session are audited live on Cognee. 6 pass into a trusted context pack; 4 are blocked, one per check, each with a plain-language reason.
