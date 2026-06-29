@@ -35,14 +35,14 @@ const tone: Record<Tone, { text: string; border: string; bg: string; dot: string
 };
 
 const failures: { tag: string; icon: Icon; tone: Tone; text: string }[] = [
-  { tag: "Stale", icon: Clock, tone: "warn", text: "“Deploy with make deploy-v1” — superseded weeks ago by make deploy-v2." },
-  { tag: "Contradicted", icon: GitCompare, tone: "block", text: "“exit-137 means OOM” — later disproven; it was a manual interrupt." },
-  { tag: "Secret", icon: KeyRound, tone: "block", text: "A Hugging Face API key pasted into a session note." },
-  { tag: "Unsupported", icon: FileSearch, tone: "warn", text: "“The free tier is enough for prod” — nothing backs it. Trust 0.10." },
+  { tag: "Stale", icon: Clock, tone: "warn", text: "“Deploy with flyctl deploy.” Retired when the service moved off Fly.io." },
+  { tag: "Contradicted", icon: GitCompare, tone: "block", text: "“JWT access tokens never expire.” Disproven by the incident postmortem." },
+  { tag: "Secret", icon: KeyRound, tone: "block", text: "An AWS access key pasted into a worker-config note." },
+  { tag: "Unsupported", icon: FileSearch, tone: "warn", text: "“/search does 1,000,000 req/s, no cache.” Nothing backs it. Trust 0.10." },
 ];
 
 const steps: { n: string; icon: Icon; name: string; desc: string }[] = [
-  { n: "01", icon: History, name: "Record", desc: "Agent sessions — prompts, tool calls, terminal output, decisions, errors and fixes — are captured as a timeline." },
+  { n: "01", icon: History, name: "Record", desc: "Agent sessions (prompts, tool calls, terminal output, decisions, errors and fixes) are captured as a timeline." },
   { n: "02", icon: Boxes, name: "Cognify", desc: "Cognee extracts entities and relationships into a knowledge graph, with temporal links between facts." },
   { n: "03", icon: ScanSearch, name: "Audit", desc: "Every candidate memory is scored against four checks and given a plain-language verdict and trust score." },
   { n: "04", icon: PackageCheck, name: "Pack", desc: "Only memories that pass every check are assembled into a trusted context pack for the next agent." },
@@ -50,7 +50,7 @@ const steps: { n: string; icon: Icon; name: string; desc: string }[] = [
 
 const checks: { icon: Icon; name: string; tone: Tone; tag: string; desc: string }[] = [
   { icon: Clock, name: "Staleness", tone: "warn", tag: "temporal", desc: "Facts have a shelf life. When a newer memory supersedes an old one, the stale fact decays and is held back from the pack." },
-  { icon: GitCompare, name: "Contradiction", tone: "block", tag: "graph reasoning", desc: "The graph surfaces memories that conflict. The newer, higher-trust fact wins; the contradicted one is flagged, never silently served." },
+  { icon: GitCompare, name: "Contradiction", tone: "block", tag: "graph reasoning", desc: "The graph surfaces memories that conflict. The better-supported fact wins; the contradicted one is flagged, never silently served." },
   { icon: KeyRound, name: "Secrets", tone: "block", tag: "leak prevention", desc: "API keys, tokens and connection strings are detected and blocked before they can ever be packed into an agent's context." },
   { icon: FileSearch, name: "Evidence & trust", tone: "pass", tag: "provenance", desc: "Claims with no supporting events score low. Unsupported “facts” fall below the trust threshold and don't make the cut." },
 ];
@@ -107,7 +107,7 @@ export default function Landing() {
             An AI agent is only as safe as the memory it inherits. ContextFirewall records agent sessions into a
             Cognee knowledge graph, then audits every fact for <span className="text-slate-200">staleness</span>,{" "}
             <span className="text-slate-200">contradiction</span>, <span className="text-slate-200">secrets</span> and{" "}
-            <span className="text-slate-200">evidence</span> — passing only what is trustworthy into the next agent's context.
+            <span className="text-slate-200">evidence</span>, passing only what is trustworthy into the next agent's context.
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link
@@ -148,21 +148,21 @@ export default function Landing() {
               <div className="space-y-3">
                 <div className="text-[11px] font-semibold uppercase tracking-wider text-block/80">Blocked at the firewall</div>
                 <PanelRow tone="block" icon={XCircle} label="Stale" trust={0.5}
-                  text="Deploy command superseded by a newer release." />
+                  text="Deploy command superseded by make release." />
                 <PanelRow tone="block" icon={KeyRound} label="Secret" trust={0.9}
-                  text="Hugging Face key found in a session note." />
+                  text="AWS access key found in a worker-config note." />
                 <PanelRow tone="block" icon={GitCompare} label="Contradicted" trust={0.45}
-                  text="“exit-137 = OOM” disproven by a later memory." />
+                  text="“Access tokens never expire,” later disproven." />
               </div>
               {/* passed */}
               <div className="space-y-3">
                 <div className="text-[11px] font-semibold uppercase tracking-wider text-pass/80">Passed into the pack</div>
-                <PanelRow tone="pass" icon={CheckCircle2} label="Decision" trust={0.85}
-                  text="Sign commits with git commit -s (DCO)." />
-                <PanelRow tone="pass" icon={CheckCircle2} label="Fact" trust={0.77}
-                  text="Integration test needs Postgres on 5432." />
-                <PanelRow tone="pass" icon={CheckCircle2} label="Lesson" trust={0.85}
-                  text="Patch the embedding factory in its real module." />
+                <PanelRow tone="pass" icon={CheckCircle2} label="Decision" trust={0.99}
+                  text="Deploy with make release (migrations + blue-green)." />
+                <PanelRow tone="pass" icon={CheckCircle2} label="Config" trust={0.92}
+                  text="Service targets Python 3.12 (asyncpg 0.30)." />
+                <PanelRow tone="pass" icon={CheckCircle2} label="Lesson" trust={0.77}
+                  text="Run make check before pushing (CI gate)." />
               </div>
             </div>
           </div>
@@ -189,7 +189,7 @@ export default function Landing() {
           <p className="mt-4 max-w-2xl text-base leading-relaxed text-slate-400">
             Hand an agent your team's accumulated memory and it will confidently act on a stale deploy command, a fix
             that was later contradicted, a leaked API key, or a claim nothing ever supported. Plain recall can't tell
-            good memory from dangerous memory — so it serves all of it.
+            good memory from dangerous memory, so it serves all of it.
           </p>
         </Reveal>
         <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -245,7 +245,7 @@ export default function Landing() {
             Four checks stand between a memory and your agent.
           </h2>
           <p className="mt-4 max-w-2xl text-base leading-relaxed text-slate-400">
-            Each memory gets a verdict and a trust score in plain language — so a human can see exactly why something
+            Each memory gets a verdict and a trust score in plain language, so a human can see exactly why something
             was blocked, and forget it for good.
           </p>
         </Reveal>
@@ -276,10 +276,10 @@ export default function Landing() {
           <Reveal>
             <p className="text-sm font-semibold uppercase tracking-wider text-firewall-400">Built on Cognee</p>
             <h2 className="mt-3 max-w-3xl text-3xl font-semibold tracking-tight text-slate-100 sm:text-4xl">
-              The full memory lifecycle — including <span className="font-mono text-firewall-400">forget()</span>.
+              The full memory lifecycle, including <span className="font-mono text-firewall-400">forget()</span>.
             </h2>
             <p className="mt-4 max-w-2xl text-base leading-relaxed text-slate-400">
-              ContextFirewall doesn't just read from Cognee — it exercises the whole lifecycle. Governance lives in
+              ContextFirewall doesn't just read from Cognee; it exercises the whole lifecycle. Governance lives in
               the loop: nothing is permanent until it has earned trust, and anything unsafe can be forgotten.
             </p>
           </Reveal>
@@ -310,7 +310,7 @@ export default function Landing() {
             Same question. Two very different answers.
           </h2>
           <p className="mt-4 max-w-2xl text-base leading-relaxed text-slate-400">
-            “What should I know before deploying the backend?” — asked of raw recall, then of the firewall.
+            “What should a new agent know before working on taskflow-api?” Asked of raw recall, then of the firewall.
           </p>
         </Reveal>
         <div className="mt-10 grid gap-4 lg:grid-cols-2">
@@ -320,10 +320,10 @@ export default function Landing() {
                 <XCircle className="h-4 w-4" /> Ungoverned recall
               </div>
               <ul className="space-y-2.5 text-sm text-slate-400">
-                <li className="rounded-lg border-l-2 border-block/50 bg-block/5 px-3 py-2">Deploy with <span className="font-mono text-slate-300">make deploy-v1</span> <span className="text-block">· stale</span></li>
-                <li className="rounded-lg border-l-2 border-block/50 bg-block/5 px-3 py-2">Use HF key <span className="font-mono text-slate-300">hf_••••••</span> for the smoke <span className="text-block">· leaked secret</span></li>
-                <li className="rounded-lg border-l-2 border-block/50 bg-block/5 px-3 py-2">exit-137 is always OOM <span className="text-block">· contradicted</span></li>
-                <li className="rounded-lg border-l-2 border-block/50 bg-block/5 px-3 py-2">Free tier is fine for prod <span className="text-block">· unsupported</span></li>
+                <li className="rounded-lg border-l-2 border-block/50 bg-block/5 px-3 py-2">Deploy with <span className="font-mono text-slate-300">flyctl deploy</span> <span className="text-block">· stale</span></li>
+                <li className="rounded-lg border-l-2 border-block/50 bg-block/5 px-3 py-2">Use AWS key <span className="font-mono text-slate-300">AKIA••••••</span> for uploads <span className="text-block">· leaked secret</span></li>
+                <li className="rounded-lg border-l-2 border-block/50 bg-block/5 px-3 py-2">Access tokens never expire <span className="text-block">· contradicted</span></li>
+                <li className="rounded-lg border-l-2 border-block/50 bg-block/5 px-3 py-2">/search does 1M req/s, no cache <span className="text-block">· unsupported</span></li>
               </ul>
               <p className="mt-4 text-xs text-slate-500">A flat vector store hands all of this to the next agent.</p>
             </div>
@@ -334,11 +334,11 @@ export default function Landing() {
                 <CheckCircle2 className="h-4 w-4" /> Trusted context pack
               </div>
               <ul className="space-y-2.5 text-sm text-slate-300">
-                <li className="rounded-lg border-l-2 border-pass/50 bg-pass/5 px-3 py-2">Backend deploys as a stateless service with externalized stores <span className="text-pass">· trust 0.85</span></li>
-                <li className="rounded-lg border-l-2 border-pass/50 bg-pass/5 px-3 py-2">Sign commits with <span className="font-mono">git commit -s</span> (DCO) <span className="text-pass">· trust 0.85</span></li>
-                <li className="rounded-lg border-l-2 border-pass/50 bg-pass/5 px-3 py-2">Integration test needs Postgres on 5432 <span className="text-pass">· trust 0.77</span></li>
+                <li className="rounded-lg border-l-2 border-pass/50 bg-pass/5 px-3 py-2">Deploy with <span className="font-mono">make release</span> (migrations + blue-green) <span className="text-pass">· trust 0.99</span></li>
+                <li className="rounded-lg border-l-2 border-pass/50 bg-pass/5 px-3 py-2">Access tokens expire after 15 min; use the refresh flow <span className="text-pass">· trust 0.99</span></li>
+                <li className="rounded-lg border-l-2 border-pass/50 bg-pass/5 px-3 py-2">Rate-limit 100 req/min per key in Redis <span className="text-pass">· trust 0.77</span></li>
               </ul>
-              <p className="mt-4 text-xs text-slate-500">Only audited, current, evidence-backed facts — no secrets.</p>
+              <p className="mt-4 text-xs text-slate-500">Only audited, current, evidence-backed facts. No secrets.</p>
             </div>
           </Reveal>
         </div>
@@ -352,8 +352,8 @@ export default function Landing() {
             <p className="mx-auto mt-6 max-w-3xl text-balance text-2xl font-medium leading-snug text-slate-200 sm:text-3xl">
               Why a knowledge graph? Because trust is relational and temporal. Cognee lets the firewall see{" "}
               <span className="cf-accent-text">when a fact was superseded</span> and{" "}
-              <span className="cf-accent-text">which memories contradict each other</span> — judgments a flat vector
-              store can't make.
+              <span className="cf-accent-text">which memories contradict each other</span>. These are judgments a flat
+              vector store can't make.
             </p>
           </Reveal>
         </div>
@@ -366,10 +366,11 @@ export default function Landing() {
             <div className="pointer-events-none absolute inset-0 cf-grid opacity-60" aria-hidden />
             <div className="relative">
               <h2 className="mx-auto max-w-2xl text-3xl font-semibold tracking-tight text-slate-100 sm:text-4xl">
-                See it run on real recorded sessions.
+                See it run on a live Cognee backend.
               </h2>
               <p className="mx-auto mt-4 max-w-xl text-base text-slate-400">
-                No signup. A live Cognee backend, real audit verdicts, and the actual sessions that built this project.
+                No signup. A live Cognee knowledge graph with real audit verdicts on a sample agent session, every
+                check computed live.
               </p>
               <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <Link
@@ -415,7 +416,8 @@ export default function Landing() {
         <div className="mx-auto max-w-6xl px-5 pb-10">
           <p className="text-xs leading-relaxed text-slate-600">
             Built by Himanshu Kumar for the WeMakeDevs × Cognee hackathon. Built with the help of an AI assistant
-            (Hyperagent); every Cognee and model call shown is real — no fabricated memories or results.
+            (Hyperagent); every Cognee and model call shown is real, with no fabricated memories or results. The demo
+            runs on a sample agent session (taskflow-api) so no private data is exposed.
           </p>
         </div>
       </footer>

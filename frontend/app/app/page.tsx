@@ -3,16 +3,18 @@
 import { useCallback, useEffect, useState } from "react";
 import { ShieldCheck, ShieldX, Loader2, Database, GitGraph, History, ScanSearch } from "lucide-react";
 import { api } from "@/lib/api";
-import type { AuditResponse, GraphResponse, HealthResponse, PackResponse, TimelineEvent } from "@/lib/types";
+import type { AuditResponse, GraphResponse, HealthResponse, PackResponse, TimelineEvent, CheckName } from "@/lib/types";
 import { Header } from "@/components/Header";
 import { QueryBar } from "@/components/QueryBar";
 import { MemoryCard } from "@/components/MemoryCard";
 import { PackPanel } from "@/components/PackPanel";
 import { Timeline } from "@/components/Timeline";
 import { GraphView } from "@/components/GraphView";
+import { CHECK_META } from "@/components/badges";
 
 type Tab = "firewall" | "replay" | "graph";
-const DEFAULT_QUERY = "What should I know before deploying the backend and running the Cognee smoke?";
+const DEFAULT_QUERY = "What should a new agent know before working on taskflow-api?";
+const CHECK_ORDER: CheckName[] = ["staleness", "contradiction", "secret", "evidence"];
 
 export default function Page() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
@@ -24,6 +26,7 @@ export default function Page() {
   const [pack, setPack] = useState<PackResponse | null>(null);
   const [events, setEvents] = useState<TimelineEvent[] | null>(null);
   const [graph, setGraph] = useState<GraphResponse | null>(null);
+  const [queries, setQueries] = useState<string[]>([]);
 
   const run = useCallback(async (q: string) => {
     setLoading(true);
@@ -49,6 +52,7 @@ export default function Page() {
 
   useEffect(() => {
     (async () => {
+      api.demoQueries().then((d) => setQueries(d.queries)).catch(() => {});
       const h = await api.health().catch(() => null);
       setHealth(h);
       if (h && (h.counts?.Memory ?? 0) > 0) run(DEFAULT_QUERY);
@@ -108,7 +112,7 @@ export default function Page() {
             trusted context pack.
           </p>
           <div className="mt-5 max-w-3xl">
-            <QueryBar onRun={run} loading={loading} initial={DEFAULT_QUERY} />
+            <QueryBar onRun={run} loading={loading} initial={DEFAULT_QUERY} queries={queries} />
           </div>
         </section>
 
@@ -116,7 +120,7 @@ export default function Page() {
           <div className="mb-6 flex items-center justify-between rounded-xl border border-firewall-600/40 bg-firewall-500/5 px-5 py-4">
             <div className="text-sm text-slate-300">
               <Database className="mr-2 inline h-4 w-4 text-firewall-400" />
-              No memories yet. Seed the real ContextFirewall onboarding session to start.
+              No memories yet. Seed the sample taskflow-api session to start.
             </div>
             <button
               onClick={seed}
@@ -160,14 +164,33 @@ export default function Page() {
         {tab === "firewall" && (
           <div className="space-y-6">
             {audit && (
-              <div className="flex flex-wrap items-center gap-3 text-sm">
-                <span className="inline-flex items-center gap-1.5 rounded-lg border border-block-border/60 bg-block-dim/50 px-3 py-1.5 text-block">
-                  <ShieldX className="h-4 w-4" /> {audit.blocked_count} blocked
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-lg border border-pass-border/60 bg-pass-dim/50 px-3 py-1.5 text-pass">
+              <div className="flex flex-wrap items-center gap-2.5 text-sm">
+                <span className="inline-flex items-center gap-1.5 rounded-lg border border-pass-border/60 bg-pass-dim/50 px-3 py-1.5 font-medium text-pass">
                   <ShieldCheck className="h-4 w-4" /> {audit.passed_count} approved
                 </span>
-                <span className="text-xs text-slate-500">for “{audit.query}”</span>
+                <span className="inline-flex items-center gap-1.5 rounded-lg border border-block-border/60 bg-block-dim/50 px-3 py-1.5 font-medium text-block">
+                  <ShieldX className="h-4 w-4" /> {audit.blocked_count} blocked
+                </span>
+                <span className="mx-1 hidden h-5 w-px bg-ink-700 sm:block" />
+                {CHECK_ORDER.map((k) => {
+                  const meta = CHECK_META[k];
+                  const n = audit.candidates.filter((c) => !c.passed && c.block_check === k).length;
+                  const Icon = meta.icon;
+                  return (
+                    <span
+                      key={k}
+                      title={`${meta.label}: ${n} blocked`}
+                      className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs ${
+                        n
+                          ? "border-block-border/60 bg-block-dim/40 text-block"
+                          : "border-ink-700 bg-ink-850/50 text-slate-500"
+                      }`}
+                    >
+                      <Icon className="h-3.5 w-3.5" /> {meta.label} <span className="font-mono">{n}</span>
+                    </span>
+                  );
+                })}
+                <span className="ml-auto truncate text-xs text-slate-500">for “{audit.query}”</span>
               </div>
             )}
 

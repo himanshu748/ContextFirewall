@@ -3,23 +3,28 @@
 import { Search, Loader2 } from "lucide-react";
 import { useState } from "react";
 
-const DEMO_QUERIES = [
-  "What should I know before deploying the backend and running the Cognee smoke?",
-  "What caused exit code 137 during the smoke?",
-  "How are embeddings set up for Cognee on Hugging Face?",
-  "What are the rules for contributing to Cognee?",
+// Fallback chips if the backend's /demo/queries is unavailable. Kept in sync
+// with the bundled sample session (taskflow-api).
+const FALLBACK_QUERIES = [
+  "What should a new agent know before working on taskflow-api?",
+  "How do I deploy taskflow-api safely?",
+  "Do JWT access tokens expire in taskflow-api?",
+  "How is the public API rate-limited?",
 ];
 
 export function QueryBar({
   onRun,
   loading,
   initial,
+  queries,
 }: {
   onRun: (q: string) => void;
   loading: boolean;
   initial?: string;
+  queries?: string[];
 }) {
-  const [q, setQ] = useState(initial ?? DEMO_QUERIES[0]);
+  const chips = queries && queries.length ? queries : FALLBACK_QUERIES;
+  const [q, setQ] = useState(initial ?? chips[0]);
 
   return (
     <div>
@@ -47,7 +52,7 @@ export function QueryBar({
         </button>
       </form>
       <div className="mt-2.5 flex flex-wrap gap-1.5">
-        {DEMO_QUERIES.map((d) => (
+        {chips.map((d) => (
           <button
             key={d}
             onClick={() => {
