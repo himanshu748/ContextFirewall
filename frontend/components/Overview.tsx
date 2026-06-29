@@ -50,7 +50,7 @@ export function Overview({
 }) {
   const c = health?.counts ?? {};
   const p = (health?.profile ?? {}) as Record<string, unknown>;
-  const str = (k: string) => (p[k] != null ? String(p[k]) : "—");
+  const str = (k: string) => (p[k] != null ? String(p[k]) : "-");
 
   return (
     <div className="space-y-7">
@@ -64,8 +64,8 @@ export function Overview({
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Stat icon={Database} label="Memories" value={c.Memory ?? 0} />
-        <Stat icon={ShieldCheck} label="Approved" value={audit?.passed_count ?? "—"} tone="pass" />
-        <Stat icon={ShieldX} label="Blocked" value={audit?.blocked_count ?? "—"} tone="block" />
+        <Stat icon={ShieldCheck} label="Approved" value={audit?.passed_count ?? "-"} tone="pass" />
+        <Stat icon={ShieldX} label="Blocked" value={audit?.blocked_count ?? "-"} tone="block" />
         <Stat icon={Boxes} label="Entities" value={c.Entity ?? 0} />
         <Stat icon={Activity} label="Events" value={c.SessionEvent ?? 0} />
         <Stat icon={Network} label="Graph edges" value={c._edges ?? 0} />

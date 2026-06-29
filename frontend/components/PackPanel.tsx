@@ -77,7 +77,7 @@ export function PackPanel({ pack }: { pack: PackResponse | null }) {
           <span className="text-[11px] font-normal text-slate-600">(raw recall)</span>
         </div>
         <div className="max-h-[420px] overflow-auto whitespace-pre-wrap text-[13px] leading-relaxed text-slate-400">
-          {pack.recall_answer?.trim() || "—"}
+          {pack.recall_answer?.trim() || "-"}
         </div>
         <p className="mt-3 text-[11px] text-slate-500">
           What a plain recall hands the next agent: stale, contradicted, and unverified facts included.

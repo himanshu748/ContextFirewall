@@ -70,7 +70,7 @@ export function GraphView({ data }: { data: GraphResponse | null }) {
 
   if (!data) return null;
   if (!nodes.length) {
-    return <div className="py-12 text-center text-sm text-slate-500">Graph is empty — seed the demo data.</div>;
+    return <div className="py-12 text-center text-sm text-slate-500">Graph is empty. Seed the demo data.</div>;
   }
 
   return (

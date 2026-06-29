@@ -66,7 +66,7 @@ export function MemoryCard({
             }}
             disabled={forgetting}
             className="inline-flex items-center gap-1.5 rounded-md border border-ink-700 bg-ink-800 px-2.5 py-1 text-[11px] font-medium text-slate-400 transition-colors hover:border-block-border hover:text-block disabled:opacity-50"
-            title="Forget this memory in Cognee (graph + vector). Governance — the forget() verb."
+            title="Forget this memory in Cognee (graph + vector). Governance: the forget() verb."
           >
             {forgetting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
             Forget

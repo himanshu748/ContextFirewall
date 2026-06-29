@@ -50,11 +50,11 @@ export function MemoryDrawer({
           <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
             <div>
               <div className="text-slate-500">Subject</div>
-              <div className="mt-0.5 font-mono text-slate-300">{v.subject || "—"}</div>
+              <div className="mt-0.5 font-mono text-slate-300">{v.subject || "-"}</div>
             </div>
             <div>
               <div className="text-slate-500">Recorded</div>
-              <div className="mt-0.5 font-mono text-slate-300">{v.created_at || "—"}</div>
+              <div className="mt-0.5 font-mono text-slate-300">{v.created_at || "-"}</div>
             </div>
             <div className="col-span-2">
               <div className="text-slate-500">Trust score</div>
@@ -64,7 +64,7 @@ export function MemoryDrawer({
             </div>
             <div className="col-span-2">
               <div className="text-slate-500">From session</div>
-              <div className="mt-0.5 font-mono text-[11px] text-slate-400">{v.source_session_id || "—"}</div>
+              <div className="mt-0.5 font-mono text-[11px] text-slate-400">{v.source_session_id || "-"}</div>
             </div>
           </div>
 
