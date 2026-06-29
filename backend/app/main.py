@@ -156,10 +156,31 @@ async def timeline(session_id: str) -> TimelineResponse:
     return TimelineResponse(session=summary, events=events)
 
 
+async def _reset_memory() -> None:
+    """Wipe all Cognee stores — used to keep /demo/seed idempotent on the demo Space."""
+    configure_cognee()
+    import cognee
+
+    try:
+        await cognee.prune.prune_data()
+        await cognee.prune.prune_system(graph=True, vector=True, metadata=True)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+@app.post("/reset")
+async def reset() -> dict:
+    await _reset_memory()
+    return {"status": "ok", "message": "All Cognee memory pruned."}
+
+
 @app.post("/demo/seed", response_model=IngestResponse)
-async def demo_seed(cognify: bool = True) -> IngestResponse:
+async def demo_seed(cognify: bool = True, reset: bool = True) -> IngestResponse:
     if not DEMO_SESSION.exists():
         raise HTTPException(status_code=404, detail="bundled demo session not found")
+    # Idempotent by default: prune first so repeated seeds (or proxy retries) never duplicate.
+    if reset:
+        await _reset_memory()
     session = hydrate_demo_secrets(json.loads(DEMO_SESSION.read_text()))
     res = await ingest_session(session, cognify=cognify)
     return IngestResponse(
