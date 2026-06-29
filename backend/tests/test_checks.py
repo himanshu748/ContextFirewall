@@ -21,7 +21,8 @@ def _run(coro):
 
 # --- secret -------------------------------------------------------------------
 def test_secret_blocks_leaked_key():
-    out = secret_check({"text": "key is hf_ABCdef0123456789ABCDEFGHIJ ok"})
+    tok = "hf_" + "ABCdef0123456789ABCDEFGHIJ"  # assembled — no literal token in source
+    out = secret_check({"text": f"key is {tok} ok"})
     assert not out.passed and out.check == "secret"
 
 

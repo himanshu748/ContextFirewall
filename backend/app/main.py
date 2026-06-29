@@ -25,7 +25,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.cognee_runtime.bootstrap import configure_cognee
 from app.cognee_runtime.forget import forget_memory
 from app.cognee_runtime.graph import count_nodes, graph_view, list_sessions, session_timeline
-from app.cognee_runtime.ingest import ingest_session
+from app.cognee_runtime.ingest import hydrate_demo_secrets, ingest_session
 from app.firewall.audit import audit_memories
 from app.firewall.pack import build_pack
 from app.models import (
@@ -148,7 +148,7 @@ async def timeline(session_id: str) -> TimelineResponse:
 async def demo_seed(cognify: bool = True) -> IngestResponse:
     if not DEMO_SESSION.exists():
         raise HTTPException(status_code=404, detail="bundled demo session not found")
-    session = json.loads(DEMO_SESSION.read_text())
+    session = hydrate_demo_secrets(json.loads(DEMO_SESSION.read_text()))
     res = await ingest_session(session, cognify=cognify)
     return IngestResponse(
         session_id=res["session_id"],

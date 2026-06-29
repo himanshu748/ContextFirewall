@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 
 from app.cognee_runtime.bootstrap import configure_cognee
-from app.cognee_runtime.ingest import ingest_session
+from app.cognee_runtime.ingest import hydrate_demo_secrets, ingest_session
 from app.firewall.audit import audit_memories
 from app.firewall.pack import build_pack
 
@@ -50,7 +50,7 @@ async def main() -> None:
         print("  prune warning:", repr(e))
 
     print("\n=== ingest (remember) ===")
-    session = json.loads(SESSION.read_text())
+    session = hydrate_demo_secrets(json.loads(SESSION.read_text()))
     t0 = time.time()
     res = await ingest_session(session, cognify=True)
     print(f"  {res} in {time.time() - t0:.1f}s")

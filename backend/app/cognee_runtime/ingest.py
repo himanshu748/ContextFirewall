@@ -26,6 +26,27 @@ from .schema import (
 
 CF_DATASET = "contextfirewall"
 
+# The bundled demo session ships a PLACEHOLDER instead of a credential-shaped
+# literal, so secret scanners stay quiet on the repo. We hydrate it to a clearly
+# synthetic (never-valid) token at seed time so the firewall's secret check has a
+# realistic credential to catch in the demo.
+DEMO_SECRET_PLACEHOLDER = "<<DEMO_LEAKED_HF_KEY>>"
+
+
+def hydrate_demo_secrets(session: dict) -> dict:
+    """Replace demo placeholders with a synthetic, assembled (never-real) token."""
+    token = "hf_" + "DEMO" + ("0" * 8) + "notARealKey" + "abcdef"  # assembled at runtime
+    def _sub(s: Any) -> Any:
+        return s.replace(DEMO_SECRET_PLACEHOLDER, token) if isinstance(s, str) else s
+
+    for m in session.get("memories") or []:
+        if "text" in m:
+            m["text"] = _sub(m["text"])
+    for e in session.get("events") or []:
+        if "content" in e:
+            e["content"] = _sub(e["content"])
+    return session
+
 
 def compute_trust(mem: dict) -> float:
     """Derive a 0–1 trust score from explicit signals on a candidate memory.
