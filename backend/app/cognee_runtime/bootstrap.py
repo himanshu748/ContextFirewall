@@ -33,6 +33,63 @@ BACKEND_DIR = Path(__file__).resolve().parents[2]
 ENV_PATH = BACKEND_DIR / ".env"
 
 
+def _install_hf_router_embeddings(*, model, dimensions, api_key, endpoint, batch_size):
+    """Route cognee's embedding resolution to our HF-router engine.
+
+    cognee has no native adapter for the HF feature-extraction endpoint, so we
+    replace the factory ``create_embedding_engine`` in its DEFINING module.
+
+    Critically, we must reach the real *module* via ``importlib``: the
+    ``embeddings`` package ``__init__`` does ``from .get_embedding_engine import
+    get_embedding_engine``, which rebinds the package attribute
+    ``...embeddings.get_embedding_engine`` to the *function* and shadows the
+    submodule of the same name. So ``import ...get_embedding_engine as m`` binds
+    ``m`` to the function, and setting ``m.create_embedding_engine`` is a silent
+    no-op on a function object (this was the original bug: every call fell through
+    to LiteLLM). ``get_embedding_engine()`` resolves ``create_embedding_engine``
+    from its module globals at call time, so patching the module global routes
+    every caller — chunking, vector-engine creation, search — to our engine.
+    """
+    import importlib
+
+    from .hf_embeddings import HFRouterEmbeddingEngine
+
+    engine = HFRouterEmbeddingEngine(
+        model=model,
+        dimensions=dimensions,
+        api_key=api_key,
+        endpoint=endpoint,
+        batch_size=batch_size,
+    )
+
+    gee_mod = importlib.import_module(
+        "cognee.infrastructure.databases.vector.embeddings.get_embedding_engine"
+    )
+    # Drop the original lru_cache (if any), then replace the factory wholesale.
+    try:
+        gee_mod.create_embedding_engine.cache_clear()
+    except Exception:  # noqa: BLE001
+        pass
+    gee_mod.create_embedding_engine = lambda *a, **k: engine
+
+    # Defensive: if a vector engine was already built+cached with the default
+    # engine, evict it so the adapter is rebuilt holding our engine.
+    try:
+        cve = importlib.import_module(
+            "cognee.infrastructure.databases.vector.create_vector_engine"
+        )
+        inner = getattr(cve, "_create_vector_engine", None)
+        for attr in ("cache_clear", "cache_purge", "clear_cache"):
+            fn = getattr(inner, attr, None)
+            if callable(fn):
+                fn()
+                break
+    except Exception:  # noqa: BLE001
+        pass
+
+    return engine
+
+
 @lru_cache(maxsize=1)
 def configure_cognee() -> dict[str, Any]:
     """Idempotently configure the Cognee SDK for the active profile.
@@ -63,7 +120,10 @@ def configure_cognee() -> dict[str, Any]:
 
     # --- LLM: chat / graph extraction (cognify) ---
     llm_provider = os.getenv("LLM_PROVIDER", "custom")
-    llm_model = os.getenv("LLM_MODEL", "openai/Qwen/Qwen2.5-72B-Instruct")
+    # Pin the HF router inference provider (":novita") — the bare model lets the
+    # router auto-pick a provider, which intermittently returns 403 (e.g. deepinfra
+    # not available for this key). novita serves Qwen2.5-72B + Llama-3.1-8B reliably.
+    llm_model = os.getenv("LLM_MODEL", "openai/Qwen/Qwen2.5-72B-Instruct:novita")
     llm_endpoint = os.getenv("LLM_ENDPOINT", "https://router.huggingface.co/v1")
     llm_api_key = os.getenv("LLM_API_KEY") or os.getenv("HUGGINGFACE_API_KEY") or ""
     cognee.config.set_llm_config(
@@ -101,17 +161,13 @@ def configure_cognee() -> dict[str, Any]:
         }
     )
     if embedding_provider == "hf_router":
-        from .hf_embeddings import HFRouterEmbeddingEngine
-        import cognee.infrastructure.databases.vector.embeddings.get_embedding_engine as _gee
-
-        _hf_engine = HFRouterEmbeddingEngine(
+        _install_hf_router_embeddings(
             model=embedding_model,
             dimensions=embedding_dimensions,
             api_key=os.getenv("EMBEDDING_API_KEY") or llm_api_key,
             endpoint=os.getenv("EMBEDDING_ENDPOINT") or None,
             batch_size=int(os.getenv("EMBEDDING_BATCH_SIZE", "16")),
         )
-        _gee.create_embedding_engine = lambda *a, **k: _hf_engine
 
     # --- Graph store (prod: neo4j; dev: cognee default unless overridden) ---
     graph_provider = os.getenv("GRAPH_DATABASE_PROVIDER")
