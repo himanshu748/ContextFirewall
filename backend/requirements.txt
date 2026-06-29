@@ -1,0 +1,14 @@
+# ContextFirewall backend — Python 3.12
+# Memory engine
+cognee==1.2.2
+# Web API
+fastapi
+uvicorn[standard]
+# Config + HTTP
+pydantic-settings
+python-dotenv
+httpx
+numpy
+# Note: embeddings use the Hugging Face router API (app/cognee_runtime/hf_embeddings.py),
+# so no local embedding model is required. `fastembed` is optional (only if you set
+# EMBEDDING_PROVIDER=fastembed for fully-local embeddings).

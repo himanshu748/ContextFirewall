@@ -1,0 +1,44 @@
+# Hugging Face Space deploy ignore — exclude local-only, secrets, large data,
+# and non-backend files from the Space upload. (Backend Space = FastAPI + Cognee.)
+
+# version control / tooling
+.git/
+.github/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# secrets / local env (set these as Space variables instead)
+.env
+.env.*
+!.env.example
+
+# cognee local stores / dev data (prod uses Supabase + Neo4j)
+.cf_data/
+.cognee_system/
+.data_storage/
+cognee_data/
+*.lance/
+*.kuzu/
+*.sqlite
+*.duckdb
+
+# logs / scratch
+*.log
+install.log
+
+# frontend is deployed separately (Vercel)
+frontend/
+node_modules/
+.next/
+out/
+.vercel/
+
+# misc
+.DS_Store
+.idea/
+.vscode/
