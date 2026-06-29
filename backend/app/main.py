@@ -9,7 +9,7 @@ Endpoints:
   GET  /graph                       knowledge-graph nodes/edges for the viz
   GET  /sessions                    recorded sessions
   GET  /sessions/{id}/timeline      replay timeline for a session
-  POST /demo/seed                   ingest the bundled real onboarding session
+  POST /demo/seed                   ingest the bundled sample session
   GET  /demo/queries                suggested demo queries
 """
 from __future__ import annotations
@@ -45,7 +45,7 @@ from app.models import (
 )
 
 # data/ lives under backend/, not backend/app/ — resolve from the backend dir.
-DEMO_SESSION = Path(__file__).resolve().parents[1] / "data" / "sessions" / "contextfirewall_onboarding.json"
+DEMO_SESSION = Path(__file__).resolve().parents[1] / "data" / "sessions" / "taskflow_onboarding.json"
 
 
 @asynccontextmanager
@@ -188,7 +188,7 @@ async def demo_seed(cognify: bool = True, reset: bool = True) -> IngestResponse:
         nodes_added=res["nodes_added"],
         memories_created=res["memories_created"],
         cognified=res["cognified"],
-        message="Seeded the real ContextFirewall onboarding session.",
+        message="Seeded the sample taskflow-api onboarding session.",
     )
 
 
@@ -196,9 +196,9 @@ async def demo_seed(cognify: bool = True, reset: bool = True) -> IngestResponse:
 async def demo_queries() -> dict:
     return {
         "queries": [
-            "How do I deploy the ContextFirewall backend and run the Cognee smoke?",
-            "What caused exit code 137 during the smoke?",
-            "How should I set up embeddings for Cognee on Hugging Face?",
-            "What are the rules for contributing to Cognee?",
+            "What should a new agent know before working on taskflow-api?",
+            "How do I deploy taskflow-api safely?",
+            "Do JWT access tokens expire in taskflow-api?",
+            "How is the public API rate-limited?",
         ]
     }

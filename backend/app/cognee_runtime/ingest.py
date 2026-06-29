@@ -26,18 +26,26 @@ from .schema import (
 
 CF_DATASET = "contextfirewall"
 
-# The bundled demo session ships a PLACEHOLDER instead of a credential-shaped
-# literal, so secret scanners stay quiet on the repo. We hydrate it to a clearly
-# synthetic (never-valid) token at seed time so the firewall's secret check has a
-# realistic credential to catch in the demo.
-DEMO_SECRET_PLACEHOLDER = "<<DEMO_LEAKED_HF_KEY>>"
+# The bundled sample session ships PLACEHOLDERS instead of credential-shaped
+# literals, so secret scanners stay quiet on the repo. We hydrate them to clearly
+# synthetic, never-valid tokens at seed time so the firewall's secret check has a
+# realistic credential to catch in the demo. The AWS value is the canonical AWS
+# documentation example key (publicly published, guaranteed invalid).
+DEMO_SECRET_PLACEHOLDERS = {
+    "<<DEMO_LEAKED_AWS_KEY>>": "AKIA" + "IOSFODNN7" + "EXAMPLE",
+    "<<DEMO_LEAKED_HF_KEY>>": "hf_" + "DEMO" + ("0" * 8) + "notARealKey" + "abcdef",
+}
 
 
 def hydrate_demo_secrets(session: dict) -> dict:
-    """Replace demo placeholders with a synthetic, assembled (never-real) token."""
-    token = "hf_" + "DEMO" + ("0" * 8) + "notARealKey" + "abcdef"  # assembled at runtime
+    """Replace demo placeholders with synthetic, assembled (never-real) tokens."""
+
     def _sub(s: Any) -> Any:
-        return s.replace(DEMO_SECRET_PLACEHOLDER, token) if isinstance(s, str) else s
+        if not isinstance(s, str):
+            return s
+        for placeholder, token in DEMO_SECRET_PLACEHOLDERS.items():
+            s = s.replace(placeholder, token)
+        return s
 
     for m in session.get("memories") or []:
         if "text" in m:

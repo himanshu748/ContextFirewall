@@ -1,0 +1,36 @@
+{
+  "session_id": "onb-taskflow-2026-06-29",
+  "task": "Onboard onto the taskflow-api repo and pick up the search-latency ticket (PERF-214), using remembered context from earlier sessions.",
+  "agent": "AI coding agent",
+  "started_at": "2026-06-29T09:00:00",
+  "repo": {
+    "name": "taskflow-api",
+    "url": "https://github.com/acme/taskflow-api",
+    "description": "A task-management SaaS backend (FastAPI, Postgres, Redis, Stripe). Sample repository used to demonstrate ContextFirewall."
+  },
+  "events": [
+    {"event_id": "tf:e_prompt", "kind": "prompt", "timestamp": "2026-06-29T09:00:05", "content": "New agent onboarding onto taskflow-api: load what we already know about this repo, then start on the search-latency ticket (PERF-214)."},
+    {"event_id": "tf:e_clone", "kind": "tool_call", "timestamp": "2026-06-29T09:01:00", "content": "Cloned acme/taskflow-api and read README.md and the Makefile to learn the project's workflow."},
+    {"event_id": "tf:e_setup", "kind": "terminal", "timestamp": "2026-06-29T09:03:20", "content": "Set up the environment: uv venv --python 3.12 && uv pip install -r requirements.txt. A 3.11 venv had failed earlier because asyncpg 0.30 requires Python 3.12."},
+    {"event_id": "tf:e_ci", "kind": "terminal", "timestamp": "2026-06-29T09:06:40", "content": "Ran `make check` (ruff format + mypy). The CI gate blocks merges unless this passes."},
+    {"event_id": "tf:e_auth", "kind": "fix", "timestamp": "2026-06-29T09:12:00", "content": "Traced the intermittent 401s: access tokens expire after 15 minutes and the web client was not refreshing them. Fixed the refresh-token flow; cross-checked auth/settings.py and the May incident postmortem."},
+    {"event_id": "tf:e_deploy", "kind": "decision", "timestamp": "2026-06-29T09:18:30", "content": "Confirmed the current deploy path: `make release` runs database migrations then a blue-green rollout. The old Fly.io flyctl command was retired when the service moved hosts last quarter."},
+    {"event_id": "tf:e_migrate", "kind": "tool_call", "timestamp": "2026-06-29T09:22:10", "content": "Verified Alembic migrations run automatically during `make release`; running `alembic upgrade` by hand against prod is forbidden."},
+    {"event_id": "tf:e_ratelimit", "kind": "decision", "timestamp": "2026-06-29T09:25:45", "content": "Reviewed the rate-limit policy: 100 requests per minute per API key, enforced in Redis, set after the April overload incident."},
+    {"event_id": "tf:e_secret", "kind": "error", "timestamp": "2026-06-29T09:30:00", "content": "Spotted an AWS access key pasted into an old worker-config note. Flagged it: a live credential must never be carried forward into shared agent context."},
+    {"event_id": "tf:e_perf", "kind": "tool_call", "timestamp": "2026-06-29T09:34:20", "content": "Opened PERF-214 (search latency). There is no throughput benchmark in the repo yet, so any specific requests-per-second number would be a guess."},
+    {"event_id": "tf:e_handoff", "kind": "decision", "timestamp": "2026-06-29T09:40:00", "content": "Handing off: the next agent should pull a trusted context pack instead of these raw notes, so stale and unverified items do not leak forward."}
+  ],
+  "memories": [
+    {"memory_id": "tf:m_deploy_old", "text": "Deploy the API by running `flyctl deploy --remote-only` from the repo root.", "kind": "decision", "subject": "deploy command", "created_at": "2026-02-15", "reinforcement_count": 1},
+    {"memory_id": "tf:m_deploy_new", "text": "Deploy with `make release` — it runs database migrations then a blue-green rollout. The old flyctl command was removed when the service moved off Fly.io.", "kind": "decision", "subject": "deploy command", "created_at": "2026-06-10", "supersedes_id": "tf:m_deploy_old", "verified": true, "reinforcement_count": 3, "evidence_event_ids": ["tf:e_deploy"]},
+    {"memory_id": "tf:m_token_wrong", "text": "JWT access tokens never expire, so the web client can cache one indefinitely.", "kind": "fact", "subject": "access token lifetime", "created_at": "2026-05-20", "trust_score": 0.45},
+    {"memory_id": "tf:m_token_right", "text": "JWT access tokens expire after 15 minutes; clients must use the refresh-token flow. Confirmed in auth/settings.py and the May incident postmortem.", "kind": "fact", "subject": "access token lifetime", "created_at": "2026-05-20", "verified": true, "reinforcement_count": 3, "evidence_event_ids": ["tf:e_auth"]},
+    {"memory_id": "tf:m_secret", "text": "For the S3 avatar uploads, set the worker env AWS_ACCESS_KEY_ID=<<DEMO_LEAKED_AWS_KEY>> so the upload job can authenticate.", "kind": "credential", "subject": "aws upload credentials", "created_at": "2026-06-01", "trust_score": 0.9, "evidence_event_ids": ["tf:e_secret"]},
+    {"memory_id": "tf:m_perf", "text": "The /search endpoint sustains 1,000,000 requests per second with no caching required.", "kind": "fact", "subject": "search throughput", "created_at": "2026-06-05", "unsupported": true},
+    {"memory_id": "tf:m_python", "text": "The service targets Python 3.12; 3.11 fails at install because asyncpg 0.30 requires 3.12.", "kind": "config", "subject": "python version", "created_at": "2026-06-08", "verified": true, "reinforcement_count": 2, "evidence_event_ids": ["tf:e_setup"]},
+    {"memory_id": "tf:m_ci", "text": "Run `make check` before pushing — CI blocks the merge if ruff formatting or mypy fails.", "kind": "lesson", "subject": "ci checks", "created_at": "2026-06-09", "reinforcement_count": 2, "evidence_event_ids": ["tf:e_ci"]},
+    {"memory_id": "tf:m_migrations", "text": "Database migrations run automatically during `make release` via Alembic; never run `alembic upgrade` by hand on prod.", "kind": "fact", "subject": "db migrations", "created_at": "2026-06-07", "evidence_event_ids": ["tf:e_migrate"]},
+    {"memory_id": "tf:m_ratelimit", "text": "The public API is rate-limited to 100 requests per minute per key in Redis, decided after the April overload incident.", "kind": "decision", "subject": "rate limiting", "created_at": "2026-06-06", "reinforcement_count": 2, "evidence_event_ids": ["tf:e_ratelimit"]}
+  ]
+}
