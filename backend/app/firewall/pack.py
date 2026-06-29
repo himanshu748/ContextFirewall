@@ -1,14 +1,18 @@
 """Build the trusted context pack — only firewall-approved memories reach the agent.
 
 The pack is what ContextFirewall hands the next agent. For the demo we also return
-``recall_answer`` (the ungoverned GRAPH_COMPLETION answer) so the UI can contrast
-"what the agent would have gotten" vs. "what the firewall let through".
+the *ungoverned baseline*: the raw set of memories a plain recall surfaces for the
+same task (stale, contradicted, leaked and unsupported items included), so the UI
+can contrast "what the agent would have gotten" vs. "what the firewall let through".
+
+The baseline is assembled from the exact candidates the firewall audited (the real
+ungoverned recall), using their already-redacted text so a leaked credential is
+never re-exposed.
 """
 from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from app.cognee_runtime.recall import recall_answer
 from app.firewall.audit import audit_memories
 
 _KIND_TITLES = {
@@ -49,6 +53,27 @@ def build_pack_markdown(query: str, included: List[Dict[str, Any]], excluded_cou
     return "\n".join(lines).strip()
 
 
+def build_raw_recall(candidates: List[Dict[str, Any]]) -> str:
+    """The ungoverned baseline: every recalled memory, unaudited and unfiltered.
+
+    This is exactly what a flat recall hands the next agent. Text is the firewall's
+    already-redacted form, so a leaked credential is never re-exposed in the baseline.
+    """
+    if not candidates:
+        return "Raw recall returned no memories for this task."
+    lines = ["Raw recall returns every memory it finds for this task, with no trust judgment:", ""]
+    for c in candidates[:12]:
+        text = (c.get("text") or "").strip()
+        if text:
+            lines.append(f"• {text}")
+    lines += [
+        "",
+        "A flat vector store hands all of these to the next agent, including the stale deploy "
+        "command, the contradicted claim, the leaked credential, and the unsupported number.",
+    ]
+    return "\n".join(lines)
+
+
 async def build_pack(
     query: str,
     *,
@@ -64,7 +89,7 @@ async def build_pack(
         if not v["passed"]
     ]
     pack_md = build_pack_markdown(query, included, len(excluded))
-    baseline = await recall_answer(query) if include_baseline else None
+    baseline = build_raw_recall(audit["candidates"]) if include_baseline else None
     return {
         "query": query,
         "pack_markdown": pack_md,
