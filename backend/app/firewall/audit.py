@@ -44,6 +44,7 @@ async def audit_cluster(
                 "trust_score": float(mem.get("trust_score", 0.0) or 0.0),
                 "status": mem.get("status", "candidate"),
                 "source_session_id": mem.get("source_session_id"),
+                "evidence_event_ids": list(mem.get("evidence_event_ids") or []),
                 "passed": passed,
                 "checks": [vars(o) for o in outcomes],
                 "block_reason": blocking.reason if blocking else None,

@@ -70,6 +70,7 @@ class MemoryVerdict(BaseModel):
     trust_score: float = 0.0
     status: str = "candidate"
     source_session_id: Optional[str] = None
+    evidence_event_ids: List[str] = Field(default_factory=list)
     passed: bool
     checks: List[CheckResult] = Field(default_factory=list)
     block_reason: Optional[str] = None
@@ -105,7 +106,8 @@ class PackResponse(BaseModel):
     pack_markdown: str
     included: List[str] = Field(default_factory=list)
     excluded: List[ExcludedMemory] = Field(default_factory=list)
-    recall_answer: Optional[str] = None  # raw cognee GRAPH_COMPLETION, for comparison
+    recall_answer: Optional[str] = None  # the ungoverned baseline (raw recall)
+    audit: Optional[AuditResponse] = None  # full per-memory verdicts (one call powers the console)
 
 
 # --- forget (governance) ------------------------------------------------------

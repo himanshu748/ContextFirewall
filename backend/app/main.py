@@ -118,6 +118,7 @@ async def pack(req: PackRequest) -> PackResponse:
         included=result["included"],
         excluded=result["excluded"],
         recall_answer=result.get("recall_answer"),
+        audit=AuditResponse(**result["audit"]) if result.get("audit") else None,
     )
 
 
