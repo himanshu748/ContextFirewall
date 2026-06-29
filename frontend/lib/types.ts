@@ -106,3 +106,11 @@ export interface RulesResponse {
   query: string;
   rules: string;
 }
+
+export interface IngestResponse {
+  session_id: string;
+  nodes_added: number;
+  memories_created: number;
+  cognified: boolean;
+  message: string;
+}

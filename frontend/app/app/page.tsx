@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ShieldCheck, ShieldX, Loader2, Circle } from "lucide-react";
+import { ShieldCheck, ShieldX, Loader2, Circle, Upload } from "lucide-react";
 import { api } from "@/lib/api";
 import type {
   CheckName,
@@ -18,6 +18,7 @@ import { RulesView } from "@/components/RulesView";
 import { QueryBar } from "@/components/QueryBar";
 import { MemoryCard } from "@/components/MemoryCard";
 import { MemoryDrawer } from "@/components/MemoryDrawer";
+import { IngestModal } from "@/components/IngestModal";
 import { PackPanel } from "@/components/PackPanel";
 import { Timeline } from "@/components/Timeline";
 import { GraphView } from "@/components/GraphView";
@@ -45,6 +46,7 @@ export default function Console() {
   const [graph, setGraph] = useState<GraphResponse | null>(null);
   const [queries, setQueries] = useState<string[]>([]);
   const [selected, setSelected] = useState<MemoryVerdict | null>(null);
+  const [ingestOpen, setIngestOpen] = useState(false);
 
   const audit = pack?.audit ?? null;
 
@@ -117,6 +119,15 @@ export default function Console() {
     if (pack) run(pack.query);
   };
 
+  const onIngested = () => {
+    setIngestOpen(false);
+    setGraph(null);
+    setEvents(null);
+    refreshHealth();
+    setView("firewall");
+    run(DEFAULT_QUERY);
+  };
+
   const blocked = audit?.candidates.filter((c) => !c.passed) ?? [];
   const passed = audit?.candidates.filter((c) => c.passed) ?? [];
   const online = !!health && health.status === "ok";
@@ -129,9 +140,17 @@ export default function Console() {
         {/* topbar */}
         <div className="sticky top-0 z-20 flex items-center justify-between border-b border-ink-800 bg-ink-950/70 px-6 py-3 backdrop-blur">
           <h2 className="text-sm font-semibold text-slate-200">{TITLES[view]}</h2>
-          <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
-            <Circle className={`h-2 w-2 ${online ? "fill-pass text-pass" : "fill-block text-block"}`} />
-            {online ? "Cognee live" : "offline"}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIngestOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-850 px-2.5 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-ink-600 hover:text-slate-100"
+            >
+              <Upload className="h-3.5 w-3.5" /> Ingest session
+            </button>
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+              <Circle className={`h-2 w-2 ${online ? "fill-pass text-pass" : "fill-block text-block"}`} />
+              {online ? "Cognee live" : "offline"}
+            </div>
           </div>
         </div>
 
@@ -142,7 +161,7 @@ export default function Console() {
             </div>
           )}
 
-          {view === "overview" && <Overview health={health} audit={audit} onView={setView} />}
+          {view === "overview" && <Overview health={health} audit={audit} onView={setView} onIngest={() => setIngestOpen(true)} />}
 
           {view === "rules" && <RulesView />}
 
@@ -270,6 +289,8 @@ export default function Console() {
           setView("replay");
         }}
       />
+
+      <IngestModal open={ingestOpen} onClose={() => setIngestOpen(false)} onIngested={onIngested} />
     </div>
   );
 }

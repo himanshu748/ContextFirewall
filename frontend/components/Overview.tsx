@@ -8,6 +8,7 @@ import {
   Activity,
   Boxes,
   ArrowRight,
+  Upload,
   type LucideIcon,
 } from "lucide-react";
 import type { AuditResponse, HealthResponse } from "@/lib/types";
@@ -40,10 +41,12 @@ export function Overview({
   health,
   audit,
   onView,
+  onIngest,
 }: {
   health: HealthResponse | null;
   audit: AuditResponse | null;
   onView: (v: ConsoleView) => void;
+  onIngest: () => void;
 }) {
   const c = health?.counts ?? {};
   const p = (health?.profile ?? {}) as Record<string, unknown>;
@@ -117,13 +120,21 @@ export function Overview({
         </div>
       </div>
 
-      <button
-        onClick={() => onView("firewall")}
-        className="group inline-flex items-center gap-2 rounded-lg bg-firewall-500 px-4 py-2.5 text-sm font-semibold text-ink-950 transition-colors hover:bg-firewall-400"
-      >
-        Run the firewall
-        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-      </button>
+      <div className="flex flex-wrap gap-3">
+        <button
+          onClick={() => onView("firewall")}
+          className="group inline-flex items-center gap-2 rounded-lg bg-firewall-500 px-4 py-2.5 text-sm font-semibold text-ink-950 transition-colors hover:bg-firewall-400"
+        >
+          Run the firewall
+          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+        </button>
+        <button
+          onClick={onIngest}
+          className="inline-flex items-center gap-2 rounded-lg border border-ink-700 bg-ink-850 px-4 py-2.5 text-sm font-medium text-slate-200 transition-colors hover:border-ink-600 hover:text-slate-100"
+        >
+          <Upload className="h-4 w-4" /> Ingest your own session
+        </button>
+      </div>
     </div>
   );
 }

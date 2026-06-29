@@ -4,6 +4,7 @@ import type {
   GraphResponse,
   HealthResponse,
   ImproveResponse,
+  IngestResponse,
   PackResponse,
   RulesResponse,
   SessionSummary,
@@ -33,6 +34,8 @@ export const api = {
     req<AuditResponse>("/audit", { method: "POST", body: JSON.stringify({ query, top_k }) }),
   pack: (query: string, top_k = 12) =>
     req<PackResponse>("/pack", { method: "POST", body: JSON.stringify({ query, top_k }) }),
+  ingest: (session: unknown, cognify = false) =>
+    req<IngestResponse>("/ingest", { method: "POST", body: JSON.stringify({ session, cognify }) }),
   forget: (memory_id: string, reason?: string) =>
     req<ForgetResponse>("/forget", { method: "POST", body: JSON.stringify({ memory_id, reason }) }),
   improve: () => req<ImproveResponse>("/improve", { method: "POST" }),
