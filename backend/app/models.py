@@ -73,6 +73,7 @@ class MemoryVerdict(BaseModel):
     passed: bool
     checks: List[CheckResult] = Field(default_factory=list)
     block_reason: Optional[str] = None
+    block_check: Optional[CheckName] = None
 
 
 class AuditRequest(BaseModel):
