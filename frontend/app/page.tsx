@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { LiveBadge } from "@/components/landing/LiveBadge";
 import { Reveal } from "@/components/landing/Reveal";
+import { LogoStrip } from "@/components/landing/LogoStrip";
 
 type Icon = React.ComponentType<{ className?: string }>;
 type Tone = "block" | "pass" | "warn" | "firewall";
@@ -87,7 +88,7 @@ export default function Landing() {
             href="/app"
             className="group inline-flex items-center gap-1.5 rounded-lg bg-firewall-500 px-3.5 py-2 text-sm font-medium text-ink-950 transition-colors hover:bg-firewall-400"
           >
-            Open live demo
+            Open the console
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
           </Link>
         </nav>
@@ -114,7 +115,7 @@ export default function Landing() {
               href="/app"
               className="group inline-flex w-full items-center justify-center gap-2 rounded-xl bg-firewall-500 px-5 py-3 text-sm font-semibold text-ink-950 transition-colors hover:bg-firewall-400 sm:w-auto"
             >
-              Open the live demo
+              Open the console
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </Link>
             <a
@@ -169,15 +170,8 @@ export default function Landing() {
         </Reveal>
       </section>
 
-      {/* ---------------- Stack strip ---------------- */}
-      <section className="border-y border-ink-800/60 bg-ink-950/40">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-10 gap-y-3 px-5 py-6 text-sm text-slate-500">
-          <span className="text-xs uppercase tracking-wider text-slate-600">Runs on real infrastructure</span>
-          {["Cognee", "Neo4j", "pgvector", "Hugging Face", "Next.js"].map((t) => (
-            <span key={t} className="font-mono text-slate-400">{t}</span>
-          ))}
-        </div>
-      </section>
+      {/* ---------------- Logos ---------------- */}
+      <LogoStrip />
 
       {/* ---------------- Problem ---------------- */}
       <section className="mx-auto max-w-6xl px-5 py-24">
@@ -366,18 +360,18 @@ export default function Landing() {
             <div className="pointer-events-none absolute inset-0 cf-grid opacity-60" aria-hidden />
             <div className="relative">
               <h2 className="mx-auto max-w-2xl text-3xl font-semibold tracking-tight text-slate-100 sm:text-4xl">
-                See it run on a live Cognee backend.
+                Put a firewall in front of your agents' memory.
               </h2>
               <p className="mx-auto mt-4 max-w-xl text-base text-slate-400">
-                No signup. A live Cognee knowledge graph with real audit verdicts on a sample agent session, every
-                check computed live.
+                Open the console and watch every remembered fact get audited live on Cognee, before it reaches
+                your next agent.
               </p>
               <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <Link
                   href="/app"
                   className="group inline-flex items-center justify-center gap-2 rounded-xl bg-firewall-500 px-6 py-3 text-sm font-semibold text-ink-950 transition-colors hover:bg-firewall-400"
                 >
-                  Open the live demo
+                  Open the console
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                 </Link>
                 <a

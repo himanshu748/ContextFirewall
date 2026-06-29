@@ -120,7 +120,7 @@ export default function Page() {
           <div className="mb-6 flex items-center justify-between rounded-xl border border-firewall-600/40 bg-firewall-500/5 px-5 py-4">
             <div className="text-sm text-slate-300">
               <Database className="mr-2 inline h-4 w-4 text-firewall-400" />
-              No memories yet. Seed the sample taskflow-api session to start.
+              No memories yet. Load the sample taskflow-api project to see the firewall in action.
             </div>
             <button
               onClick={seed}
@@ -128,7 +128,7 @@ export default function Page() {
               className="inline-flex items-center gap-1.5 rounded-lg bg-firewall-500 px-3 py-1.5 text-sm font-medium text-ink-950 hover:bg-firewall-400 disabled:opacity-60"
             >
               {seeding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}
-              Seed demo
+              Load sample project
             </button>
           </div>
         )}
