@@ -18,6 +18,7 @@ export interface MemoryVerdict {
   trust_score: number;
   status: string;
   source_session_id: string | null;
+  evidence_event_ids: string[];
   passed: boolean;
   checks: CheckResult[];
   block_reason: string | null;
@@ -43,6 +44,7 @@ export interface PackResponse {
   included: string[];
   excluded: ExcludedMemory[];
   recall_answer: string | null;
+  audit: AuditResponse | null;
 }
 
 export interface HealthResponse {
@@ -91,4 +93,16 @@ export interface ForgetResponse {
   memory_id: string;
   status: string;
   message: string;
+}
+
+export interface ImproveResponse {
+  status: string;
+  rules_total?: number;
+  rules_added?: number;
+  message: string;
+}
+
+export interface RulesResponse {
+  query: string;
+  rules: string;
 }

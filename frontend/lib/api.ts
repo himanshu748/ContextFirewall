@@ -3,7 +3,9 @@ import type {
   ForgetResponse,
   GraphResponse,
   HealthResponse,
+  ImproveResponse,
   PackResponse,
+  RulesResponse,
   SessionSummary,
   TimelineResponse,
 } from "./types";
@@ -33,6 +35,9 @@ export const api = {
     req<PackResponse>("/pack", { method: "POST", body: JSON.stringify({ query, top_k }) }),
   forget: (memory_id: string, reason?: string) =>
     req<ForgetResponse>("/forget", { method: "POST", body: JSON.stringify({ memory_id, reason }) }),
+  improve: () => req<ImproveResponse>("/improve", { method: "POST" }),
+  rules: (query?: string) =>
+    req<RulesResponse>(`/rules${query ? `?query=${encodeURIComponent(query)}` : ""}`),
   graph: (limit = 400) => req<GraphResponse>(`/graph?limit=${limit}`),
   sessions: () => req<SessionSummary[]>("/sessions"),
   timeline: (sessionId: string) =>
