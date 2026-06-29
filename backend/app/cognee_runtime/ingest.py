@@ -123,7 +123,7 @@ def build_nodes(session: dict) -> Tuple[List[Any], List[Memory]]:
                 kind=ev.get("kind", "event"),
                 content=ev.get("content", ""),
                 timestamp=ev.get("timestamp"),
-                ordinal=ev.get("ordinal", i),
+                ordinal=(ev.get("ordinal") if ev.get("ordinal") is not None else i),
                 session=sess,
             )
         )

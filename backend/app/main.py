@@ -93,7 +93,10 @@ async def health() -> HealthResponse:
 
 @app.post("/ingest", response_model=IngestResponse)
 async def ingest(req: IngestRequest) -> IngestResponse:
-    res = await ingest_session(req.session.model_dump(), cognify=req.cognify)
+    try:
+        res = await ingest_session(req.session.model_dump(), cognify=req.cognify)
+    except Exception as e:  # noqa: BLE001 — surface a clean message to the console
+        raise HTTPException(status_code=400, detail=f"Ingest failed: {e}")
     return IngestResponse(
         session_id=res["session_id"],
         nodes_added=res["nodes_added"],
