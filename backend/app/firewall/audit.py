@@ -1,4 +1,4 @@
-"""Audit — run the four firewall checks over recalled candidate memories.
+"""Audit: run the four firewall checks over recalled candidate memories.
 
 Returns a per-memory verdict (pass/block + the reason from each check). Memory
 text is redacted on the way out so a leaked secret is never re-exposed to the UI.

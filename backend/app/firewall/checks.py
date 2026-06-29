@@ -95,7 +95,7 @@ def secret_check(mem: Dict[str, Any]) -> CheckOutcome:
         return CheckOutcome(
             "secret",
             False,
-            f"Leaked credential blocked — {preview}. Secrets must never enter a context pack.",
+            f"Leaked credential blocked: {preview}. Secrets must never enter a context pack.",
             "block",
         )
     return CheckOutcome("secret", True, "No credentials detected.", "info")
@@ -110,11 +110,11 @@ def staleness_check(mem: Dict[str, Any], cluster: List[Dict[str, Any]]) -> Check
         return CheckOutcome(
             "staleness",
             False,
-            f"Stale — superseded by a newer value for “{mem.get('subject')}”: "
+            f"Stale: superseded by a newer value for “{mem.get('subject')}”: "
             f"“{_short(latest.get('text'))}”{_dated(latest)}.",
             "block",
         )
-    return CheckOutcome("staleness", True, "Current — no newer value on this subject.", "info")
+    return CheckOutcome("staleness", True, "Current: no newer value on this subject.", "info")
 
 
 # --- check 3: contradiction (LLM-adjudicated) ---------------------------------
@@ -126,7 +126,7 @@ async def contradiction_check(
 ) -> CheckOutcome:
     # Only adjudicate memories that share a subject. A strictly-newer peer is a
     # temporal supersession (staleness's job), so drop those. Critically, a memory
-    # is only *contradicted* if a MORE-authoritative peer disagrees — the winner of
+    # is only *contradicted* if a MORE-authoritative peer disagrees, the winner of
     # a conflict passes, only the weaker side is blocked.
     peers = _same_subject_peers(mem, cluster)
     peers = [p for p in peers if not _is_newer(p.get("created_at"), mem.get("created_at"))]
@@ -169,7 +169,7 @@ async def _llm_contradiction(
     system = (
         "You audit memories for an AI coding agent. Decide whether the CANDIDATE memory is "
         "directly CONTRADICTED by any ESTABLISHED memory (states something logically "
-        "incompatible — not merely different or more detailed). Prefer the memory backed by "
+        "incompatible, not merely different or more detailed). Prefer the memory backed by "
         "more evidence/higher trust. Respond ONLY with compact JSON: "
         '{"contradicted": true|false, "by_memory_id": "<id>"|null, "reason": "<short reason>"}.'
     )
@@ -186,8 +186,8 @@ async def _llm_contradiction(
     if not data:
         return None  # LLM unavailable -> caller uses deterministic fallback
     if data.get("contradicted") is True:
-        reason = str(data.get("reason") or "Contradicted by an established memory.")
-        return CheckOutcome("contradiction", False, f"Contradiction — {reason}", "block")
+        reason = str(data.get("reason") or "Contradicted by an established memory.").replace(" \u2014 ", ": ").replace("\u2014", ", ")  # keep reasons em-dash-free
+        return CheckOutcome("contradiction", False, f"Contradiction: {reason}", "block")
     return CheckOutcome("contradiction", True, "No contradiction (LLM-adjudicated).", "info")
 
 
@@ -199,14 +199,14 @@ def evidence_check(mem: Dict[str, Any], *, min_trust: float = MIN_TRUST) -> Chec
         return CheckOutcome(
             "evidence",
             False,
-            f"Unsupported — trust {trust:.2f} is below {VERY_LOW_TRUST:.2f}; not enough support to pass.",
+            f"Unsupported: trust {trust:.2f} is below {VERY_LOW_TRUST:.2f}; not enough support to pass.",
             "block",
         )
     if trust < min_trust and not has_evidence:
         return CheckOutcome(
             "evidence",
             False,
-            f"Unsupported — trust {trust:.2f} < {min_trust:.2f} and no evidence recorded in the session.",
+            f"Unsupported: trust {trust:.2f} < {min_trust:.2f} and no evidence recorded in the session.",
             "block",
         )
     detail = f"trust {trust:.2f}" + (", evidence linked" if has_evidence else "")

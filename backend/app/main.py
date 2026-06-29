@@ -1,4 +1,4 @@
-"""ContextFirewall API — FastAPI surface over the Cognee-backed firewall engine.
+"""ContextFirewall API: FastAPI surface over the Cognee-backed firewall engine.
 
 Endpoints:
   GET  /health                      profile + node counts
@@ -44,7 +44,7 @@ from app.models import (
     TimelineResponse,
 )
 
-# data/ lives under backend/, not backend/app/ — resolve from the backend dir.
+# data/ lives under backend/, not backend/app/, so resolve from the backend dir.
 DEMO_SESSION = Path(__file__).resolve().parents[1] / "data" / "sessions" / "taskflow_onboarding.json"
 
 
@@ -60,7 +60,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="ContextFirewall API",
-    description="Guardrails for the memory layer — a trust firewall for AI coding-agent memory, built on Cognee.",
+    description="Guardrails for the memory layer: a trust firewall for AI coding-agent memory, built on Cognee.",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -95,7 +95,7 @@ async def health() -> HealthResponse:
 async def ingest(req: IngestRequest) -> IngestResponse:
     try:
         res = await ingest_session(req.session.model_dump(), cognify=req.cognify)
-    except Exception as e:  # noqa: BLE001 — surface a clean message to the console
+    except Exception as e:  # noqa: BLE001 (surface a clean message to the console)
         raise HTTPException(status_code=400, detail=f"Ingest failed: {e}")
     return IngestResponse(
         session_id=res["session_id"],
@@ -161,7 +161,7 @@ async def timeline(session_id: str) -> TimelineResponse:
 
 
 async def _reset_memory() -> None:
-    """Wipe all Cognee stores — used to keep /demo/seed idempotent on the demo Space."""
+    """Wipe all Cognee stores, used to keep /demo/seed idempotent on the demo Space."""
     configure_cognee()
     import cognee
 

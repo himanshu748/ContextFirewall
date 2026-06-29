@@ -1,6 +1,6 @@
 """Secret / sensitivity detection for ContextFirewall.
 
-Pure-Python — no cognee, no network — so it is fast, deterministic, and trivially
+Pure-Python, no cognee, no network, so it is fast, deterministic, and trivially
 unit-testable. The firewall's *secret check* uses this: any candidate memory whose
 text contains a credential is BLOCKED before it can reach the trusted context pack,
 and the reason it surfaces is always redacted so the secret is never re-leaked into
@@ -107,7 +107,7 @@ def find_secrets(text: str, *, entropy_threshold: float = 4.2) -> List[SecretFin
             findings.append(SecretFinding(kind, label, _redact(value), m.start(), m.end()))
             spans.append((m.start(), m.end()))
 
-    # Entropy fallback — only long, mixed-class, high-entropy tokens not already
+    # Entropy fallback: only long, mixed-class, high-entropy tokens not already
     # covered. Requires upper+lower+digit to avoid git SHAs (hex) and UUIDs.
     for m in _TOKEN_RE.finditer(text):
         if _overlaps(m.start(), m.end(), spans):

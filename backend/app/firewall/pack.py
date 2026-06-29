@@ -1,4 +1,4 @@
-"""Build the trusted context pack — only firewall-approved memories reach the agent.
+"""Build the trusted context pack: only firewall-approved memories reach the agent.
 
 The pack is what ContextFirewall hands the next agent. For the demo we also return
 the *ungoverned baseline*: the raw set of memories a plain recall surfaces for the
