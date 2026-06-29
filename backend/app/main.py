@@ -25,6 +25,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.cognee_runtime.bootstrap import configure_cognee
 from app.cognee_runtime.forget import forget_memory
 from app.cognee_runtime.graph import count_nodes, graph_view, list_sessions, session_timeline
+from app.cognee_runtime.improve import improve as improve_memory, recall_rules
 from app.cognee_runtime.ingest import hydrate_demo_secrets, ingest_session
 from app.firewall.audit import audit_memories
 from app.firewall.pack import build_pack
@@ -124,6 +125,17 @@ async def pack(req: PackRequest) -> PackResponse:
 async def forget(req: ForgetRequest) -> ForgetResponse:
     result = await forget_memory(req.memory_id, reason=req.reason)
     return ForgetResponse(**result)
+
+
+@app.post("/improve")
+async def improve_endpoint() -> dict:
+    """Distil durable coding rules from stored sessions (Cognee memify / improve)."""
+    return await improve_memory()
+
+
+@app.get("/rules")
+async def rules_endpoint(query: str = "What coding rules apply when working in this repo?") -> dict:
+    return {"query": query, "rules": await recall_rules(query)}
 
 
 @app.get("/graph", response_model=GraphResponse)

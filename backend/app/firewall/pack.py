@@ -23,7 +23,7 @@ _KIND_ORDER = ["command", "config", "decision", "lesson", "fact", "credential"]
 
 
 def build_pack_markdown(query: str, included: List[Dict[str, Any]], excluded_count: int) -> str:
-    lines: List[str] = [f"# Trusted context pack", f"_Task: {query}_", ""]
+    lines: List[str] = ["# Trusted context pack", f"_Task: {query}_", ""]
     if not included:
         lines.append("_No memories passed the firewall for this task._")
     else:

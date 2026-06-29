@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background: #08090c;
+  color: #e7eaf0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* subtle grid backdrop */
+body {
+  background-image:
+    radial-gradient(60rem 60rem at 80% -10%, rgba(56, 189, 248, 0.06), transparent 60%),
+    linear-gradient(to bottom, #08090c, #08090c);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e2330;
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2a3040;
+}
+
+/* Markdown rendering for the trusted context pack */
+.pack-md h1 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #f3f5f9;
+  margin: 0 0 0.25rem;
+}
+.pack-md h2 {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #7c8696;
+  margin: 1rem 0 0.4rem;
+}
+.pack-md p {
+  color: #aeb6c4;
+  font-size: 0.85rem;
+  margin: 0.15rem 0;
+}
+.pack-md ul {
+  margin: 0.2rem 0 0.4rem;
+  padding-left: 0;
+  list-style: none;
+}
+.pack-md li {
+  font-size: 0.85rem;
+  color: #cbd2dd;
+  padding: 0.35rem 0.6rem;
+  border-left: 2px solid #1f5641;
+  background: rgba(52, 211, 153, 0.05);
+  border-radius: 0 6px 6px 0;
+  margin: 0.3rem 0;
+}
+.pack-md hr {
+  border: none;
+  border-top: 1px solid #1e2330;
+  margin: 0.8rem 0;
+}
+.pack-md code {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.8em;
+  background: #11141b;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  color: #38bdf8;
+}
+.pack-md em {
+  color: #7c8696;
+  font-style: normal;
+  font-size: 0.78rem;
+}
