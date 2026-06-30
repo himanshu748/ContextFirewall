@@ -25,6 +25,7 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 from app.activity import log_activity
 from app.cognee_runtime.forget import forget_memory as _forget_memory
@@ -47,7 +48,14 @@ cf_mcp = FastMCP(
     "contextfirewall",
     instructions=INSTRUCTIONS,
     stateless_http=True,
+    # Return tool results as plain JSON (not an SSE stream): simplest and most
+    # proxy-friendly path through the Hugging Face Space edge.
+    json_response=True,
     streamable_http_path="/",
+    # This is a public, intentionally-shared endpoint. DNS-rebinding Host/Origin
+    # validation (meant to protect a localhost MCP server from malicious web pages)
+    # would otherwise reject the Space's public host with 421 "Invalid Host header".
+    transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
 )
 
 
