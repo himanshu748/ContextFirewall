@@ -25,7 +25,7 @@ Every candidate memory runs a gauntlet:
 
 - **Staleness.** Temporal supersession. If a newer value exists for the same subject, the old one is stale.
 - **Contradiction.** An LLM adjudicates within a recalled cluster of same-subject memories. Crucially, only the *weaker* side of a conflict is blocked; the better-supported memory passes. Authority is trust score, then evidence, then recency.
-- **Secret.** A deterministic detector for API keys, database connection URIs, private keys, and JWTs. Matches are redacted, so the secret is never re-leaked into a log or the pack.
+- **Secret.** A deterministic detector for API keys, database connection URIs, private keys, and JWTs. Matches are redacted at ingest, so the credential never persists in the store and is never re-leaked into a log or the pack.
 - **Evidence.** A trust score derived from real signals (evidence links, reinforcement, verification). Unsupported, low-trust claims do not pass.
 
 Each verdict is explainable. Click any memory in the console and you see all four checks, the trust score, the source session, and a one-click **forget** button.

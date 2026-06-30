@@ -27,7 +27,7 @@ ContextFirewall records agent sessions into a Cognee knowledge graph and, **befo
 |------|------------------------|
 | **Staleness / validity** | a newer value supersedes it (for example, the deploy target changed) |
 | **Contradiction** | a better-supported memory disagrees with it (the weaker side is blocked, the winner passes) |
-| **Secret / sensitivity** | it contains a credential (API key, DB URI, private key); it is redacted and never re-leaked |
+| **Secret / sensitivity** | it contains a credential (API key, DB URI, private key); it is redacted at ingest, so it never persists in the store and never reaches the pack |
 | **Evidence / trust** | it is unsupported: a low trust score with no evidence recorded in the session |
 
 A human can **forget** any memory; it is deleted from Cognee (graph and vector) so it can never resurface in recall or a future pack.
@@ -103,6 +103,14 @@ claude mcp add contextfirewall \
 
 Setup for Cursor and others, plus local and privacy notes, are in [`mcp/README.md`](mcp/README.md). For private use, point `CF_API_BASE` at your own instance so your memories stay yours.
 
+## Privacy and local-only mode
+
+ContextFirewall is built to keep secrets and context on your machine.
+
+- **Secrets are redacted at ingest.** When a session is remembered, any detected credential (API key, database URI, private key, AWS key, JWT) is stripped before it is written to the graph, the vector store, or the cognified transcript. It never persists, and the firewall still blocks the memory it came from. The read paths redact defensively as a second layer.
+- **Storage is local by default.** In dev, Cognee runs on local SQLite, LanceDB, and Kuzu, so nothing leaves the machine. The managed Neo4j Aura and Supabase pgvector setup is only for the hosted demo; self-host and your memory graph stays yours.
+- **Local model option.** The model and embedding endpoints are environment-configurable (`LLM_ENDPOINT`, `LLM_MODEL`, `EMBEDDING_*`). Point them at a local OpenAI-compatible server (for example Ollama) for a fully offline deployment where prompts and embeddings never leave the machine either.
+
 ## Run locally
 
 ```bash
@@ -144,7 +152,6 @@ Everything **downstream of those inputs is real system output**: the verdicts, t
 ## Roadmap
 
 - **MCP server** so any coding agent can pull the trusted pack and record memories (shipped, see `mcp/`).
-- **Redact at ingest**, so secrets are stripped before they are ever stored, not only at pack time.
 - **Trust re-weighting over time**, reinforcing memories that prove correct and decaying those that do not (Cognee's improve verb).
 - **Continuous auto-recording** of live agent sessions, instead of explicit commits.
 - **Cross-session accumulating memory** with the firewall governing the growing graph.
