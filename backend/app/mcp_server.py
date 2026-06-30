@@ -84,6 +84,13 @@ _WRITE_HINT = (
     "the console, mint a key, and add it as 'Authorization: Bearer cf_live_...' in your "
     "MCP server config to get your own private, writable memory namespace."
 )
+_SAFE_KIND_LABELS = {"fact", "decision", "lesson", "command", "config", "credential"}
+
+
+def _remember_kind_label(kind: object) -> str:
+    if isinstance(kind, str) and kind.lower() in _SAFE_KIND_LABELS:
+        return kind.lower()
+    return "memory"
 
 
 def _pack_header(audit: Dict[str, Any], base_note: str = "") -> str:
@@ -179,7 +186,7 @@ async def remember(text: str, subject: str = "", kind: str = "fact") -> str:
         return _WRITE_HINT
     res = await _remember_fact(text, subject=subject or None, kind=kind, namespace=ident.namespace)
     subj = f" on '{res['subject']}'" if res.get("subject") else ""
-    log_activity("mcp", "remember", f"stored {kind or 'fact'}")
+    log_activity("mcp", "remember", f"stored a {_remember_kind_label(kind)}")
     return (
         f"Remembered {kind}{subj} as {res['memory_id']}. It is now in Cognee and will be "
         f"audited by the firewall on the next get_trusted_context call."
@@ -196,7 +203,8 @@ async def forget_memory(memory_id: str, reason: str = "rejected via MCP") -> str
     res = await _forget_memory(
         memory_id, reason=reason, allowed_namespaces={ident.namespace}, allow_demo=ident.allow_demo_write
     )
-    log_activity("mcp", "forget_memory", f"forgot {memory_id}")
+    status = str(res.get("status", "error"))
+    log_activity("mcp", "forget_memory", "forgot a memory" if status == "forgotten" else f"forget {status}")
     return f"{res.get('status', '?')}: {res.get('message', '')}"
 
 
