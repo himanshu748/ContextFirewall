@@ -28,4 +28,8 @@ COPY --chown=user:user . .
 ENV CF_DATA_DIR=/home/user/app/.cf_data
 
 EXPOSE 7860
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860"]
+# --proxy-headers + trusted forwarded IPs so uvicorn honors the Space proxy's
+# X-Forwarded-Proto (https). Without it, the /mcp -> /mcp/ redirect Location is
+# emitted as http://, the MCP client follows to http, the Space 301s it back to
+# https as a GET, the POST body is lost, and the MCP handshake hangs.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860", "--proxy-headers", "--forwarded-allow-ips=*"]
