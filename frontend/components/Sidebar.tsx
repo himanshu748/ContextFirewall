@@ -39,14 +39,12 @@ export function Sidebar({
   health,
   onSeed,
   seeding,
-  canWrite,
 }: {
   view: ConsoleView;
   setView: (v: ConsoleView) => void;
   health: HealthResponse | null;
   onSeed: () => void;
   seeding: boolean;
-  canWrite: boolean;
 }) {
   const online = !!health && health.status === "ok";
   const mem = health?.counts?.Memory ?? 0;
@@ -136,8 +134,8 @@ export function Sidebar({
         </button>
         <button
           onClick={onSeed}
-          disabled={seeding || !canWrite}
-          title={!canWrite ? "Read-only demo mode. Operator token required to write." : undefined}
+          disabled={seeding}
+          title="Reload the bundled sample taskflow-api session into the demo namespace."
           className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-ink-700 bg-ink-850 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-ink-600 hover:text-slate-100 disabled:opacity-60"
         >
           {seeding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Database className="h-3.5 w-3.5" />}
