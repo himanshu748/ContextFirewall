@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+from app.firewall.secrets import redact_text
+
 from .bootstrap import configure_cognee
 
 RULES_NODESET = "coding_agent_rules"
@@ -58,5 +60,5 @@ async def recall_rules(query: str = "What coding rules apply when working in thi
     except Exception as exc:  # noqa: BLE001
         return f"(coding rules unavailable: {exc!r})"
     if isinstance(res, list):
-        return " ".join(str(x) for x in res) if res else ""
-    return str(res)
+        return redact_text(" ".join(str(x) for x in res) if res else "")
+    return redact_text(str(res))

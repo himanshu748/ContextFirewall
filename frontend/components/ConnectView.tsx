@@ -15,7 +15,6 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { API_BASE } from "@/lib/api";
-import { ActivityFeed } from "./ActivityFeed";
 
 const MCP_URL = `${API_BASE}/mcp`;
 const UVX_SPEC = 'git+https://github.com/himanshu748/ContextFirewall#subdirectory=mcp';
@@ -136,8 +135,6 @@ export function ConnectView({ online }: { online: boolean }) {
       </div>
 
       {/* live activity */}
-      <ActivityFeed />
-
 
       {/* tool catalog */}
       <div>

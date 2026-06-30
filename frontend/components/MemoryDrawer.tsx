@@ -10,11 +10,13 @@ export function MemoryDrawer({
   onClose,
   onForget,
   onJumpToEvidence,
+  canForget,
 }: {
   verdict: MemoryVerdict | null;
   onClose: () => void;
   onForget?: (id: string) => Promise<void>;
   onJumpToEvidence?: (eventId: string) => void;
+  canForget: boolean;
 }) {
   const [forgetting, setForgetting] = useState(false);
   if (!verdict) return null;
@@ -136,9 +138,13 @@ export function MemoryDrawer({
                   setForgetting(false);
                 }
               }}
-              disabled={forgetting}
+              disabled={forgetting || !canForget}
               className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-xs font-medium text-slate-300 transition-colors hover:border-block-border hover:text-block disabled:opacity-50"
-              title="Delete this memory from Cognee (graph + vector). The forget() verb."
+              title={
+                canForget
+                  ? "Delete this memory from Cognee (graph + vector). The forget() verb."
+                  : "Read-only demo mode. Operator token required to forget."
+              }
             >
               {forgetting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
               Forget this memory

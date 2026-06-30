@@ -60,7 +60,13 @@ async def audit_cluster(
     }
 
 
-async def audit_memories(query: str, *, top_k: int = 12, use_llm: bool = True) -> Dict[str, Any]:
+async def audit_memories(
+    query: str,
+    *,
+    top_k: int = 12,
+    use_llm: bool = True,
+    namespaces=None,
+) -> Dict[str, Any]:
     """Recall candidates from Cognee and audit them."""
-    cluster = await recall_memory_candidates(query, top_k=top_k)
+    cluster = await recall_memory_candidates(query, top_k=top_k, namespaces=namespaces)
     return await audit_cluster(query, cluster, use_llm=use_llm)

@@ -101,7 +101,7 @@ def _derive_memories_from_events(session: dict) -> List[dict]:
     return out
 
 
-def build_nodes(session: dict) -> Tuple[List[Any], List[Memory]]:
+def build_nodes(session: dict, namespace: str) -> Tuple[List[Any], List[Memory]]:
     """Construct the typed DataPoint graph for one recorded session."""
     sid = session["session_id"]
     repo_d = session.get("repo", {}) or {}
@@ -109,6 +109,7 @@ def build_nodes(session: dict) -> Tuple[List[Any], List[Memory]]:
         name=repo_d.get("name", "unknown-repo"),
         url=repo_d.get("url"),
         description=repo_d.get("description"),
+        namespace=namespace,
     )
     sess = AgentSession(
         session_id=sid,
@@ -116,6 +117,7 @@ def build_nodes(session: dict) -> Tuple[List[Any], List[Memory]]:
         agent=session.get("agent"),
         started_at=session.get("started_at"),
         repo=repo,
+        namespace=namespace,
     )
 
     events: List[SessionEvent] = []
@@ -148,6 +150,7 @@ def build_nodes(session: dict) -> Tuple[List[Any], List[Memory]]:
             reinforcement_count=int(m.get("reinforcement_count", 1) or 1),
             evidence_event_ids=list(m.get("evidence_event_ids") or []),
             source_session_id=sid,
+            namespace=namespace,
         )
         memories.append(mem)
         by_id[mid] = mem
@@ -177,14 +180,14 @@ def _redact_session_secrets(session: dict) -> None:
             e["content"] = redact_text(e["content"])
 
 
-async def ingest_session(session: dict, *, cognify: bool = True) -> dict:
+async def ingest_session(session: dict, *, cognify: bool = True, namespace: str = "public") -> dict:
     """Remember one session: insert typed nodes (+ optionally build the entity graph)."""
     configure_cognee()
     _redact_session_secrets(session)  # secrets never reach durable storage
     import cognee
     from cognee.tasks.storage import add_data_points
 
-    nodes, memories = build_nodes(session)
+    nodes, memories = build_nodes(session, namespace)
     await add_data_points(nodes)
 
     cognified = False
@@ -209,6 +212,7 @@ async def remember_fact(
     *,
     trust_score: Optional[float] = None,
     cognify: bool = False,
+    namespace: str = "public",
 ) -> dict:
     """Remember a single durable fact the firewall will audit (the 'remember' verb, one call).
 
@@ -253,7 +257,7 @@ async def remember_fact(
         ],
         "memories": [mem],
     }
-    res = await ingest_session(session, cognify=cognify)
+    res = await ingest_session(session, cognify=cognify, namespace=namespace)
     return {
         "memory_id": mid,
         "subject": mem["subject"],
