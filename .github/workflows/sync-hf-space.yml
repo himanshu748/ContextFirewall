@@ -1,0 +1,65 @@
+name: Sync backend to Hugging Face Space
+
+# Deploys the FastAPI + Cognee backend to the Hugging Face Space whenever the
+# backend changes on main. The Space root is the backend/ directory (its
+# Dockerfile notes "Deployed with the backend/ directory as the Space root"),
+# and the Space README must carry HF frontmatter, which lives in
+# backend/README_hf.md and is published as README.md on the Space.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/sync-hf-space.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: hf-space-sync
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Push backend/ to the Hugging Face Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE: HIMANSHUKUMARJHA/contextfirewall
+        run: |
+          set -euo pipefail
+          if [ -z "${HF_TOKEN:-}" ]; then
+            echo "::error::HF_TOKEN secret is not set. Add a write-scoped Hugging Face token as the HF_TOKEN repo secret."
+            exit 1
+          fi
+
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+
+          # Build the deploy snapshot from backend/, publishing README_hf.md as README.md.
+          rm -rf /tmp/space && mkdir -p /tmp/space
+          cp -a backend/. /tmp/space/
+          if [ -f /tmp/space/README_hf.md ]; then
+            mv -f /tmp/space/README_hf.md /tmp/space/README.md
+          fi
+
+          # Clone the existing Space so git history (and LFS pointers) are preserved.
+          git clone "https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}" /tmp/hf
+
+          # Mirror the snapshot into the Space working tree. Keep the Space's own
+          # git metadata and .gitattributes (LFS config) intact.
+          rsync -a --delete \
+            --exclude=".git/" \
+            --exclude=".gitattributes" \
+            /tmp/space/ /tmp/hf/
+
+          cd /tmp/hf
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to deploy."
+            exit 0
+          fi
+          git commit -m "Sync from GitHub ${GITHUB_REPOSITORY}@${GITHUB_SHA}"
+          git push
