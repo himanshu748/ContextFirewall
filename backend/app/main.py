@@ -12,20 +12,26 @@ Endpoints:
   GET  /graph                       knowledge-graph nodes/edges for the viz
   GET  /sessions                    recorded sessions
   GET  /sessions/{id}/timeline      replay timeline for a session
-  POST /demo/seed                   ingest the bundled sample session
+  POST /demo/seed                   ingest the bundled sample session (idempotent, non-destructive)
   GET  /demo/queries                suggested demo queries
+  POST /reset                       admin-only: wipe Cognee stores (requires X-Admin-Token)
   ANY  /mcp                         MCP server (streamable HTTP): the six firewall tools
 
 The same six MCP tools also ship as a local stdio package under ``mcp/``.
+
+Destructive operations (pruning the stores) are gated behind an admin token so the
+public demo deployment cannot be wiped by an anonymous caller. Set ``CF_ADMIN_TOKEN``
+in the environment to enable them; without it, destructive paths are disabled.
 """
 from __future__ import annotations
 
 import json
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.activity import get_activity, log_activity
@@ -93,6 +99,20 @@ app.add_middleware(
 # here to get a governed memory layer. The same six tools are also shipped as a
 # local stdio package under mcp/ for laptops.
 app.mount("/mcp", mcp_http_app)
+
+
+def _admin_token_ok(token: Optional[str]) -> bool:
+    """True only when an admin token is configured AND the caller presents the match."""
+    configured = os.environ.get("CF_ADMIN_TOKEN")
+    return bool(configured) and bool(token) and token == configured
+
+
+def _require_admin(token: Optional[str]) -> None:
+    """Gate a destructive operation. 403 if no admin token is configured or it does not match."""
+    if not os.environ.get("CF_ADMIN_TOKEN"):
+        raise HTTPException(status_code=403, detail="Destructive operations are disabled on this deployment.")
+    if not _admin_token_ok(token):
+        raise HTTPException(status_code=403, detail="A valid X-Admin-Token is required for this operation.")
 
 
 @app.get("/")
@@ -229,7 +249,7 @@ async def timeline(session_id: str) -> TimelineResponse:
 
 
 async def _reset_memory() -> None:
-    """Wipe all Cognee stores, used to keep /demo/seed idempotent on the demo Space."""
+    """Wipe all Cognee stores. Admin-gated; never reachable by an anonymous caller."""
     configure_cognee()
     import cognee
 
@@ -241,18 +261,53 @@ async def _reset_memory() -> None:
 
 
 @app.post("/reset")
-async def reset() -> dict:
+async def reset(x_admin_token: Optional[str] = Header(default=None, alias="X-Admin-Token")) -> dict:
+    """Admin-only: wipe all Cognee memory. Requires a valid X-Admin-Token."""
+    _require_admin(x_admin_token)
     await _reset_memory()
     return {"status": "ok", "message": "All Cognee memory pruned."}
 
 
+async def _demo_already_seeded() -> bool:
+    try:
+        counts = await count_nodes()
+        return int(counts.get("Memory", 0)) > 0
+    except Exception:  # noqa: BLE001
+        return False
+
+
 @app.post("/demo/seed", response_model=IngestResponse)
-async def demo_seed(cognify: bool = True, reset: bool = True) -> IngestResponse:
+async def demo_seed(
+    cognify: bool = True,
+    reset: bool = False,
+    x_admin_token: Optional[str] = Header(default=None, alias="X-Admin-Token"),
+) -> IngestResponse:
+    """Seed the bundled sample session.
+
+    Non-destructive and idempotent by default: if memory already exists it is left
+    untouched (this also prevents the old double-ingest from proxy retries). A
+    ``reset=true`` prune-and-reseed is honored only for an authenticated admin; for
+    everyone else it silently downgrades to the safe idempotent seed, so the public
+    "Reload sample project" button keeps working but can never wipe the demo.
+    """
     if not DEMO_SESSION.exists():
         raise HTTPException(status_code=404, detail="bundled demo session not found")
-    # Idempotent by default: prune first so repeated seeds (or proxy retries) never duplicate.
-    if reset:
+
+    do_reset = bool(reset) and _admin_token_ok(x_admin_token)
+    if do_reset:
         await _reset_memory()
+    elif await _demo_already_seeded():
+        counts = await count_nodes()
+        session = hydrate_demo_secrets(json.loads(DEMO_SESSION.read_text()))
+        sid = session.get("session_id") or session.get("id") or "demo-session"
+        return IngestResponse(
+            session_id=sid,
+            nodes_added=0,
+            memories_created=int(counts.get("Memory", 0)),
+            cognified=True,
+            message="Sample session already loaded; no changes made.",
+        )
+
     session = hydrate_demo_secrets(json.loads(DEMO_SESSION.read_text()))
     res = await ingest_session(session, cognify=cognify)
     return IngestResponse(
