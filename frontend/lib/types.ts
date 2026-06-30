@@ -32,6 +32,18 @@ export interface AuditResponse {
   blocked_count: number;
 }
 
+export interface ActivityEvent {
+  id: number;
+  ts: string;
+  source: "mcp" | "api" | string;
+  tool: string;
+  detail: string;
+}
+
+export interface ActivityResponse {
+  events: ActivityEvent[];
+}
+
 export interface ExcludedMemory {
   memory_id: string;
   reason: string;

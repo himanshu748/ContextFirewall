@@ -27,6 +27,7 @@ from typing import Any, Dict, List
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
+from app.activity import log_activity
 from app.cognee_runtime.forget import forget_memory as _forget_memory
 from app.cognee_runtime.improve import improve as _improve, recall_rules as _recall_rules
 from app.cognee_runtime.ingest import remember_fact as _remember_fact
@@ -106,6 +107,11 @@ async def get_trusted_context(task: str, top_k: int = 12) -> str:
     audit = result.get("audit") or {}
     pack = (result.get("pack_markdown") or "").strip()
     header = _pack_header(audit)
+    log_activity(
+        "mcp",
+        "get_trusted_context",
+        f"{audit.get('passed_count', '?')} approved · {audit.get('blocked_count', '?')} blocked",
+    )
     if not pack:
         return f"{header}\n(no trusted memories passed the firewall for this task yet)"
     return f"{header}\n\n{pack}"
@@ -147,6 +153,11 @@ async def audit_context(task: str, top_k: int = 12) -> str:
             lines.append(f"  - {c.get('memory_id')} (trust {float(c.get('trust_score', 0)):.2f}): {txt}")
     else:
         lines.append("  (none)")
+    log_activity(
+        "mcp",
+        "audit_context",
+        f"{audit.get('passed_count', 0)} approved · {audit.get('blocked_count', 0)} blocked",
+    )
     return "\n".join(lines)
 
 
@@ -168,6 +179,7 @@ async def remember(text: str, subject: str = "", kind: str = "fact") -> str:
         return _WRITE_HINT
     res = await _remember_fact(text, subject=subject or None, kind=kind, namespace=ident.namespace)
     subj = f" on '{res['subject']}'" if res.get("subject") else ""
+    log_activity("mcp", "remember", f"stored {kind or 'fact'}")
     return (
         f"Remembered {kind}{subj} as {res['memory_id']}. It is now in Cognee and will be "
         f"audited by the firewall on the next get_trusted_context call."
@@ -184,6 +196,7 @@ async def forget_memory(memory_id: str, reason: str = "rejected via MCP") -> str
     res = await _forget_memory(
         memory_id, reason=reason, allowed_namespaces={ident.namespace}, allow_demo=ident.allow_demo_write
     )
+    log_activity("mcp", "forget_memory", f"forgot {memory_id}")
     return f"{res.get('status', '?')}: {res.get('message', '')}"
 
 
@@ -201,6 +214,7 @@ async def improve_rules() -> str:
     added = res.get("rules_added")
     rules_text = (await _recall_rules()).strip()
     head = f"{summary} (total rules: {total}, added: {added})."
+    log_activity("mcp", "improve_rules", summary or "distilled rules")
     return f"{head}\n\n{rules_text}" if rules_text else head
 
 
@@ -208,6 +222,7 @@ async def improve_rules() -> str:
 async def list_coding_rules(query: str = "What coding rules apply when working in this repo?") -> str:
     """Retrieve the distilled coding rules from Cognee (CODING_RULES search)."""
     text = (await _recall_rules(query)).strip()
+    log_activity("mcp", "list_coding_rules", "retrieved coding rules")
     return text or "No coding rules have been distilled yet. Call improve_rules first."
 
 

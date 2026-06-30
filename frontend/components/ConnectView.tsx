@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Check,
   Copy,
@@ -14,8 +14,9 @@ import {
   Circle,
   type LucideIcon,
 } from "lucide-react";
-import { API_BASE } from "@/lib/api";
+import { api, API_BASE } from "@/lib/api";
 import { useActiveApiKey } from "@/lib/activeKey";
+import type { ActivityEvent } from "@/lib/types";
 
 const MCP_URL = `${API_BASE}/mcp`;
 const UVX_SPEC = 'git+https://github.com/himanshu748/ContextFirewall#subdirectory=mcp';
@@ -89,6 +90,90 @@ function localSnippets(key: string): Record<string, string> {
   };
 }
 
+function formatRelative(ts: string): string {
+  const then = new Date(ts).getTime();
+  if (Number.isNaN(then)) return "";
+  const diff = Math.max(0, Date.now() - then);
+  const seconds = Math.floor(diff / 1000);
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function LiveActivity({ online }: { online: boolean }) {
+  const [events, setEvents] = useState<ActivityEvent[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const res = await api.activity(40);
+        if (alive) setEvents(res.events || []);
+      } catch {
+        // best effort only
+      }
+    };
+    load();
+    const timer = setInterval(load, 4000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, []);
+
+  return (
+    <div className="rounded-xl border border-ink-700 bg-ink-900/40 p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-200">Live activity</h2>
+          <p className="mt-1 text-xs leading-relaxed text-slate-500">
+            Every MCP and REST call through the firewall, in real time.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 text-[11px] text-slate-500">
+          <Circle className={`h-2 w-2 ${online ? "fill-pass text-pass" : "fill-block text-block"}`} />
+          {online ? "online" : "offline"}
+        </div>
+      </div>
+
+      <div className="mt-4 max-h-80 overflow-y-auto rounded-lg border border-ink-700 bg-ink-950/50">
+        {events.length ? (
+          <div className="divide-y divide-ink-700/70">
+            {events.map((event) => (
+              <div key={event.id} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 px-3 py-2.5 text-xs">
+                <span
+                  className={`mt-0.5 inline-flex items-center rounded border px-1.5 py-0.5 font-mono uppercase tracking-wide ${
+                    event.source === "mcp"
+                      ? "border-firewall-500/30 bg-firewall-500/10 text-firewall-400"
+                      : "border-ink-700 bg-ink-850 text-slate-400"
+                  }`}
+                >
+                  {event.source}
+                </span>
+                <div className="min-w-0">
+                  <div className="font-mono text-[12px] text-slate-100">{event.tool}</div>
+                  <div className="mt-0.5 truncate text-slate-400">{event.detail}</div>
+                </div>
+                <div className="whitespace-nowrap font-mono text-[11px] text-slate-500">
+                  {formatRelative(event.ts)}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="px-4 py-6 text-xs text-slate-500">
+            No firewall activity yet — connect an agent or run an audit to see calls stream in.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function ConnectView({ online }: { online: boolean }) {
   const [mode, setMode] = useState<"hosted" | "local">("hosted");
   const activeKey = useActiveApiKey();
@@ -154,7 +239,7 @@ export function ConnectView({ online }: { online: boolean }) {
         </div>
       </div>
 
-      {/* live activity */}
+      <LiveActivity online={online} />
 
       {/* tool catalog */}
       <div>

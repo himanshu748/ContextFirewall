@@ -34,6 +34,7 @@ from typing import List, Optional
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.activity import get_activity, log_activity
 from app.identity import resolve_identity
 from app.cognee_runtime.bootstrap import configure_cognee
 from app.cognee_runtime.forget import forget_memory
@@ -157,7 +158,7 @@ async def remember(req: RememberRequest, authorization: Optional[str] = Header(d
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=400, detail=f"Remember failed: {e}")
     subj = f" on '{res['subject']}'" if res.get("subject") else ""
-    return RememberResponse(
+    response = RememberResponse(
         memory_id=res["memory_id"],
         subject=res.get("subject"),
         kind=res["kind"],
@@ -166,6 +167,8 @@ async def remember(req: RememberRequest, authorization: Optional[str] = Header(d
         nodes_added=res["nodes_added"],
         message=f"Remembered {req.kind}{subj}. It is now auditable by the firewall.",
     )
+    log_activity("api", "remember", f"stored {req.kind or 'fact'}")
+    return response
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -173,6 +176,11 @@ async def health() -> HealthResponse:
     profile = configure_cognee()
     counts = await count_nodes()
     return HealthResponse(status="ok", profile=profile, counts=counts)
+
+
+@app.get("/activity")
+async def activity(limit: int = 40) -> dict:
+    return {"events": get_activity(limit)}
 
 
 @app.post("/ingest", response_model=IngestResponse)
@@ -197,14 +205,20 @@ async def ingest(req: IngestRequest, authorization: Optional[str] = Header(defau
 async def audit(req: AuditRequest, authorization: Optional[str] = Header(default=None)) -> AuditResponse:
     ident = await resolve_identity(authorization)
     result = await audit_memories(req.query, top_k=req.top_k, namespaces=ident.read_namespaces)
-    return AuditResponse(**result)
+    response = AuditResponse(**result)
+    log_activity(
+        "api",
+        "audit_context",
+        f"{response.passed_count} approved · {response.blocked_count} blocked",
+    )
+    return response
 
 
 @app.post("/pack", response_model=PackResponse)
 async def pack(req: PackRequest, authorization: Optional[str] = Header(default=None)) -> PackResponse:
     ident = await resolve_identity(authorization)
     result = await build_pack(req.query, top_k=req.top_k, namespaces=ident.read_namespaces)
-    return PackResponse(
+    response = PackResponse(
         query=result["query"],
         pack_markdown=result["pack_markdown"],
         included=result["included"],
@@ -212,6 +226,8 @@ async def pack(req: PackRequest, authorization: Optional[str] = Header(default=N
         recall_answer=result.get("recall_answer"),
         audit=AuditResponse(**result["audit"]) if result.get("audit") else None,
     )
+    log_activity("api", "get_trusted_context", "built a trusted context pack")
+    return response
 
 
 @app.post("/forget", response_model=ForgetResponse)
@@ -225,13 +241,17 @@ async def forget(req: ForgetRequest, authorization: Optional[str] = Header(defau
         allowed_namespaces={ident.namespace},
         allow_demo=ident.allow_demo_write or _admin_token_ok(x_admin_token),
     )
-    return ForgetResponse(**result)
+    response = ForgetResponse(**result)
+    log_activity("api", "forget_memory", f"forgot {req.memory_id}")
+    return response
 
 
 @app.post("/improve")
 async def improve_endpoint() -> dict:
     """Distil durable coding rules from stored sessions (Cognee memify / improve)."""
-    return await improve_memory()
+    res = await improve_memory()
+    log_activity("api", "improve_rules", res.get("message", "distilled rules"))
+    return res
 
 
 @app.get("/rules")
@@ -312,23 +332,27 @@ async def demo_seed(
         counts = await count_nodes()
         session = hydrate_demo_secrets(json.loads(DEMO_SESSION.read_text()))
         sid = session.get("session_id") or session.get("id") or "demo-session"
-        return IngestResponse(
+        response = IngestResponse(
             session_id=sid,
             nodes_added=0,
             memories_created=int(counts.get("Memory", 0)),
             cognified=True,
             message="Sample session already loaded; no changes made.",
         )
+        log_activity("api", "seed", "reloaded sample taskflow-api session")
+        return response
 
     session = hydrate_demo_secrets(json.loads(DEMO_SESSION.read_text()))
     res = await ingest_session(session, cognify=cognify, namespace="demo")
-    return IngestResponse(
+    response = IngestResponse(
         session_id=res["session_id"],
         nodes_added=res["nodes_added"],
         memories_created=res["memories_created"],
         cognified=res["cognified"],
         message="Seeded the sample taskflow-api onboarding session.",
     )
+    log_activity("api", "seed", "reloaded sample taskflow-api session")
+    return response
 
 
 @app.get("/demo/queries")
