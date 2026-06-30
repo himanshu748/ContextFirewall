@@ -45,7 +45,6 @@ interface AuthContextValue {
     email: string,
     password: string,
   ) => Promise<{ error?: string; needsConfirmation?: boolean }>;
-  signInWithGoogle: () => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
   createKey: (name: string) => Promise<{ raw?: string; error?: string }>;
   revokeKey: (id: string) => Promise<{ error?: string }>;
@@ -125,14 +124,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { needsConfirmation: !data.session };
   }, []);
 
-  const signInWithGoogle = useCallback(async () => {
-    const supabase = getSupabase();
-    if (!supabase) return { error: "Auth is not configured." };
-    const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/app` : undefined;
-    const { error } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo } });
-    return error ? { error: error.message } : {};
-  }, []);
-
   const signOut = useCallback(async () => {
     const supabase = getSupabase();
     clearActiveApiKey();
@@ -180,14 +171,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       activeKey,
       signInWithPassword,
       signUpWithPassword,
-      signInWithGoogle,
       signOut,
       createKey,
       revokeKey,
       useKey,
       refresh,
     }),
-    [loading, user, profile, keys, activeKey, signInWithPassword, signUpWithPassword, signInWithGoogle, signOut, createKey, revokeKey, useKey, refresh],
+    [loading, user, profile, keys, activeKey, signInWithPassword, signUpWithPassword, signOut, createKey, revokeKey, useKey, refresh],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

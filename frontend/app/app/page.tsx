@@ -115,13 +115,29 @@ function ConsoleInner() {
     }
   }, []);
 
+  // The backend is a Hugging Face Space that sleeps when idle; the first request
+  // after a cold start can take ~30-60s. Retry health on mount so the console
+  // wakes the Space and recovers automatically instead of getting stuck "offline".
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       api.demoQueries().then((d) => setQueries(d.queries)).catch(() => {});
-      const h = await api.health().catch(() => null);
-      setHealth(h);
-      if (h && (h.counts?.Memory ?? 0) > 0) run(DEFAULT_QUERY);
+      const delays = [0, 3000, 5000, 8000, 12000, 15000];
+      for (let i = 0; i < delays.length; i++) {
+        if (cancelled) return;
+        if (delays[i]) await new Promise((r) => setTimeout(r, delays[i]));
+        const h = await api.health().catch(() => null);
+        if (cancelled) return;
+        if (h && h.status === "ok") {
+          setHealth(h);
+          if ((h.counts?.Memory ?? 0) > 0) run(DEFAULT_QUERY);
+          return;
+        }
+      }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [run]);
 
   useEffect(() => {
@@ -139,7 +155,13 @@ function ConsoleInner() {
         .catch(() => setEvents([]));
     }
     if (view === "graph" && graph === null) {
-      api.graph(450).then(setGraph).catch(() => setGraph({ nodes: [], edges: [] }));
+      // The graph query over Neo4j is slow on a cold backend; retry once before
+      // surfacing an empty graph so a single transient timeout doesn't look broken.
+      api
+        .graph(450)
+        .catch(() => api.graph(450))
+        .then(setGraph)
+        .catch(() => setGraph({ nodes: [], edges: [] }));
     }
   }, [view, events, graph]);
 
@@ -189,7 +211,7 @@ function ConsoleInner() {
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
-      <Sidebar view={view} setView={setView} health={health} onSeed={seed} seeding={seeding} canWrite={canWrite} />
+      <Sidebar view={view} setView={setView} health={health} onSeed={seed} seeding={seeding} />
 
       <div className="min-w-0 flex-1">
         {/* topbar */}
