@@ -20,7 +20,7 @@ import re
 from dataclasses import dataclass
 from typing import List
 
-__all__ = ["SecretFinding", "find_secrets", "redact_text", "has_secret"]
+__all__ = ["SecretFinding", "find_secrets", "redact_text", "has_secret", "redacted_kinds", "label_for_kind"]
 
 
 @dataclass(frozen=True)
@@ -145,3 +145,18 @@ def redact_text(text: str) -> str:
 
 def has_secret(text: str) -> bool:
     return bool(find_secrets(text or ""))
+
+
+_KIND_LABEL = {kind: label for kind, label, _ in _PATTERNS}
+_KIND_LABEL["high_entropy_token"] = "high-entropy token"
+_MARKER_RE = re.compile(r"«REDACTED:([A-Za-z0-9_]+)»")
+
+
+def redacted_kinds(text: str) -> List[str]:
+    """Secret kinds already redacted in ``text`` (markers written at ingest time)."""
+    return _MARKER_RE.findall(text or "")
+
+
+def label_for_kind(kind: str) -> str:
+    """Human label for a secret kind (e.g. aws_access_key -> AWS access key id)."""
+    return _KIND_LABEL.get(kind, kind.replace("_", " "))

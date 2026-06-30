@@ -1,4 +1,4 @@
-"""Remember — ingest a recorded coding-agent session into Cognee.
+"""Remember: ingest a recorded coding-agent session into Cognee.
 
 Two population paths run together (the Cognee 'remember' verb):
   1. ``add_data_points`` inserts the typed Repo / AgentSession / SessionEvent /
@@ -8,11 +8,13 @@ Two population paths run together (the Cognee 'remember' verb):
      web that powers GRAPH_COMPLETION / TEMPORAL recall and the graph view.
 
 Trust scoring is computed here from real signals on each candidate memory
-(evidence, reinforcement, verification, deprecation) — never hand-waved.
+(evidence, reinforcement, verification, deprecation), never hand-waved.
 """
 from __future__ import annotations
 
 from typing import Any, List, Tuple
+
+from app.firewall.secrets import redact_text
 
 from .bootstrap import configure_cognee
 from .schema import (
@@ -158,9 +160,25 @@ def build_nodes(session: dict) -> Tuple[List[Any], List[Memory]]:
     return nodes, memories
 
 
+def _redact_session_secrets(session: dict) -> None:
+    """Strip secrets from memory text and event content BEFORE anything is stored.
+
+    Privacy-first: redaction happens at ingest, not just when a pack is assembled, so a
+    leaked credential never persists in the graph, the vector store, or the cognified
+    transcript. The firewall still blocks the memory (the redaction marker is the signal).
+    """
+    for m in session.get("memories") or []:
+        if isinstance(m.get("text"), str):
+            m["text"] = redact_text(m["text"])
+    for e in session.get("events") or []:
+        if isinstance(e.get("content"), str):
+            e["content"] = redact_text(e["content"])
+
+
 async def ingest_session(session: dict, *, cognify: bool = True) -> dict:
     """Remember one session: insert typed nodes (+ optionally build the entity graph)."""
     configure_cognee()
+    _redact_session_secrets(session)  # secrets never reach durable storage
     import cognee
     from cognee.tasks.storage import add_data_points
 

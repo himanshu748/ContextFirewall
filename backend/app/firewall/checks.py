@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from app.cognee_runtime.llm import chat_json
-from app.firewall.secrets import find_secrets
+from app.firewall.secrets import find_secrets, label_for_kind, redacted_kinds
 
 MIN_TRUST = 0.40
 VERY_LOW_TRUST = 0.30
@@ -89,13 +89,25 @@ def _same_subject_peers(mem: Dict[str, Any], cluster: List[Dict[str, Any]]) -> L
 
 # --- check 1: secret ----------------------------------------------------------
 def secret_check(mem: Dict[str, Any]) -> CheckOutcome:
-    findings = find_secrets(mem.get("text", ""))
+    text = mem.get("text", "")
+    findings = find_secrets(text)
     if findings:
         preview = "; ".join(f"{f.label} ({f.redacted})" for f in findings[:3])
         return CheckOutcome(
             "secret",
             False,
             f"Leaked credential blocked: {preview}. Secrets must never enter a context pack.",
+            "block",
+        )
+    # A memory whose secret was already stripped at ingest still must not reach the
+    # pack: the redaction markers are the durable signal that it carried a credential.
+    kinds = redacted_kinds(text)
+    if kinds:
+        labels = ", ".join(dict.fromkeys(label_for_kind(k) for k in kinds))
+        return CheckOutcome(
+            "secret",
+            False,
+            f"Leaked credential blocked: {labels} (redacted at ingest). Secrets must never enter a context pack.",
             "block",
         )
     return CheckOutcome("secret", True, "No credentials detected.", "info")

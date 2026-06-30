@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
 
+from app.firewall.secrets import redact_text
+
 from .bootstrap import configure_cognee
 
 # Node "type" values we assign meaning to (others still render).
@@ -37,9 +39,19 @@ def _node_label(props: Dict[str, Any]) -> str:
     for field in _LABEL_FIELDS:
         val = props.get(field)
         if val:
-            text = str(val)
+            text = redact_text(str(val))
             return text if len(text) <= 60 else text[:57] + "…"
     return _node_type(props)
+
+
+def _safe_props(props: Dict[str, Any]) -> Dict[str, Any]:
+    """Copy node props for the UI, dropping embeddings and redacting secret-bearing text."""
+    out: Dict[str, Any] = {}
+    for k, v in props.items():
+        if k == "embedding":
+            continue
+        out[k] = redact_text(v) if k in ("text", "content") and isinstance(v, str) else v
+    return out
 
 
 async def graph_view(limit: int = 400) -> Dict[str, Any]:
@@ -66,7 +78,7 @@ async def graph_view(limit: int = 400) -> Dict[str, Any]:
                 "id": nid,
                 "label": _node_label(props),
                 "type": _node_type(props),
-                "props": {k: v for k, v in props.items() if k not in ("embedding",)},
+                "props": _safe_props(props),
             }
         )
 
@@ -87,7 +99,7 @@ async def graph_view(limit: int = 400) -> Dict[str, Any]:
 
 
 def _event_session_id(props: Dict[str, Any]) -> str:
-    """A SessionEvent's owning session id — explicit property, with id-prefix fallback."""
+    """A SessionEvent's owning session id, explicit property, with id-prefix fallback."""
     sid = props.get("session_id")
     if sid:
         return str(sid)
@@ -144,7 +156,7 @@ async def session_timeline(session_id: str) -> List[Dict[str, Any]]:
             {
                 "event_id": props.get("event_id", ""),
                 "kind": props.get("kind", "event"),
-                "content": props.get("content", ""),
+                "content": redact_text(props.get("content", "")),
                 "timestamp": props.get("timestamp"),
                 "ordinal": int(props.get("ordinal", 0) or 0),
             }
