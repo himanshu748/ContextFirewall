@@ -84,6 +84,25 @@ curl -s -X POST https://himanshukumarjha-contextfirewall.hf.space/pack \
   -d '{"query": "How do I deploy taskflow-api safely?"}'
 ```
 
+## Connect your coding agent (MCP)
+
+ContextFirewall ships an MCP server so the firewall runs inside the agent you already use (Claude Code, Cursor, Windsurf, Cline). It exposes four tools over the existing API:
+
+- `get_trusted_context(task)`: the governed pack, only memories that pass the four checks.
+- `record_event(kind, content, subject)`: record a session event, and a durable memory when `subject` is set.
+- `commit_session(...)`: persist the session into Cognee (remember).
+- `forget_memory(memory_id)`: delete a memory from the graph and vector store (forget).
+
+Quickest setup (Claude Code):
+
+```bash
+claude mcp add contextfirewall \
+  --env CF_API_BASE=https://himanshukumarjha-contextfirewall.hf.space \
+  -- uvx --from "git+https://github.com/himanshu748/ContextFirewall#subdirectory=mcp" contextfirewall-mcp
+```
+
+Setup for Cursor and others, plus local and privacy notes, are in [`mcp/README.md`](mcp/README.md). For private use, point `CF_API_BASE` at your own instance so your memories stay yours.
+
 ## Run locally
 
 ```bash
@@ -121,6 +140,15 @@ Everything **downstream of those inputs is real system output**: the verdicts, t
 - `cognify` runs live on Qwen2.5-72B; `GRAPH_COMPLETION` correctly reasons over the temporal deploy-command change.
 - 21 unit tests pass (`tests/test_secrets.py`, `tests/test_checks.py`).
 - The production deployment runs on managed stores: `/health` reports `graph: neo4j`, `relational: postgres`, `vector: pgvector`.
+
+## Roadmap
+
+- **MCP server** so any coding agent can pull the trusted pack and record memories (shipped, see `mcp/`).
+- **Redact at ingest**, so secrets are stripped before they are ever stored, not only at pack time.
+- **Trust re-weighting over time**, reinforcing memories that prove correct and decaying those that do not (Cognee's improve verb).
+- **Continuous auto-recording** of live agent sessions, instead of explicit commits.
+- **Cross-session accumulating memory** with the firewall governing the growing graph.
+- **Managed Cognee Cloud** as a hosting option alongside the self-hosted path.
 
 ## AI-assistance disclosure
 
