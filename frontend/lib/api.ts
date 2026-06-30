@@ -1,4 +1,5 @@
 import type {
+  ActivityResponse,
   AuditResponse,
   ForgetResponse,
   GraphResponse,
@@ -42,6 +43,7 @@ export const api = {
   rules: (query?: string) =>
     req<RulesResponse>(`/rules${query ? `?query=${encodeURIComponent(query)}` : ""}`),
   graph: (limit = 400) => req<GraphResponse>(`/graph?limit=${limit}`),
+  activity: (limit = 40) => req<ActivityResponse>(`/activity?limit=${limit}`),
   sessions: () => req<SessionSummary[]>("/sessions"),
   timeline: (sessionId: string) =>
     req<TimelineResponse>(`/sessions/${encodeURIComponent(sessionId)}/timeline`),

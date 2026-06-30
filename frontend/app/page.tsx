@@ -2,7 +2,6 @@ import Link from "next/link";
 import {
   ShieldHalf,
   ArrowRight,
-  Github,
   Clock,
   GitCompare,
   KeyRound,
@@ -18,10 +17,12 @@ import {
   CheckCircle2,
   XCircle,
   Network,
+  Plug,
 } from "lucide-react";
 import { LiveBadge } from "@/components/landing/LiveBadge";
 import { Reveal } from "@/components/landing/Reveal";
 import { LogoStrip } from "@/components/landing/LogoStrip";
+import { ConnectSnippet } from "@/components/landing/ConnectSnippet";
 
 type Icon = React.ComponentType<{ className?: string }>;
 type Tone = "block" | "pass" | "warn" | "firewall";
@@ -79,6 +80,7 @@ export default function Landing() {
             <div className="text-sm font-semibold tracking-tight text-slate-100">ContextFirewall</div>
           </div>
           <div className="hidden items-center gap-7 text-sm text-slate-400 md:flex">
+            <a href="#connect" className="transition-colors hover:text-slate-100">Connect</a>
             <a href="#how" className="transition-colors hover:text-slate-100">How it works</a>
             <a href="#checks" className="transition-colors hover:text-slate-100">The four checks</a>
             <a href="#cognee" className="transition-colors hover:text-slate-100">Cognee</a>
@@ -98,34 +100,33 @@ export default function Landing() {
       <section className="relative mx-auto max-w-6xl px-5 pt-20 pb-16 sm:pt-28">
         <div className="mx-auto max-w-3xl text-center">
           <div className="reveal reveal-in mb-6 inline-flex items-center gap-2 rounded-full border border-ink-700 bg-ink-900/60 px-3 py-1 text-xs text-slate-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-firewall-400" />
-            Memory governance for AI coding agents · built on Cognee
+            <Plug className="h-3.5 w-3.5 text-firewall-400" />
+            An MCP server for AI coding agents · built on Cognee
           </div>
           <h1 className="cf-gradient-text text-balance text-4xl font-semibold leading-[1.08] tracking-tight sm:text-6xl">
-            Every remembered fact is audited before it reaches the next agent.
+            Connect your coding agent to a memory it can trust.
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-pretty text-base leading-relaxed text-slate-400 sm:text-lg">
-            An AI agent is only as safe as the memory it inherits. ContextFirewall records agent sessions into a
-            Cognee knowledge graph, then audits every fact for <span className="text-slate-200">staleness</span>,{" "}
-            <span className="text-slate-200">contradiction</span>, <span className="text-slate-200">secrets</span> and{" "}
-            <span className="text-slate-200">evidence</span>, passing only what is trustworthy into the next agent's context.
+            ContextFirewall is a Model Context Protocol server. Point Claude Code, Cursor, or Windsurf at it, and every
+            memory your agent recalls, stores, distils, or forgets flows through Cognee and four firewall checks:{" "}
+            <span className="text-slate-200">staleness</span>, <span className="text-slate-200">contradiction</span>,{" "}
+            <span className="text-slate-200">secrets</span> and <span className="text-slate-200">evidence</span>. Only
+            trustworthy memory reaches the model.
           </p>
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <a
+              href="#connect"
+              className="group inline-flex w-full items-center justify-center gap-2 rounded-xl bg-firewall-500 px-5 py-3 text-sm font-semibold text-ink-950 transition-colors hover:bg-firewall-400 sm:w-auto"
+            >
+              <Plug className="h-4 w-4" /> Connect your agent
+            </a>
             <Link
               href="/app"
-              className="group inline-flex w-full items-center justify-center gap-2 rounded-xl bg-firewall-500 px-5 py-3 text-sm font-semibold text-ink-950 transition-colors hover:bg-firewall-400 sm:w-auto"
+              className="group inline-flex w-full items-center justify-center gap-2 rounded-xl border border-ink-700 bg-ink-900/60 px-5 py-3 text-sm font-semibold text-slate-200 transition-colors hover:border-ink-600 hover:bg-ink-850 sm:w-auto"
             >
               Open the console
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </Link>
-            <a
-              href={REPO}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-ink-700 bg-ink-900/60 px-5 py-3 text-sm font-semibold text-slate-200 transition-colors hover:border-ink-600 hover:bg-ink-850 sm:w-auto"
-            >
-              <Github className="h-4 w-4" /> View source
-            </a>
           </div>
           <div className="mt-6 flex justify-center">
             <LiveBadge />
@@ -166,6 +167,35 @@ export default function Landing() {
                   text="Run make check before pushing (CI gate)." />
               </div>
             </div>
+          </div>
+        </Reveal>
+      </section>
+
+      {/* ---------------- Connect (MCP) ---------------- */}
+      <section id="connect" className="mx-auto max-w-5xl px-5 pb-8">
+        <Reveal>
+          <div className="grid items-center gap-8 lg:grid-cols-2">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-wider text-firewall-400">Connect</p>
+              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-100 sm:text-4xl">
+                One endpoint. Any agent.
+              </h2>
+              <p className="mt-4 max-w-md text-base leading-relaxed text-slate-400">
+                ContextFirewall speaks the Model Context Protocol, so it drops into the agent you already use. Connect to
+                the hosted endpoint in one line, or run it locally with <span className="font-mono text-slate-300">uvx</span>.
+                Your agent gets six tools that exercise the full Cognee lifecycle: recall, remember, improve and forget,
+                all governed by the firewall.
+              </p>
+              <div className="mt-5 flex flex-wrap gap-2 text-xs text-slate-400">
+                <span className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-900/60 px-3 py-1.5">
+                  <Network className="h-3.5 w-3.5 text-firewall-400" /> Streamable HTTP + stdio
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-900/60 px-3 py-1.5">
+                  <ShieldHalf className="h-3.5 w-3.5 text-firewall-400" /> Every call audited on Cognee
+                </span>
+              </div>
+            </div>
+            <ConnectSnippet />
           </div>
         </Reveal>
       </section>
@@ -360,28 +390,26 @@ export default function Landing() {
             <div className="pointer-events-none absolute inset-0 cf-grid opacity-60" aria-hidden />
             <div className="relative">
               <h2 className="mx-auto max-w-2xl text-3xl font-semibold tracking-tight text-slate-100 sm:text-4xl">
-                Put a firewall in front of your agents' memory.
+                Put a firewall in front of your agent's memory.
               </h2>
               <p className="mx-auto mt-4 max-w-xl text-base text-slate-400">
-                Open the console and watch every remembered fact get audited live on Cognee, before it reaches
-                your next agent.
+                Connect your agent over MCP in one line, or open the console and watch every memory get audited live on
+                Cognee before it reaches the model.
               </p>
               <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                <a
+                  href="#connect"
+                  className="group inline-flex items-center justify-center gap-2 rounded-xl bg-firewall-500 px-6 py-3 text-sm font-semibold text-ink-950 transition-colors hover:bg-firewall-400"
+                >
+                  <Plug className="h-4 w-4" /> Connect your agent
+                </a>
                 <Link
                   href="/app"
-                  className="group inline-flex items-center justify-center gap-2 rounded-xl bg-firewall-500 px-6 py-3 text-sm font-semibold text-ink-950 transition-colors hover:bg-firewall-400"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-ink-700 bg-ink-900/60 px-6 py-3 text-sm font-semibold text-slate-200 transition-colors hover:border-ink-600"
                 >
                   Open the console
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                 </Link>
-                <a
-                  href={REPO}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-ink-700 bg-ink-900/60 px-6 py-3 text-sm font-semibold text-slate-200 transition-colors hover:border-ink-600"
-                >
-                  <Github className="h-4 w-4" /> Read the code
-                </a>
               </div>
             </div>
           </div>

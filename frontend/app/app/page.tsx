@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ShieldCheck, ShieldX, Loader2, Circle, Upload } from "lucide-react";
 import { api } from "@/lib/api";
 import type {
@@ -14,6 +14,7 @@ import type {
 } from "@/lib/types";
 import { Sidebar, type ConsoleView } from "@/components/Sidebar";
 import { Overview } from "@/components/Overview";
+import { ConnectView } from "@/components/ConnectView";
 import { RulesView } from "@/components/RulesView";
 import { QueryBar } from "@/components/QueryBar";
 import { MemoryCard } from "@/components/MemoryCard";
@@ -28,6 +29,7 @@ const DEFAULT_QUERY = "What should a new agent know before working on taskflow-a
 const CHECK_ORDER: CheckName[] = ["staleness", "contradiction", "secret", "evidence"];
 const TITLES: Record<ConsoleView, string> = {
   overview: "Overview",
+  connect: "Connect agent",
   firewall: "Firewall",
   rules: "Coding rules",
   replay: "Session replay",
@@ -49,6 +51,23 @@ export default function Console() {
   const [ingestOpen, setIngestOpen] = useState(false);
 
   const audit = pack?.audit ?? null;
+
+  // memory_id -> verdict, so the knowledge graph can ring Memory nodes by firewall outcome
+  const verdictMap = useMemo(() => {
+    const m: Record<string, { passed: boolean }> = {};
+    audit?.candidates.forEach((c) => {
+      m[c.memory_id] = { passed: c.passed };
+    });
+    return m;
+  }, [audit]);
+
+  const inspectMemory = useCallback(
+    (memoryId: string) => {
+      const v = audit?.candidates.find((c) => c.memory_id === memoryId) ?? null;
+      if (v) setSelected(v);
+    },
+    [audit],
+  );
 
   const run = useCallback(async (q: string) => {
     setLoading(true);
@@ -163,6 +182,8 @@ export default function Console() {
 
           {view === "overview" && <Overview health={health} audit={audit} onView={setView} onIngest={() => setIngestOpen(true)} />}
 
+          {view === "connect" && <ConnectView online={online} />}
+
           {view === "rules" && <RulesView />}
 
           {view === "firewall" && (
@@ -273,7 +294,7 @@ export default function Console() {
                   <Loader2 className="h-4 w-4 animate-spin" /> Loading Cognee knowledge graph…
                 </div>
               ) : (
-                <GraphView data={graph} />
+                <GraphView data={graph} verdicts={verdictMap} onInspectMemory={inspectMemory} />
               )}
             </div>
           )}

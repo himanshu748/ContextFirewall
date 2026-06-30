@@ -12,7 +12,9 @@ Trust scoring is computed here from real signals on each candidate memory
 """
 from __future__ import annotations
 
-from typing import Any, List, Tuple
+import uuid
+from datetime import datetime, timezone
+from typing import Any, List, Optional, Tuple
 
 from app.firewall.secrets import redact_text
 
@@ -197,4 +199,66 @@ async def ingest_session(session: dict, *, cognify: bool = True) -> dict:
         "nodes_added": len(nodes),
         "memories_created": len(memories),
         "cognified": cognified,
+    }
+
+
+async def remember_fact(
+    text: str,
+    subject: Optional[str] = None,
+    kind: str = "fact",
+    *,
+    trust_score: Optional[float] = None,
+    cognify: bool = False,
+) -> dict:
+    """Remember a single durable fact the firewall will audit (the 'remember' verb, one call).
+
+    This is the stateless write path used by both the /remember API and the MCP
+    ``remember`` tool: it wraps one memory (with a backing evidence event so the
+    record is honest, not a free-floating claim) into a minimal session and ingests
+    it. Secrets are redacted at ingest like any other session, so a leaked credential
+    never persists and is blocked on the next audit. ``cognify`` is off by default so
+    a quick remember is fast; ``add_data_points`` still embeds the Memory node, so it
+    is immediately recallable and auditable.
+    """
+    text = (text or "").strip()
+    if not text:
+        raise ValueError("remember_fact requires non-empty text")
+    now = datetime.now(timezone.utc)
+    sid = f"mcp-{now.strftime('%Y%m%d')}-{uuid.uuid4().hex[:8]}"
+    eid, mid = f"{sid}:e1", f"{sid}:m1"
+    mem: dict[str, Any] = {
+        "memory_id": mid,
+        "text": text,
+        "kind": kind,
+        "subject": (subject or "").strip() or None,
+        "created_at": now.strftime("%Y-%m-%d"),
+        "evidence_event_ids": [eid],
+    }
+    if trust_score is not None:
+        mem["trust_score"] = max(0.0, min(1.0, float(trust_score)))
+    session = {
+        "session_id": sid,
+        "task": f"Remembered via MCP: {(subject or kind)}",
+        "agent": "mcp-client",
+        "started_at": now.isoformat(timespec="seconds"),
+        "repo": {},
+        "events": [
+            {
+                "event_id": eid,
+                "kind": kind,
+                "content": text,
+                "timestamp": now.isoformat(timespec="seconds"),
+                "ordinal": 0,
+            }
+        ],
+        "memories": [mem],
+    }
+    res = await ingest_session(session, cognify=cognify)
+    return {
+        "memory_id": mid,
+        "subject": mem["subject"],
+        "kind": kind,
+        "session_id": sid,
+        "cognified": res["cognified"],
+        "nodes_added": res["nodes_added"],
     }

@@ -4,6 +4,8 @@ cognee==1.2.2
 # Web API
 fastapi
 uvicorn[standard]
+# MCP server (streamable HTTP, mounted at /mcp) — the headline agent-facing surface
+mcp>=1.9.0
 # Config and HTTP
 pydantic-settings
 python-dotenv

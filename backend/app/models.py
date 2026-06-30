@@ -110,6 +110,25 @@ class PackResponse(BaseModel):
     audit: Optional[AuditResponse] = None  # full per-memory verdicts (one call powers the console)
 
 
+# --- remember (single durable fact) -------------------------------------------
+class RememberRequest(BaseModel):
+    text: str = Field(..., description="The fact/decision/lesson/command to remember")
+    subject: Optional[str] = Field(None, description="What the memory is about (enables staleness/contradiction checks)")
+    kind: str = Field("fact", description="fact | decision | lesson | command | config | credential")
+    trust_score: Optional[float] = Field(None, ge=0.0, le=1.0)
+    cognify: bool = Field(False, description="Also grow the entity graph (slower; off for a quick remember)")
+
+
+class RememberResponse(BaseModel):
+    memory_id: str
+    subject: Optional[str] = None
+    kind: str
+    session_id: str
+    cognified: bool
+    nodes_added: int
+    message: str
+
+
 # --- forget (governance) ------------------------------------------------------
 class ForgetRequest(BaseModel):
     memory_id: str

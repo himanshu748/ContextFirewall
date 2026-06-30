@@ -13,14 +13,16 @@ import {
   Loader2,
   Database,
   FolderGit2,
+  Plug,
   type LucideIcon,
 } from "lucide-react";
 import type { HealthResponse } from "@/lib/types";
 
-export type ConsoleView = "overview" | "firewall" | "rules" | "replay" | "graph";
+export type ConsoleView = "overview" | "connect" | "firewall" | "rules" | "replay" | "graph";
 
 const NAV: { id: ConsoleView; label: string; icon: LucideIcon }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
+  { id: "connect", label: "Connect agent", icon: Plug },
   { id: "firewall", label: "Firewall", icon: ScanSearch },
   { id: "rules", label: "Coding rules", icon: Sparkles },
   { id: "replay", label: "Session replay", icon: History },

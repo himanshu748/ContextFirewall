@@ -18,7 +18,51 @@ import httpx
 
 DEFAULT_CHAT_ENDPOINT = "https://router.huggingface.co/v1/chat/completions"
 _RETRY_STATUS = {429, 500, 502, 503, 504, 524}
-_JSON_RE = re.compile(r"\{.*\}", re.S)
+_THINK_RE = re.compile(r"<think>.*?</think>", re.S)
+
+
+def _extract_json_obj(text: str) -> Optional[dict]:
+    """Pull the first balanced ``{...}`` JSON object out of an LLM reply.
+
+    More robust than a single greedy regex: it strips code fences and <think>
+    reasoning blocks, then scans for the first brace-balanced object, so prose
+    before or after the JSON (or a trailing brace in that prose) does not break
+    parsing. Returns None when no valid object is found (caller falls back).
+    """
+    text = (text or "").strip()
+    if text.startswith("```"):
+        text = text.strip("`")
+        text = text.split("\n", 1)[1] if "\n" in text else text
+    text = _THINK_RE.sub("", text).strip()
+    start = text.find("{")
+    if start == -1:
+        return None
+    depth = 0
+    in_str = False
+    esc = False
+    for i in range(start, len(text)):
+        c = text[i]
+        if in_str:
+            if esc:
+                esc = False
+            elif c == "\\":
+                esc = True
+            elif c == '"':
+                in_str = False
+            continue
+        if c == '"':
+            in_str = True
+        elif c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                try:
+                    obj = json.loads(text[start : i + 1])
+                    return obj if isinstance(obj, dict) else None
+                except json.JSONDecodeError:
+                    return None
+    return None
 
 
 class LLMUnavailable(RuntimeError):
@@ -84,19 +128,8 @@ async def chat_json(
         text = await chat(messages, **kwargs)
     except LLMUnavailable:
         return dict(fallback)
-    text = text.strip()
-    # strip ```json fences if present
-    if text.startswith("```"):
-        text = text.strip("`")
-        text = text.split("\n", 1)[1] if "\n" in text else text
-    match = _JSON_RE.search(text)
-    if not match:
-        return dict(fallback)
-    try:
-        parsed = json.loads(match.group(0))
-        return parsed if isinstance(parsed, dict) else dict(fallback)
-    except json.JSONDecodeError:
-        return dict(fallback)
+    parsed = _extract_json_obj(text)
+    return parsed if parsed is not None else dict(fallback)
 
 
 async def llm_available() -> bool:

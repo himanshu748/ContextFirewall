@@ -193,7 +193,7 @@ async def _llm_contradiction(
     data = await chat_json(
         [{"role": "system", "content": system}, {"role": "user", "content": user}],
         default={},
-        max_tokens=200,
+        max_tokens=256,
     )
     if not data:
         return None  # LLM unavailable -> caller uses deterministic fallback
