@@ -1,5 +1,6 @@
 import type {
   AuditResponse,
+  ActivityResponse,
   ForgetResponse,
   GraphResponse,
   HealthResponse,
@@ -68,6 +69,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   health: () => req<HealthResponse>("/health"),
+  activity: (limit = 40) => req<ActivityResponse>(`/activity?limit=${limit}`),
   audit: (query: string, top_k = 12) =>
     req<AuditResponse>("/audit", { method: "POST", body: JSON.stringify({ query, top_k }) }),
   pack: (query: string, top_k = 12) =>
