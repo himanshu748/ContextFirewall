@@ -11,7 +11,8 @@ Built for the **WeMakeDevs × Cognee** hackathon, *The Hangover Part AI: Where's
 | **MCP endpoint** | `https://himanshukumarjha-contextfirewall.hf.space/mcp` (streamable HTTP) |
 | **Live console** | https://contextfirewall.vercel.app |
 | **Live API (docs)** | https://himanshukumarjha-contextfirewall.hf.space/health · [`/docs`](https://himanshukumarjha-contextfirewall.hf.space/docs) |
-| **Demo video** | https://pub.hyperagent.com/api/published/pbf01KW9YQEZY_WK8T6EPDES8FMT04/contextfirewall_demo.mp4 |
+| **Demo video** | https://pub.hyperagent.com/api/published/pbf01KWBWRQ03_TD5WV2G37P8HAFM8/hybrid.mp4 (2 min product walkthrough) |
+| **Launch film** | https://pub.hyperagent.com/api/published/pbf01KWBWRWVX_7GTBE26MNV1XK3S1/cinematic.mp4 (40s teaser) |
 | **Source** | https://github.com/himanshu748/ContextFirewall |
 
 ---
@@ -94,7 +95,7 @@ The graph is **load-bearing**: staleness rides on temporal supersession, contrad
 
 - **Potential impact.** Memory governance is a real and growing attack surface as agents gain persistence. An MCP firewall that audits every fact before it is reused, with a forget control, drops into any MCP-capable agent stack.
 - **Technical execution.** One env-switched codebase runs on local stores in dev and on managed Neo4j Aura + Supabase pgvector in production. The MCP server and the REST API share one core (no duplicated logic). Real model and graph calls only, no mocks. 21 unit tests; the full MCP verb cycle validated over both streamable HTTP and stdio on real Cognee.
-- **Presentation quality.** A live console (overview, **connect**, firewall, coding rules, session replay, an interactive knowledge graph) with a live MCP activity feed, this README, the MCP tool reference, and a demo video.
+- **Presentation quality.** A live console (overview, **connect**, firewall, coding rules, session replay, an interactive knowledge graph) with a live MCP activity feed, this README, the MCP tool reference, and two videos: a two minute product walkthrough and a forty second launch film.
 - **Best use of Cognee.** All four lifecycle verbs are exercised and surfaced as MCP tools, and the knowledge graph is essential to how staleness and contradiction are judged.
 
 ## Architecture
