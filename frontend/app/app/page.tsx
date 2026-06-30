@@ -15,6 +15,7 @@ import type {
 import { Sidebar, type ConsoleView } from "@/components/Sidebar";
 import { Overview } from "@/components/Overview";
 import { ConnectView } from "@/components/ConnectView";
+import { AccountView } from "@/components/AccountView";
 import { RulesView } from "@/components/RulesView";
 import { QueryBar } from "@/components/QueryBar";
 import { MemoryCard } from "@/components/MemoryCard";
@@ -24,7 +25,7 @@ import { PackPanel } from "@/components/PackPanel";
 import { Timeline } from "@/components/Timeline";
 import { GraphView } from "@/components/GraphView";
 import { CHECK_META } from "@/components/badges";
-import { useOperatorSettings } from "@/lib/operator";
+import { AuthProvider, useAuth } from "@/lib/auth";
 
 const DEFAULT_QUERY = "What should a new agent know before working on taskflow-api?";
 const CHECK_ORDER: CheckName[] = ["staleness", "contradiction", "secret", "evidence"];
@@ -35,9 +36,18 @@ const TITLES: Record<ConsoleView, string> = {
   rules: "Coding rules",
   replay: "Session replay",
   graph: "Knowledge graph",
+  account: "Account & keys",
 };
 
 export default function Console() {
+  return (
+    <AuthProvider>
+      <ConsoleInner />
+    </AuthProvider>
+  );
+}
+
+function ConsoleInner() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [view, setView] = useState<ConsoleView>("overview");
   const [loading, setLoading] = useState(false);
@@ -50,8 +60,8 @@ export default function Console() {
   const [queries, setQueries] = useState<string[]>([]);
   const [selected, setSelected] = useState<MemoryVerdict | null>(null);
   const [ingestOpen, setIngestOpen] = useState(false);
-  const operator = useOperatorSettings();
-  const canWrite = !!operator.token.trim();
+  const { activeKey } = useAuth();
+  const canWrite = !!activeKey;
 
   const audit = pack?.audit ?? null;
 
@@ -65,7 +75,8 @@ export default function Console() {
   }, [audit]);
 
 
-  const writeGateMessage = "Read-only demo mode. Paste an operator token in the sidebar to write.";
+  const writeGateMessage =
+    "Read-only demo mode. Open Account & keys, sign in, and create an API key to write to your namespace.";
 
   const writeErrorMessage = useCallback((e: unknown, fallback: string) => {
     if (e instanceof ApiError) {
@@ -210,6 +221,8 @@ export default function Console() {
           {view === "overview" && <Overview health={health} audit={audit} onView={setView} onIngest={() => setIngestOpen(true)} canWrite={canWrite} />}
 
           {view === "connect" && <ConnectView online={online} />}
+
+          {view === "account" && <AccountView />}
 
           {view === "rules" && <RulesView />}
 

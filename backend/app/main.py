@@ -34,7 +34,7 @@ from typing import List, Optional
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.auth import RESERVED_NAMESPACE, sanitize_namespace, write_allowed
+from app.identity import resolve_identity
 from app.cognee_runtime.bootstrap import configure_cognee
 from app.cognee_runtime.forget import forget_memory
 from app.cognee_runtime.graph import count_nodes, graph_view, list_sessions, session_timeline
@@ -115,19 +115,7 @@ def _require_admin(token: Optional[str]) -> None:
         raise HTTPException(status_code=403, detail="A valid X-Admin-Token is required for this operation.")
 
 
-def _write_allowed(authorization: Optional[str], env_token: Optional[str] = None) -> bool:
-    return write_allowed(authorization, env_token if env_token is not None else os.environ.get("CF_WRITE_TOKEN"))
-
-
-def _read_namespaces(x_cf_namespace: Optional[str]) -> set[str]:
-    ns = sanitize_namespace(x_cf_namespace)
-    return {RESERVED_NAMESPACE} if not ns else {RESERVED_NAMESPACE, ns}
-
-
-def _write_namespace(x_cf_namespace: Optional[str]) -> str:
-    ns = sanitize_namespace(x_cf_namespace)
-    # The bundled demo is immutable; never let a header write into it.
-    return ns if ns and ns != RESERVED_NAMESPACE else "public"
+_WRITE_AUTH_DETAIL = "A valid ContextFirewall API key is required for writes. Sign in to the console to mint one."
 
 
 @app.get("/")
@@ -150,10 +138,11 @@ async def root() -> dict:
 
 
 @app.post("/remember", response_model=RememberResponse)
-async def remember(req: RememberRequest, authorization: Optional[str] = Header(default=None), x_cf_namespace: Optional[str] = Header(default=None, alias="X-CF-Namespace")) -> RememberResponse:
+async def remember(req: RememberRequest, authorization: Optional[str] = Header(default=None)) -> RememberResponse:
     """Remember one durable fact (the single-shot 'remember' verb the MCP server uses)."""
-    if not _write_allowed(authorization):
-        raise HTTPException(status_code=401, detail="Bearer token required for writes.")
+    ident = await resolve_identity(authorization)
+    if not ident.can_write:
+        raise HTTPException(status_code=401, detail=_WRITE_AUTH_DETAIL)
     try:
         res = await remember_fact(
             req.text,
@@ -161,7 +150,7 @@ async def remember(req: RememberRequest, authorization: Optional[str] = Header(d
             kind=req.kind,
             trust_score=req.trust_score,
             cognify=req.cognify,
-            namespace=_write_namespace(x_cf_namespace),
+            namespace=ident.namespace,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -187,11 +176,12 @@ async def health() -> HealthResponse:
 
 
 @app.post("/ingest", response_model=IngestResponse)
-async def ingest(req: IngestRequest, authorization: Optional[str] = Header(default=None), x_cf_namespace: Optional[str] = Header(default=None, alias="X-CF-Namespace")) -> IngestResponse:
-    if not _write_allowed(authorization):
-        raise HTTPException(status_code=401, detail="Bearer token required for writes.")
+async def ingest(req: IngestRequest, authorization: Optional[str] = Header(default=None)) -> IngestResponse:
+    ident = await resolve_identity(authorization)
+    if not ident.can_write:
+        raise HTTPException(status_code=401, detail=_WRITE_AUTH_DETAIL)
     try:
-        res = await ingest_session(req.session.model_dump(), cognify=req.cognify, namespace=_write_namespace(x_cf_namespace))
+        res = await ingest_session(req.session.model_dump(), cognify=req.cognify, namespace=ident.namespace)
     except Exception as e:  # noqa: BLE001 (surface a clean message to the console)
         raise HTTPException(status_code=400, detail=f"Ingest failed: {e}")
     return IngestResponse(
@@ -204,14 +194,16 @@ async def ingest(req: IngestRequest, authorization: Optional[str] = Header(defau
 
 
 @app.post("/audit", response_model=AuditResponse)
-async def audit(req: AuditRequest, x_cf_namespace: Optional[str] = Header(default=None, alias="X-CF-Namespace")) -> AuditResponse:
-    result = await audit_memories(req.query, top_k=req.top_k, namespaces=_read_namespaces(x_cf_namespace))
+async def audit(req: AuditRequest, authorization: Optional[str] = Header(default=None)) -> AuditResponse:
+    ident = await resolve_identity(authorization)
+    result = await audit_memories(req.query, top_k=req.top_k, namespaces=ident.read_namespaces)
     return AuditResponse(**result)
 
 
 @app.post("/pack", response_model=PackResponse)
-async def pack(req: PackRequest, x_cf_namespace: Optional[str] = Header(default=None, alias="X-CF-Namespace")) -> PackResponse:
-    result = await build_pack(req.query, top_k=req.top_k, namespaces=_read_namespaces(x_cf_namespace))
+async def pack(req: PackRequest, authorization: Optional[str] = Header(default=None)) -> PackResponse:
+    ident = await resolve_identity(authorization)
+    result = await build_pack(req.query, top_k=req.top_k, namespaces=ident.read_namespaces)
     return PackResponse(
         query=result["query"],
         pack_markdown=result["pack_markdown"],
@@ -223,10 +215,16 @@ async def pack(req: PackRequest, x_cf_namespace: Optional[str] = Header(default=
 
 
 @app.post("/forget", response_model=ForgetResponse)
-async def forget(req: ForgetRequest, authorization: Optional[str] = Header(default=None), x_cf_namespace: Optional[str] = Header(default=None, alias="X-CF-Namespace"), x_admin_token: Optional[str] = Header(default=None, alias="X-Admin-Token")) -> ForgetResponse:
-    if not _write_allowed(authorization):
-        raise HTTPException(status_code=401, detail="Bearer token required for writes.")
-    result = await forget_memory(req.memory_id, reason=req.reason, allowed_namespaces={_write_namespace(x_cf_namespace)}, allow_demo=_admin_token_ok(x_admin_token))
+async def forget(req: ForgetRequest, authorization: Optional[str] = Header(default=None), x_admin_token: Optional[str] = Header(default=None, alias="X-Admin-Token")) -> ForgetResponse:
+    ident = await resolve_identity(authorization)
+    if not ident.can_write:
+        raise HTTPException(status_code=401, detail=_WRITE_AUTH_DETAIL)
+    result = await forget_memory(
+        req.memory_id,
+        reason=req.reason,
+        allowed_namespaces={ident.namespace},
+        allow_demo=ident.allow_demo_write or _admin_token_ok(x_admin_token),
+    )
     return ForgetResponse(**result)
 
 
@@ -237,24 +235,27 @@ async def improve_endpoint() -> dict:
 
 
 @app.get("/rules")
-async def rules_endpoint(query: str = "What coding rules apply when working in this repo?", x_cf_namespace: Optional[str] = Header(default=None, alias="X-CF-Namespace")) -> dict:
+async def rules_endpoint(query: str = "What coding rules apply when working in this repo?") -> dict:
     return {"query": query, "rules": await recall_rules(query)}
 
 
 @app.get("/graph", response_model=GraphResponse)
-async def graph(limit: int = 400, x_cf_namespace: Optional[str] = Header(default=None, alias="X-CF-Namespace")) -> GraphResponse:
-    data = await graph_view(limit=limit, namespaces=_read_namespaces(x_cf_namespace))
+async def graph(limit: int = 400, authorization: Optional[str] = Header(default=None)) -> GraphResponse:
+    ident = await resolve_identity(authorization)
+    data = await graph_view(limit=limit, namespaces=ident.read_namespaces)
     return GraphResponse(nodes=data.get("nodes", []), edges=data.get("edges", []))
 
 
 @app.get("/sessions", response_model=List[SessionSummary])
-async def sessions(x_cf_namespace: Optional[str] = Header(default=None, alias="X-CF-Namespace")) -> List[SessionSummary]:
-    return [SessionSummary(**s) for s in await list_sessions(namespaces=_read_namespaces(x_cf_namespace))]
+async def sessions(authorization: Optional[str] = Header(default=None)) -> List[SessionSummary]:
+    ident = await resolve_identity(authorization)
+    return [SessionSummary(**s) for s in await list_sessions(namespaces=ident.read_namespaces)]
 
 
 @app.get("/sessions/{session_id}/timeline", response_model=TimelineResponse)
-async def timeline(session_id: str, x_cf_namespace: Optional[str] = Header(default=None, alias="X-CF-Namespace")) -> TimelineResponse:
-    events = await session_timeline(session_id, namespaces=_read_namespaces(x_cf_namespace))
+async def timeline(session_id: str, authorization: Optional[str] = Header(default=None)) -> TimelineResponse:
+    ident = await resolve_identity(authorization)
+    events = await session_timeline(session_id, namespaces=ident.read_namespaces)
     summary = SessionSummary(session_id=session_id, task="", event_count=len(events))
     return TimelineResponse(session=summary, events=events)
 

@@ -21,6 +21,9 @@ Environment:
                    Default: the public demo Space (good for a quick try). For real use,
                    run your own instance and point here (local dev: http://localhost:8000)
                    so your memories stay yours.
+  CF_API_KEY       ContextFirewall API key (cf_live_...). Sent as an Authorization
+                   bearer token so reads/writes are scoped to your private namespace.
+                   Optional: without it the server talks to the read-only demo.
   CF_HTTP_TIMEOUT  Request timeout in seconds. Default: 120
 """
 from __future__ import annotations
@@ -46,11 +49,18 @@ def _timeout() -> float:
     return float(os.environ.get("CF_HTTP_TIMEOUT", "120"))
 
 
+def _api_key() -> str:
+    return os.environ.get("CF_API_KEY", "").strip()
+
+
 # --- HTTP helper (stdlib only, no extra dependencies) ---
 def _api(method: str, path: str, payload: Dict[str, Any] | None = None) -> Dict[str, Any]:
     url = _base() + path
     data = json.dumps(payload).encode() if payload is not None else None
     headers = {"content-type": "application/json"} if data is not None else {}
+    key = _api_key()
+    if key:
+        headers["authorization"] = f"Bearer {key}"
     req = urllib.request.Request(url, data=data, method=method, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=_timeout()) as resp:

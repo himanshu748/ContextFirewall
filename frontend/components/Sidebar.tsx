@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ShieldHalf,
@@ -15,17 +14,14 @@ import {
   Database,
   FolderGit2,
   Plug,
-  KeyRound,
+  CircleUser,
+  LogIn,
   type LucideIcon,
 } from "lucide-react";
 import type { HealthResponse } from "@/lib/types";
-import {
-  clearOperatorSettings,
-  saveOperatorSettings,
-  useOperatorSettings,
-} from "@/lib/operator";
+import { useAuth } from "@/lib/auth";
 
-export type ConsoleView = "overview" | "connect" | "firewall" | "rules" | "replay" | "graph";
+export type ConsoleView = "overview" | "connect" | "firewall" | "rules" | "replay" | "graph" | "account";
 
 const NAV: { id: ConsoleView; label: string; icon: LucideIcon }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -34,6 +30,7 @@ const NAV: { id: ConsoleView; label: string; icon: LucideIcon }[] = [
   { id: "rules", label: "Coding rules", icon: Sparkles },
   { id: "replay", label: "Session replay", icon: History },
   { id: "graph", label: "Knowledge graph", icon: GitGraph },
+  { id: "account", label: "Account & keys", icon: CircleUser },
 ];
 
 export function Sidebar({
@@ -53,14 +50,7 @@ export function Sidebar({
 }) {
   const online = !!health && health.status === "ok";
   const mem = health?.counts?.Memory ?? 0;
-  const operator = useOperatorSettings();
-  const [token, setToken] = useState("");
-  const [namespace, setNamespace] = useState("");
-
-  useEffect(() => {
-    setToken(operator.token);
-    setNamespace(operator.namespace);
-  }, [operator.token, operator.namespace]);
+  const { user, profile, activeKey } = useAuth();
 
   return (
     <aside className="z-30 flex shrink-0 flex-col border-b border-ink-800 bg-ink-950/80 backdrop-blur md:sticky md:top-0 md:h-screen md:w-64 md:border-b-0 md:border-r">
@@ -118,49 +108,32 @@ export function Sidebar({
             <span>backend offline</span>
           )}
         </div>
-        <div className="mt-3 rounded-xl border border-ink-700 bg-ink-900/50 p-3">
-          <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-slate-500">
-            <KeyRound className="h-3.5 w-3.5 text-firewall-400" /> Operator
-          </div>
-          <div className="mt-2 space-y-2">
-            <input
-              type="password"
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              placeholder="Write token"
-              className="w-full rounded-md border border-ink-700 bg-ink-950 px-2.5 py-1.5 font-mono text-[11px] text-slate-200 placeholder:text-slate-600 outline-none ring-0 focus:border-firewall-500/50"
-            />
-            <input
-              value={namespace}
-              onChange={(e) => setNamespace(e.target.value)}
-              placeholder="Namespace (optional)"
-              className="w-full rounded-md border border-ink-700 bg-ink-950 px-2.5 py-1.5 font-mono text-[11px] text-slate-200 placeholder:text-slate-600 outline-none ring-0 focus:border-firewall-500/50"
-            />
-            <div className="flex gap-2">
-              <button
-                onClick={() => saveOperatorSettings({ token: token.trim(), namespace: namespace.trim() })}
-                className="flex-1 rounded-md border border-firewall-500/30 bg-firewall-500/10 px-2.5 py-1.5 text-[11px] font-medium text-firewall-400 transition-colors hover:bg-firewall-500/15"
-              >
-                Save
-              </button>
-              <button
-                onClick={() => {
-                  setToken("");
-                  setNamespace("");
-                  clearOperatorSettings();
-                }}
-                className="rounded-md border border-ink-700 bg-ink-850 px-2.5 py-1.5 text-[11px] font-medium text-slate-400 transition-colors hover:border-ink-600 hover:text-slate-200"
-              >
-                Clear
-              </button>
+        <button
+          onClick={() => setView("account")}
+          className="mt-3 w-full rounded-xl border border-ink-700 bg-ink-900/50 p-3 text-left transition-colors hover:border-ink-600"
+        >
+          {user ? (
+            <>
+              <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-200">
+                <CircleUser className="h-3.5 w-3.5 text-firewall-400" />
+                <span className="truncate">{profile?.email ?? user.email}</span>
+              </div>
+              <div className="mt-1 text-[11px] text-slate-500">
+                ns <span className="font-mono text-slate-400">{profile?.namespace ?? "…"}</span>
+                {" · "}
+                {activeKey ? (
+                  <span className="text-pass">key active</span>
+                ) : (
+                  <span className="text-slate-500">no active key</span>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center gap-1.5 text-[11px] font-medium text-firewall-400">
+              <LogIn className="h-3.5 w-3.5" /> Sign in for your own namespace
             </div>
-            <p className="text-[11px] leading-relaxed text-slate-500">
-              {canWrite
-                ? "Writes are enabled for this operator."
-                : "Read-only demo mode. Paste an operator token to write."}
-            </p>
-          </div>
-        </div>
+          )}
+        </button>
         <button
           onClick={onSeed}
           disabled={seeding || !canWrite}

@@ -10,7 +10,7 @@ import type {
   SessionSummary,
   TimelineResponse,
 } from "./types";
-import { readOperatorSettings } from "./operator";
+import { getActiveApiKey } from "./activeKey";
 
 // Set NEXT_PUBLIC_API_URL to the deployed Hugging Face Space URL in production.
 export const API_BASE =
@@ -33,12 +33,11 @@ function buildHeaders(init?: RequestInit, method = "GET"): HeadersInit {
   if (method !== "GET" && method !== "HEAD") {
     headers.set("Content-Type", "application/json");
   }
-  const { token, namespace } = readOperatorSettings();
-  if (namespace) {
-    headers.set("X-CF-Namespace", namespace);
-  }
-  if (method !== "GET" && method !== "HEAD" && token) {
-    headers.set("Authorization", `Bearer ${token}`);
+  // The signed-in user's API key authenticates and scopes every call (reads to
+  // their namespace + demo, writes to their namespace). Anonymous = demo only.
+  const key = getActiveApiKey();
+  if (key) {
+    headers.set("Authorization", `Bearer ${key}`);
   }
   return headers;
 }
