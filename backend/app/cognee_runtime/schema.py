@@ -47,6 +47,7 @@ class Repo(DataPoint):
     name: str
     url: Optional[str] = None
     description: Optional[str] = None
+    namespace: Optional[str] = None
     metadata: dict = {"index_fields": ["name", "description"]}
 
 
@@ -58,6 +59,7 @@ class AgentSession(DataPoint):
     agent: Optional[str] = None
     started_at: Optional[str] = None
     repo: SkipValidation[Any] = None  # -> Repo
+    namespace: Optional[str] = None
     metadata: dict = {"index_fields": ["task"]}
 
 
@@ -87,6 +89,7 @@ class Memory(DataPoint):
     reinforcement_count: int = 1
     evidence_event_ids: List[str] = []
     source_session_id: Optional[str] = None
+    namespace: Optional[str] = None
     supersedes: SkipValidation[Any] = None  # -> Memory (this memory replaces an older one)
     metadata: dict = {"index_fields": ["text"]}
 

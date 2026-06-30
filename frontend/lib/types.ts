@@ -115,13 +115,3 @@ export interface IngestResponse {
   message: string;
 }
 
-export interface ActivityEntry {
-  id: number;
-  ts: string;
-  source: "mcp" | "api" | string;
-  tool: string;
-  detail: string;
-}
-export interface ActivityResponse {
-  events: ActivityEntry[];
-}

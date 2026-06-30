@@ -30,10 +30,12 @@ export function IngestModal({
   open,
   onClose,
   onIngested,
+  canWrite,
 }: {
   open: boolean;
   onClose: () => void;
   onIngested: () => void;
+  canWrite: boolean;
 }) {
   const [text, setText] = useState("");
   const [cognify, setCognify] = useState(false);
@@ -72,7 +74,7 @@ export function IngestModal({
       setResult(r);
       setTimeout(onIngested, 900);
     } catch (e: any) {
-      setError(e.message || "ingest failed");
+      setError(e instanceof Error ? e.message : "ingest failed");
     } finally {
       setBusy(false);
     }
@@ -100,11 +102,17 @@ export function IngestModal({
             and ContextFirewall will remember it into Cognee and audit it. This is the same shape the recorder
             emits, and the public <code className="rounded bg-ink-850 px-1 font-mono text-[12px] text-firewall-400">POST /ingest</code> API accepts.
           </p>
+          {!canWrite && (
+            <div className="rounded-lg border border-ink-700 bg-ink-900/50 px-4 py-3 text-sm text-slate-400">
+              Read-only demo mode. Operator token required to ingest sessions.
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => fileRef.current?.click()}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-850 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-ink-600 hover:text-slate-100"
+              disabled={!canWrite}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-850 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-ink-600 hover:text-slate-100 disabled:opacity-50"
             >
               <Upload className="h-3.5 w-3.5" /> Upload .json
             </button>
@@ -117,7 +125,8 @@ export function IngestModal({
             />
             <button
               onClick={() => setText(TEMPLATE)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-850 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-ink-600 hover:text-slate-100"
+              disabled={!canWrite}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-850 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-ink-600 hover:text-slate-100 disabled:opacity-50"
             >
               <FileJson className="h-3.5 w-3.5" /> Load template
             </button>
@@ -126,6 +135,7 @@ export function IngestModal({
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
+            disabled={!canWrite}
             spellCheck={false}
             placeholder="Paste a recorded session as JSON…"
             className="h-64 w-full resize-y rounded-lg border border-ink-700 bg-ink-900 p-3 font-mono text-[12px] leading-relaxed text-slate-200 placeholder:text-slate-600 focus:border-firewall-600/60 focus:outline-none"
@@ -136,6 +146,7 @@ export function IngestModal({
               type="checkbox"
               checked={cognify}
               onChange={(e) => setCognify(e.target.checked)}
+              disabled={!canWrite}
               className="mt-0.5 h-3.5 w-3.5 accent-firewall-500"
             />
             <span>
@@ -168,7 +179,7 @@ export function IngestModal({
           </button>
           <button
             onClick={ingest}
-            disabled={busy || !text.trim()}
+            disabled={busy || !text.trim() || !canWrite}
             className="inline-flex items-center gap-1.5 rounded-lg bg-firewall-500 px-4 py-2 text-sm font-semibold text-ink-950 transition-colors hover:bg-firewall-400 disabled:opacity-50"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Database className="h-4 w-4" />}

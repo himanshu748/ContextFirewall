@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+from app.firewall.secrets import redact_text
+
 from .bootstrap import configure_cognee
 
 RULES_NODESET = "coding_agent_rules"
@@ -19,8 +21,8 @@ async def _stored_transcript() -> str:
     from .graph import list_sessions, session_timeline
 
     lines = []
-    for s in await list_sessions():
-        for e in await session_timeline(s["session_id"]):
+    for s in await list_sessions(include_all=True):
+        for e in await session_timeline(s["session_id"], include_all=True):
             content = (e.get("content") or "").strip()
             if content:
                 lines.append(f"{e.get('kind', 'event').upper()}: {content}")
@@ -58,5 +60,5 @@ async def recall_rules(query: str = "What coding rules apply when working in thi
     except Exception as exc:  # noqa: BLE001
         return f"(coding rules unavailable: {exc!r})"
     if isinstance(res, list):
-        return " ".join(str(x) for x in res) if res else ""
-    return str(res)
+        return redact_text(" ".join(str(x) for x in res) if res else "")
+    return redact_text(str(res))

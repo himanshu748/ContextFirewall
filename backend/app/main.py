@@ -34,7 +34,7 @@ from typing import List, Optional
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.activity import get_activity, log_activity
+from app.identity import resolve_identity
 from app.cognee_runtime.bootstrap import configure_cognee
 from app.cognee_runtime.forget import forget_memory
 from app.cognee_runtime.graph import count_nodes, graph_view, list_sessions, session_timeline
@@ -115,6 +115,9 @@ def _require_admin(token: Optional[str]) -> None:
         raise HTTPException(status_code=403, detail="A valid X-Admin-Token is required for this operation.")
 
 
+_WRITE_AUTH_DETAIL = "A valid ContextFirewall API key is required for writes. Sign in to the console to mint one."
+
+
 @app.get("/")
 async def root() -> dict:
     return {
@@ -135,8 +138,11 @@ async def root() -> dict:
 
 
 @app.post("/remember", response_model=RememberResponse)
-async def remember(req: RememberRequest) -> RememberResponse:
+async def remember(req: RememberRequest, authorization: Optional[str] = Header(default=None)) -> RememberResponse:
     """Remember one durable fact (the single-shot 'remember' verb the MCP server uses)."""
+    ident = await resolve_identity(authorization)
+    if not ident.can_write:
+        raise HTTPException(status_code=401, detail=_WRITE_AUTH_DETAIL)
     try:
         res = await remember_fact(
             req.text,
@@ -144,13 +150,13 @@ async def remember(req: RememberRequest) -> RememberResponse:
             kind=req.kind,
             trust_score=req.trust_score,
             cognify=req.cognify,
+            namespace=ident.namespace,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:  # noqa: BLE001
         raise HTTPException(status_code=400, detail=f"Remember failed: {e}")
     subj = f" on '{res['subject']}'" if res.get("subject") else ""
-    log_activity("api", "remember", f"stored {res['memory_id']}{subj}")
     return RememberResponse(
         memory_id=res["memory_id"],
         subject=res.get("subject"),
@@ -170,9 +176,12 @@ async def health() -> HealthResponse:
 
 
 @app.post("/ingest", response_model=IngestResponse)
-async def ingest(req: IngestRequest) -> IngestResponse:
+async def ingest(req: IngestRequest, authorization: Optional[str] = Header(default=None)) -> IngestResponse:
+    ident = await resolve_identity(authorization)
+    if not ident.can_write:
+        raise HTTPException(status_code=401, detail=_WRITE_AUTH_DETAIL)
     try:
-        res = await ingest_session(req.session.model_dump(), cognify=req.cognify)
+        res = await ingest_session(req.session.model_dump(), cognify=req.cognify, namespace=ident.namespace)
     except Exception as e:  # noqa: BLE001 (surface a clean message to the console)
         raise HTTPException(status_code=400, detail=f"Ingest failed: {e}")
     return IngestResponse(
@@ -185,17 +194,16 @@ async def ingest(req: IngestRequest) -> IngestResponse:
 
 
 @app.post("/audit", response_model=AuditResponse)
-async def audit(req: AuditRequest) -> AuditResponse:
-    result = await audit_memories(req.query, top_k=req.top_k)
-    log_activity("api", "audit", f"{result.get('passed_count', 0)} approved / {result.get('blocked_count', 0)} blocked · {req.query[:60]}")
+async def audit(req: AuditRequest, authorization: Optional[str] = Header(default=None)) -> AuditResponse:
+    ident = await resolve_identity(authorization)
+    result = await audit_memories(req.query, top_k=req.top_k, namespaces=ident.read_namespaces)
     return AuditResponse(**result)
 
 
 @app.post("/pack", response_model=PackResponse)
-async def pack(req: PackRequest) -> PackResponse:
-    result = await build_pack(req.query, top_k=req.top_k)
-    _a = result.get("audit") or {}
-    log_activity("api", "pack", f"{_a.get('passed_count', 0)} approved / {_a.get('blocked_count', 0)} blocked · {req.query[:60]}")
+async def pack(req: PackRequest, authorization: Optional[str] = Header(default=None)) -> PackResponse:
+    ident = await resolve_identity(authorization)
+    result = await build_pack(req.query, top_k=req.top_k, namespaces=ident.read_namespaces)
     return PackResponse(
         query=result["query"],
         pack_markdown=result["pack_markdown"],
@@ -207,9 +215,16 @@ async def pack(req: PackRequest) -> PackResponse:
 
 
 @app.post("/forget", response_model=ForgetResponse)
-async def forget(req: ForgetRequest) -> ForgetResponse:
-    result = await forget_memory(req.memory_id, reason=req.reason)
-    log_activity("api", "forget", f"{result.get('status', '?')} · {req.memory_id}")
+async def forget(req: ForgetRequest, authorization: Optional[str] = Header(default=None), x_admin_token: Optional[str] = Header(default=None, alias="X-Admin-Token")) -> ForgetResponse:
+    ident = await resolve_identity(authorization)
+    if not ident.can_write:
+        raise HTTPException(status_code=401, detail=_WRITE_AUTH_DETAIL)
+    result = await forget_memory(
+        req.memory_id,
+        reason=req.reason,
+        allowed_namespaces={ident.namespace},
+        allow_demo=ident.allow_demo_write or _admin_token_ok(x_admin_token),
+    )
     return ForgetResponse(**result)
 
 
@@ -224,26 +239,23 @@ async def rules_endpoint(query: str = "What coding rules apply when working in t
     return {"query": query, "rules": await recall_rules(query)}
 
 
-@app.get("/activity")
-async def activity(limit: int = 40) -> dict:
-    """Recent firewall calls (MCP + REST) for the live console feed. Observability only."""
-    return {"events": get_activity(limit=limit)}
-
-
 @app.get("/graph", response_model=GraphResponse)
-async def graph(limit: int = 400) -> GraphResponse:
-    data = await graph_view(limit=limit)
+async def graph(limit: int = 400, authorization: Optional[str] = Header(default=None)) -> GraphResponse:
+    ident = await resolve_identity(authorization)
+    data = await graph_view(limit=limit, namespaces=ident.read_namespaces)
     return GraphResponse(nodes=data.get("nodes", []), edges=data.get("edges", []))
 
 
 @app.get("/sessions", response_model=List[SessionSummary])
-async def sessions() -> List[SessionSummary]:
-    return [SessionSummary(**s) for s in await list_sessions()]
+async def sessions(authorization: Optional[str] = Header(default=None)) -> List[SessionSummary]:
+    ident = await resolve_identity(authorization)
+    return [SessionSummary(**s) for s in await list_sessions(namespaces=ident.read_namespaces)]
 
 
 @app.get("/sessions/{session_id}/timeline", response_model=TimelineResponse)
-async def timeline(session_id: str) -> TimelineResponse:
-    events = await session_timeline(session_id)
+async def timeline(session_id: str, authorization: Optional[str] = Header(default=None)) -> TimelineResponse:
+    ident = await resolve_identity(authorization)
+    events = await session_timeline(session_id, namespaces=ident.read_namespaces)
     summary = SessionSummary(session_id=session_id, task="", event_count=len(events))
     return TimelineResponse(session=summary, events=events)
 
@@ -309,7 +321,7 @@ async def demo_seed(
         )
 
     session = hydrate_demo_secrets(json.loads(DEMO_SESSION.read_text()))
-    res = await ingest_session(session, cognify=cognify)
+    res = await ingest_session(session, cognify=cognify, namespace="demo")
     return IngestResponse(
         session_id=res["session_id"],
         nodes_added=res["nodes_added"],

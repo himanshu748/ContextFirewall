@@ -27,12 +27,12 @@ from typing import Any, Dict, List
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
-from app.activity import log_activity
 from app.cognee_runtime.forget import forget_memory as _forget_memory
 from app.cognee_runtime.improve import improve as _improve, recall_rules as _recall_rules
 from app.cognee_runtime.ingest import remember_fact as _remember_fact
 from app.firewall.audit import audit_memories as _audit_memories
 from app.firewall.pack import build_pack as _build_pack
+from app.identity import Identity, resolve_identity
 
 INSTRUCTIONS = (
     "ContextFirewall is a trust firewall for an AI coding agent's long-term memory, "
@@ -59,6 +59,32 @@ cf_mcp = FastMCP(
 )
 
 
+async def _ctx_identity() -> Identity:
+    """Resolve the caller from the per-request Authorization header.
+
+    A hosted MCP client authenticates by sending ``Authorization: Bearer
+    cf_live_...`` (configured in its MCP server entry). That scopes every tool
+    call to the client's own private namespace. Without a key the client gets
+    read-only access to the public ``demo`` namespace and cannot write.
+    """
+    authorization = None
+    try:
+        ctx = cf_mcp.get_context()
+        request = getattr(ctx.request_context, "request", None)
+        if request is not None:
+            authorization = request.headers.get("authorization")
+    except Exception:  # noqa: BLE001
+        authorization = None
+    return await resolve_identity(authorization)
+
+
+_WRITE_HINT = (
+    "This hosted ContextFirewall endpoint is read-only without an API key. Sign in at "
+    "the console, mint a key, and add it as 'Authorization: Bearer cf_live_...' in your "
+    "MCP server config to get your own private, writable memory namespace."
+)
+
+
 def _pack_header(audit: Dict[str, Any], base_note: str = "") -> str:
     return (
         f"<!-- ContextFirewall: {audit.get('passed_count', '?')} approved, "
@@ -75,10 +101,10 @@ async def get_trusted_context(task: str, top_k: int = 12) -> str:
     memories are withheld. Call this BEFORE acting on a task to get governed context
     instead of raw, ungoverned recall.
     """
-    result = await _build_pack(task, top_k=int(top_k))
+    ident = await _ctx_identity()
+    result = await _build_pack(task, top_k=int(top_k), namespaces=ident.read_namespaces)
     audit = result.get("audit") or {}
     pack = (result.get("pack_markdown") or "").strip()
-    log_activity("mcp", "get_trusted_context", f"{audit.get('passed_count', 0)} approved / {audit.get('blocked_count', 0)} blocked · {task[:60]}")
     header = _pack_header(audit)
     if not pack:
         return f"{header}\n(no trusted memories passed the firewall for this task yet)"
@@ -94,11 +120,11 @@ async def audit_context(task: str, top_k: int = 12) -> str:
     can pass to forget_memory. Use this to explain to a human *why* a memory was
     withheld, or to decide what to retract.
     """
-    audit = await _audit_memories(task, top_k=int(top_k))
+    ident = await _ctx_identity()
+    audit = await _audit_memories(task, top_k=int(top_k), namespaces=ident.read_namespaces)
     cands: List[Dict[str, Any]] = audit.get("candidates", [])
     approved = [c for c in cands if c.get("passed")]
     blocked = [c for c in cands if not c.get("passed")]
-    log_activity("mcp", "audit_context", f"{len(approved)} approved / {len(blocked)} blocked · {task[:60]}")
     lines = [
         f"ContextFirewall audit for: {task}",
         f"{audit.get('passed_count', 0)} approved, {audit.get('blocked_count', 0)} blocked.",
@@ -137,9 +163,11 @@ async def remember(text: str, subject: str = "", kind: str = "fact") -> str:
     Secrets are redacted at ingest, so a credential is never stored and will be
     blocked on the next audit. Returns the new memory_id.
     """
-    res = await _remember_fact(text, subject=subject or None, kind=kind)
+    ident = await _ctx_identity()
+    if not ident.can_write:
+        return _WRITE_HINT
+    res = await _remember_fact(text, subject=subject or None, kind=kind, namespace=ident.namespace)
     subj = f" on '{res['subject']}'" if res.get("subject") else ""
-    log_activity("mcp", "remember", f"stored {res.get('memory_id')}{subj}")
     return (
         f"Remembered {kind}{subj} as {res['memory_id']}. It is now in Cognee and will be "
         f"audited by the firewall on the next get_trusted_context call."
@@ -150,8 +178,12 @@ async def remember(text: str, subject: str = "", kind: str = "fact") -> str:
 async def forget_memory(memory_id: str, reason: str = "rejected via MCP") -> str:
     """Governance (Cognee forget): delete a memory from the graph and vector store so it
     can never resurface in recall or a future trusted context pack."""
-    res = await _forget_memory(memory_id, reason=reason)
-    log_activity("mcp", "forget_memory", f"{res.get('status', '?')} · {memory_id}")
+    ident = await _ctx_identity()
+    if not ident.can_write:
+        return _WRITE_HINT
+    res = await _forget_memory(
+        memory_id, reason=reason, allowed_namespaces={ident.namespace}, allow_demo=ident.allow_demo_write
+    )
     return f"{res.get('status', '?')}: {res.get('message', '')}"
 
 
@@ -167,7 +199,6 @@ async def improve_rules() -> str:
     summary = res.get("message", "")
     total = res.get("rules_total")
     added = res.get("rules_added")
-    log_activity("mcp", "improve_rules", f"distilled rules · total {total}, added {added}")
     rules_text = (await _recall_rules()).strip()
     head = f"{summary} (total rules: {total}, added: {added})."
     return f"{head}\n\n{rules_text}" if rules_text else head
@@ -177,7 +208,6 @@ async def improve_rules() -> str:
 async def list_coding_rules(query: str = "What coding rules apply when working in this repo?") -> str:
     """Retrieve the distilled coding rules from Cognee (CODING_RULES search)."""
     text = (await _recall_rules(query)).strip()
-    log_activity("mcp", "list_coding_rules", "retrieved coding rules")
     return text or "No coding rules have been distilled yet. Call improve_rules first."
 
 

@@ -80,8 +80,9 @@ async def build_pack(
     top_k: int = 12,
     use_llm: bool = True,
     include_baseline: bool = True,
+    namespaces=None,
 ) -> Dict[str, Any]:
-    audit = await audit_memories(query, top_k=top_k, use_llm=use_llm)
+    audit = await audit_memories(query, top_k=top_k, use_llm=use_llm, namespaces=namespaces)
     included = [v for v in audit["candidates"] if v["passed"]]
     excluded = [
         {"memory_id": v["memory_id"], "reason": v["block_reason"] or "", "check": v["block_check"] or ""}

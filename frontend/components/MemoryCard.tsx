@@ -9,10 +9,12 @@ export function MemoryCard({
   v,
   onForget,
   onSelect,
+  canForget,
 }: {
   v: MemoryVerdict;
   onForget?: (id: string) => Promise<void>;
   onSelect?: (v: MemoryVerdict) => void;
+  canForget: boolean;
 }) {
   const [forgetting, setForgetting] = useState(false);
   const blocked = !v.passed;
@@ -64,9 +66,13 @@ export function MemoryCard({
                 setForgetting(false);
               }
             }}
-            disabled={forgetting}
+            disabled={forgetting || !canForget}
             className="inline-flex items-center gap-1.5 rounded-md border border-ink-700 bg-ink-800 px-2.5 py-1 text-[11px] font-medium text-slate-400 transition-colors hover:border-block-border hover:text-block disabled:opacity-50"
-            title="Forget this memory in Cognee (graph + vector). Governance: the forget() verb."
+            title={
+              canForget
+                ? "Forget this memory in Cognee (graph + vector). Governance: the forget() verb."
+                : "Read-only demo mode. Operator token required to forget."
+            }
           >
             {forgetting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
             Forget

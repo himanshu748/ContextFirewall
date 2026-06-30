@@ -14,7 +14,9 @@ the firewall improves on in the demo.
 from __future__ import annotations
 
 import inspect
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Set
+
+from app.firewall.secrets import redact_text
 
 from .bootstrap import configure_cognee
 
@@ -26,7 +28,7 @@ def _coerce_record(node_id: str, props: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "node_id": str(node_id),
         "memory_id": props.get("memory_id") or str(node_id),
-        "text": props.get("text", ""),
+        "text": redact_text(str(props.get("text") or "")),
         "kind": props.get("kind", "fact"),
         "subject": props.get("subject"),
         "created_at": props.get("created_at"),
@@ -35,10 +37,21 @@ def _coerce_record(node_id: str, props: Dict[str, Any]) -> Dict[str, Any]:
         "reinforcement_count": int(props.get("reinforcement_count", 1) or 1),
         "evidence_event_ids": props.get("evidence_event_ids") or [],
         "source_session_id": props.get("source_session_id"),
+        "namespace": props.get("namespace"),
     }
 
 
-async def _load_graph_memories() -> Dict[str, Dict[str, Any]]:
+def effective_namespace(props: Dict[str, Any]) -> str:
+    return str(props.get("namespace") or "demo")
+
+
+def in_namespace(props: Dict[str, Any], allowed: Optional[Set[str]]) -> bool:
+    if not allowed:
+        return effective_namespace(props) == "demo"
+    return effective_namespace(props) in allowed
+
+
+async def _load_graph_memories(namespaces: Optional[Set[str]] = None) -> Dict[str, Dict[str, Any]]:
     """All Memory nodes from the graph, keyed by node id (full custom fields)."""
     from cognee.infrastructure.databases.graph import get_graph_engine
 
@@ -52,7 +65,8 @@ async def _load_graph_memories() -> Dict[str, Dict[str, Any]]:
         nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)
         props = props or {}
         if props.get("type") == "Memory":
-            out[str(nid)] = _coerce_record(nid, props)
+            if in_namespace(props, namespaces):
+                out[str(nid)] = _coerce_record(nid, props)
     return out
 
 
@@ -72,9 +86,15 @@ async def _vector_rank(query: str, top_k: int) -> List[str]:
     return [str(getattr(r, "id", "")) for r in (results or [])]
 
 
-async def recall_memory_candidates(query: str, *, top_k: int = 12) -> List[Dict[str, Any]]:
+async def recall_memory_candidates(
+    query: str,
+    *,
+    top_k: int = 12,
+    namespaces: Optional[Set[str]] = None,
+) -> List[Dict[str, Any]]:
     configure_cognee()
-    graph_mems = await _load_graph_memories()
+    namespaces = {"demo"} if namespaces is None else namespaces
+    graph_mems = await _load_graph_memories(namespaces)
     if not graph_mems:
         return []
 
@@ -86,9 +106,14 @@ async def recall_memory_candidates(query: str, *, top_k: int = 12) -> List[Dict[
         if rec and nid not in seen:
             ordered.append(rec)
             seen.add(nid)
-    # Include remaining memories so cluster checks see every same-subject peer.
+    if not ordered:
+        return list(graph_mems.values())[:_MAX_CLUSTER]
+    subjects = {(rec.get("subject") or "").strip().lower() for rec in ordered if (rec.get("subject") or "").strip()}
     for nid, rec in graph_mems.items():
-        if nid not in seen:
+        if nid in seen:
+            continue
+        subj = (rec.get("subject") or "").strip().lower()
+        if subj and subj in subjects:
             ordered.append(rec)
             seen.add(nid)
     return ordered[:_MAX_CLUSTER]
@@ -105,5 +130,5 @@ async def recall_answer(query: str) -> str:
     except Exception as exc:  # noqa: BLE001
         return f"(graph completion unavailable: {exc!r})"
     if isinstance(results, list):
-        return " ".join(str(x) for x in results) if results else ""
-    return str(results)
+        return redact_text(" ".join(str(x) for x in results) if results else "")
+    return redact_text(str(results))

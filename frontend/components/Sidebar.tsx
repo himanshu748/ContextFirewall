@@ -14,11 +14,14 @@ import {
   Database,
   FolderGit2,
   Plug,
+  CircleUser,
+  LogIn,
   type LucideIcon,
 } from "lucide-react";
 import type { HealthResponse } from "@/lib/types";
+import { useAuth } from "@/lib/auth";
 
-export type ConsoleView = "overview" | "connect" | "firewall" | "rules" | "replay" | "graph";
+export type ConsoleView = "overview" | "connect" | "firewall" | "rules" | "replay" | "graph" | "account";
 
 const NAV: { id: ConsoleView; label: string; icon: LucideIcon }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -27,6 +30,7 @@ const NAV: { id: ConsoleView; label: string; icon: LucideIcon }[] = [
   { id: "rules", label: "Coding rules", icon: Sparkles },
   { id: "replay", label: "Session replay", icon: History },
   { id: "graph", label: "Knowledge graph", icon: GitGraph },
+  { id: "account", label: "Account & keys", icon: CircleUser },
 ];
 
 export function Sidebar({
@@ -35,15 +39,19 @@ export function Sidebar({
   health,
   onSeed,
   seeding,
+  canWrite,
 }: {
   view: ConsoleView;
   setView: (v: ConsoleView) => void;
   health: HealthResponse | null;
   onSeed: () => void;
   seeding: boolean;
+  canWrite: boolean;
 }) {
   const online = !!health && health.status === "ok";
   const mem = health?.counts?.Memory ?? 0;
+  const { user, profile, activeKey } = useAuth();
+
   return (
     <aside className="z-30 flex shrink-0 flex-col border-b border-ink-800 bg-ink-950/80 backdrop-blur md:sticky md:top-0 md:h-screen md:w-64 md:border-b-0 md:border-r">
       {/* brand */}
@@ -89,7 +97,7 @@ export function Sidebar({
       </nav>
 
       {/* footer */}
-      <div className="hidden border-t border-ink-800 px-4 py-3 md:block">
+      <div className="border-t border-ink-800 px-4 py-3">
         <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
           <Circle className={`h-2 w-2 ${online ? "fill-pass text-pass" : "fill-block text-block"}`} />
           {online ? (
@@ -101,8 +109,35 @@ export function Sidebar({
           )}
         </div>
         <button
+          onClick={() => setView("account")}
+          className="mt-3 w-full rounded-xl border border-ink-700 bg-ink-900/50 p-3 text-left transition-colors hover:border-ink-600"
+        >
+          {user ? (
+            <>
+              <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-200">
+                <CircleUser className="h-3.5 w-3.5 text-firewall-400" />
+                <span className="truncate">{profile?.email ?? user.email}</span>
+              </div>
+              <div className="mt-1 text-[11px] text-slate-500">
+                ns <span className="font-mono text-slate-400">{profile?.namespace ?? "…"}</span>
+                {" · "}
+                {activeKey ? (
+                  <span className="text-pass">key active</span>
+                ) : (
+                  <span className="text-slate-500">no active key</span>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center gap-1.5 text-[11px] font-medium text-firewall-400">
+              <LogIn className="h-3.5 w-3.5" /> Sign in for your own namespace
+            </div>
+          )}
+        </button>
+        <button
           onClick={onSeed}
-          disabled={seeding}
+          disabled={seeding || !canWrite}
+          title={!canWrite ? "Read-only demo mode. Operator token required to write." : undefined}
           className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-ink-700 bg-ink-850 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-ink-600 hover:text-slate-100 disabled:opacity-60"
         >
           {seeding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Database className="h-3.5 w-3.5" />}

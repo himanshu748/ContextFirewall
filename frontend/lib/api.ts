@@ -1,5 +1,4 @@
 import type {
-  ActivityResponse,
   AuditResponse,
   ForgetResponse,
   GraphResponse,
@@ -11,20 +10,58 @@ import type {
   SessionSummary,
   TimelineResponse,
 } from "./types";
+import { getActiveApiKey } from "./activeKey";
 
 // Set NEXT_PUBLIC_API_URL to the deployed Hugging Face Space URL in production.
 export const API_BASE =
   (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/$/, "");
 
+export class ApiError extends Error {
+  status: number;
+  body: string;
+
+  constructor(status: number, body: string) {
+    super(`${status} ${body || "request failed"}`.trim());
+    this.name = "ApiError";
+    this.status = status;
+    this.body = body;
+  }
+}
+
+function buildHeaders(init?: RequestInit, method = "GET"): HeadersInit {
+  const headers = new Headers(init?.headers || {});
+  if (method !== "GET" && method !== "HEAD") {
+    headers.set("Content-Type", "application/json");
+  }
+  // The signed-in user's API key authenticates and scopes every call (reads to
+  // their namespace + demo, writes to their namespace). Anonymous = demo only.
+  const key = getActiveApiKey();
+  if (key) {
+    headers.set("Authorization", `Bearer ${key}`);
+  }
+  return headers;
+}
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = (init?.method || "GET").toUpperCase();
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+    headers: buildHeaders(init, method),
     cache: "no-store",
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`${res.status} ${res.statusText} — ${body.slice(0, 200)}`);
+    let message = body || res.statusText;
+    try {
+      const parsed = JSON.parse(body);
+      if (typeof parsed === "string") message = parsed;
+      else if (parsed && typeof parsed === "object") {
+        message = String((parsed as any).detail || (parsed as any).message || body || res.statusText);
+      }
+    } catch {
+      // keep raw body text
+    }
+    throw new ApiError(res.status, message);
   }
   return res.json() as Promise<T>;
 }
@@ -43,7 +80,6 @@ export const api = {
   rules: (query?: string) =>
     req<RulesResponse>(`/rules${query ? `?query=${encodeURIComponent(query)}` : ""}`),
   graph: (limit = 400) => req<GraphResponse>(`/graph?limit=${limit}`),
-  activity: (limit = 40) => req<ActivityResponse>(`/activity?limit=${limit}`),
   sessions: () => req<SessionSummary[]>("/sessions"),
   timeline: (sessionId: string) =>
     req<TimelineResponse>(`/sessions/${encodeURIComponent(sessionId)}/timeline`),

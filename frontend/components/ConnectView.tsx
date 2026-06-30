@@ -15,10 +15,11 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { API_BASE } from "@/lib/api";
-import { ActivityFeed } from "./ActivityFeed";
+import { useActiveApiKey } from "@/lib/activeKey";
 
 const MCP_URL = `${API_BASE}/mcp`;
 const UVX_SPEC = 'git+https://github.com/himanshu748/ContextFirewall#subdirectory=mcp';
+const KEY_PLACEHOLDER = "cf_live_YOUR_KEY";
 
 const TOOLS: { name: string; verb: string; icon: LucideIcon; desc: string }[] = [
   { name: "get_trusted_context", verb: "recall", icon: ShieldCheck, desc: "Pull a trusted context pack for a task. Only memory that passes all four checks is returned." },
@@ -55,35 +56,44 @@ function CodeBlock({ code, label }: { code: string; label?: string }) {
   );
 }
 
-const HOSTED = {
-  "Claude Code": `claude mcp add --transport http contextfirewall ${MCP_URL}`,
-  "Cursor / Windsurf / generic (mcp.json)": `{
+function hostedSnippets(key: string): Record<string, string> {
+  return {
+    "Claude Code": `claude mcp add --transport http contextfirewall ${MCP_URL} \\
+  --header "Authorization: Bearer ${key}"`,
+    "Cursor / Windsurf / generic (mcp.json)": `{
   "mcpServers": {
     "contextfirewall": {
-      "url": "${MCP_URL}"
+      "url": "${MCP_URL}",
+      "headers": { "Authorization": "Bearer ${key}" }
     }
   }
 }`,
-};
+  };
+}
 
-const LOCAL = {
-  "Claude Code": `claude mcp add contextfirewall \\
+function localSnippets(key: string): Record<string, string> {
+  return {
+    "Claude Code": `claude mcp add contextfirewall \\
   --env CF_API_BASE=${API_BASE} \\
+  --env CF_API_KEY=${key} \\
   -- uvx --from "${UVX_SPEC}" contextfirewall-mcp`,
-  "Cursor / Windsurf / Claude Desktop (mcp.json)": `{
+    "Cursor / Windsurf / Claude Desktop (mcp.json)": `{
   "mcpServers": {
     "contextfirewall": {
       "command": "uvx",
       "args": ["--from", "${UVX_SPEC}", "contextfirewall-mcp"],
-      "env": { "CF_API_BASE": "${API_BASE}" }
+      "env": { "CF_API_BASE": "${API_BASE}", "CF_API_KEY": "${key}" }
     }
   }
 }`,
-};
+  };
+}
 
 export function ConnectView({ online }: { online: boolean }) {
   const [mode, setMode] = useState<"hosted" | "local">("hosted");
-  const snippets = mode === "hosted" ? HOSTED : LOCAL;
+  const activeKey = useActiveApiKey();
+  const key = activeKey || KEY_PLACEHOLDER;
+  const snippets = mode === "hosted" ? hostedSnippets(key) : localSnippets(key);
 
   return (
     <div className="space-y-7">
@@ -106,6 +116,15 @@ export function ConnectView({ online }: { online: boolean }) {
           <span className="font-mono text-slate-400">{MCP_URL}</span>
         </div>
       </div>
+
+      {!activeKey && (
+        <div className="rounded-xl border border-firewall-600/25 bg-firewall-500/[0.05] px-4 py-3 text-xs leading-relaxed text-slate-300">
+          These configs use a placeholder key. Go to{" "}
+          <span className="font-medium text-firewall-400">Account &amp; keys</span>, sign in, and create
+          an API key — it is injected here automatically so every recall/remember is scoped to your
+          own private namespace. Without a key the endpoint is read-only demo access.
+        </div>
+      )}
 
       {/* transport toggle */}
       <div>
@@ -136,8 +155,6 @@ export function ConnectView({ online }: { online: boolean }) {
       </div>
 
       {/* live activity */}
-      <ActivityFeed />
-
 
       {/* tool catalog */}
       <div>

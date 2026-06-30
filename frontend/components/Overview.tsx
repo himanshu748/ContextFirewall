@@ -42,11 +42,13 @@ export function Overview({
   audit,
   onView,
   onIngest,
+  canWrite,
 }: {
   health: HealthResponse | null;
   audit: AuditResponse | null;
   onView: (v: ConsoleView) => void;
   onIngest: () => void;
+  canWrite: boolean;
 }) {
   const c = health?.counts ?? {};
   const p = (health?.profile ?? {}) as Record<string, unknown>;
@@ -130,7 +132,9 @@ export function Overview({
         </button>
         <button
           onClick={onIngest}
-          className="inline-flex items-center gap-2 rounded-lg border border-ink-700 bg-ink-850 px-4 py-2.5 text-sm font-medium text-slate-200 transition-colors hover:border-ink-600 hover:text-slate-100"
+          disabled={!canWrite}
+          title={!canWrite ? "Read-only demo mode. Operator token required to ingest." : undefined}
+          className={`inline-flex items-center gap-2 rounded-lg border border-ink-700 bg-ink-850 px-4 py-2.5 text-sm font-medium text-slate-200 transition-colors hover:border-ink-600 hover:text-slate-100 ${!canWrite ? "opacity-60" : ""}`}
         >
           <Upload className="h-4 w-4" /> Ingest your own session
         </button>

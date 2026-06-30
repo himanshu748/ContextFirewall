@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ShieldCheck, ShieldX, Loader2, Circle, Upload } from "lucide-react";
-import { api } from "@/lib/api";
+import { ApiError, api } from "@/lib/api";
 import type {
   CheckName,
   GraphResponse,
@@ -15,6 +15,7 @@ import type {
 import { Sidebar, type ConsoleView } from "@/components/Sidebar";
 import { Overview } from "@/components/Overview";
 import { ConnectView } from "@/components/ConnectView";
+import { AccountView } from "@/components/AccountView";
 import { RulesView } from "@/components/RulesView";
 import { QueryBar } from "@/components/QueryBar";
 import { MemoryCard } from "@/components/MemoryCard";
@@ -24,6 +25,7 @@ import { PackPanel } from "@/components/PackPanel";
 import { Timeline } from "@/components/Timeline";
 import { GraphView } from "@/components/GraphView";
 import { CHECK_META } from "@/components/badges";
+import { AuthProvider, useAuth } from "@/lib/auth";
 
 const DEFAULT_QUERY = "What should a new agent know before working on taskflow-api?";
 const CHECK_ORDER: CheckName[] = ["staleness", "contradiction", "secret", "evidence"];
@@ -34,9 +36,18 @@ const TITLES: Record<ConsoleView, string> = {
   rules: "Coding rules",
   replay: "Session replay",
   graph: "Knowledge graph",
+  account: "Account & keys",
 };
 
 export default function Console() {
+  return (
+    <AuthProvider>
+      <ConsoleInner />
+    </AuthProvider>
+  );
+}
+
+function ConsoleInner() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [view, setView] = useState<ConsoleView>("overview");
   const [loading, setLoading] = useState(false);
@@ -49,6 +60,8 @@ export default function Console() {
   const [queries, setQueries] = useState<string[]>([]);
   const [selected, setSelected] = useState<MemoryVerdict | null>(null);
   const [ingestOpen, setIngestOpen] = useState(false);
+  const { activeKey } = useAuth();
+  const canWrite = !!activeKey;
 
   const audit = pack?.audit ?? null;
 
@@ -60,6 +73,19 @@ export default function Console() {
     });
     return m;
   }, [audit]);
+
+
+  const writeGateMessage =
+    "Read-only demo mode. Open Account & keys, sign in, and create an API key to write to your namespace.";
+
+  const writeErrorMessage = useCallback((e: unknown, fallback: string) => {
+    if (e instanceof ApiError) {
+      if (e.status === 401) return writeGateMessage;
+      return e.body || fallback;
+    }
+    if (e instanceof Error) return e.message || fallback;
+    return fallback;
+  }, []);
 
   const inspectMemory = useCallback(
     (memoryId: string) => {
@@ -119,6 +145,7 @@ export default function Console() {
 
   const seed = async () => {
     setSeeding(true);
+    setError(null);
     try {
       await api.demoSeed();
       await refreshHealth();
@@ -126,16 +153,25 @@ export default function Console() {
       setEvents(null);
       run(DEFAULT_QUERY);
     } catch (e: any) {
-      setError(e.message);
+      setError(writeErrorMessage(e, "Reload sample project failed."));
     } finally {
       setSeeding(false);
     }
   };
 
   const onForget = async (id: string) => {
-    await api.forget(id, "rejected via firewall console");
-    await refreshHealth();
-    if (pack) run(pack.query);
+    setError(null);
+    try {
+      const res = await api.forget(id, "rejected via firewall console");
+      if (res.status === "forbidden") {
+        setError(res.message || writeGateMessage);
+        return;
+      }
+      await refreshHealth();
+      if (pack) run(pack.query);
+    } catch (e: any) {
+      setError(writeErrorMessage(e, "Forget failed."));
+    }
   };
 
   const onIngested = () => {
@@ -153,7 +189,7 @@ export default function Console() {
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
-      <Sidebar view={view} setView={setView} health={health} onSeed={seed} seeding={seeding} />
+      <Sidebar view={view} setView={setView} health={health} onSeed={seed} seeding={seeding} canWrite={canWrite} />
 
       <div className="min-w-0 flex-1">
         {/* topbar */}
@@ -162,7 +198,9 @@ export default function Console() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIngestOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-850 px-2.5 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-ink-600 hover:text-slate-100"
+              disabled={!canWrite}
+              title={!canWrite ? writeGateMessage : undefined}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-850 px-2.5 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-ink-600 hover:text-slate-100 disabled:opacity-50"
             >
               <Upload className="h-3.5 w-3.5" /> Ingest session
             </button>
@@ -180,9 +218,11 @@ export default function Console() {
             </div>
           )}
 
-          {view === "overview" && <Overview health={health} audit={audit} onView={setView} onIngest={() => setIngestOpen(true)} />}
+          {view === "overview" && <Overview health={health} audit={audit} onView={setView} onIngest={() => setIngestOpen(true)} canWrite={canWrite} />}
 
           {view === "connect" && <ConnectView online={online} />}
+
+          {view === "account" && <AccountView />}
 
           {view === "rules" && <RulesView />}
 
@@ -240,7 +280,7 @@ export default function Console() {
                   </h3>
                   <div className="grid gap-3 md:grid-cols-2">
                     {blocked.map((v) => (
-                      <MemoryCard key={v.memory_id} v={v} onForget={onForget} onSelect={setSelected} />
+                      <MemoryCard key={v.memory_id} v={v} onForget={onForget} onSelect={setSelected} canForget={canWrite} />
                     ))}
                   </div>
                 </div>
@@ -255,7 +295,7 @@ export default function Console() {
                   </h3>
                   <div className="grid gap-3 md:grid-cols-2">
                     {passed.map((v) => (
-                      <MemoryCard key={v.memory_id} v={v} onSelect={setSelected} />
+                      <MemoryCard key={v.memory_id} v={v} onSelect={setSelected} canForget={canWrite} />
                     ))}
                   </div>
                 </div>
@@ -305,13 +345,14 @@ export default function Console() {
         verdict={selected}
         onClose={() => setSelected(null)}
         onForget={onForget}
+        canForget={canWrite}
         onJumpToEvidence={() => {
           setSelected(null);
           setView("replay");
         }}
       />
 
-      <IngestModal open={ingestOpen} onClose={() => setIngestOpen(false)} onIngested={onIngested} />
+      <IngestModal open={ingestOpen} onClose={() => setIngestOpen(false)} onIngested={onIngested} canWrite={canWrite} />
     </div>
   );
 }
