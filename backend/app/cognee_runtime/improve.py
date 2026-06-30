@@ -21,8 +21,8 @@ async def _stored_transcript() -> str:
     from .graph import list_sessions, session_timeline
 
     lines = []
-    for s in await list_sessions():
-        for e in await session_timeline(s["session_id"]):
+    for s in await list_sessions(include_all=True):
+        for e in await session_timeline(s["session_id"], include_all=True):
             content = (e.get("content") or "").strip()
             if content:
                 lines.append(f"{e.get('kind', 'event').upper()}: {content}")

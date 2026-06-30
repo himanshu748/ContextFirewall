@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.auth import write_allowed
+from app.auth import sanitize_namespace, write_allowed
 from app.cognee_runtime.forget import orphan_node_ids
 from app.cognee_runtime.recall import effective_namespace, in_namespace
 
@@ -29,6 +29,17 @@ def test_write_allowed_requires_exact_bearer_when_token_set(monkeypatch):
 def test_write_allowed_opens_when_env_unset():
     assert write_allowed(None, None)
     assert write_allowed("anything", None)
+
+
+def test_sanitize_namespace_normalizes_and_rejects_invalid():
+    assert sanitize_namespace("Acme-Corp") == "acme-corp"
+    assert sanitize_namespace("  tenant_1  ") == "tenant_1"
+    assert sanitize_namespace("") is None
+    assert sanitize_namespace(None) is None
+    assert sanitize_namespace("bad ns") is None
+    assert sanitize_namespace("drop;table") is None
+    assert sanitize_namespace("a" * 65) is None
+    assert sanitize_namespace("-leading") is None
 
 
 def test_orphan_node_ids_cleans_session_events_and_repo_when_last_memory_removed():

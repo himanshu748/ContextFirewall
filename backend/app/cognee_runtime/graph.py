@@ -126,8 +126,12 @@ def _event_session_id(props: Dict[str, Any]) -> str:
     return eid.split(":", 1)[0] if ":" in eid else ""
 
 
-async def list_sessions(namespaces=None) -> List[Dict[str, Any]]:
-    """All AgentSession nodes with an event count."""
+async def list_sessions(namespaces=None, include_all: bool = False) -> List[Dict[str, Any]]:
+    """All AgentSession nodes with an event count.
+
+    ``include_all`` is for internal pipelines (e.g. rule distillation) that must
+    span every namespace; public endpoints always leave it False.
+    """
     try:
         _engine, raw_nodes, _edges = await _get_graph()
     except Exception:
@@ -143,10 +147,11 @@ async def list_sessions(namespaces=None) -> List[Dict[str, Any]]:
             if sid:
                 event_counts[sid] = event_counts.get(sid, 0) + 1
         elif t == "AgentSession":
-            if not in_namespace(props, namespaces):
-                continue
-            if effective_namespace(props) == "demo" and str(props.get("session_id", "")).startswith("mcp-"):
-                continue
+            if not include_all:
+                if not in_namespace(props, namespaces):
+                    continue
+                if effective_namespace(props) == "demo" and str(props.get("session_id", "")).startswith("mcp-"):
+                    continue
             agent_sessions.append(props)
     return [
         {
@@ -161,8 +166,11 @@ async def list_sessions(namespaces=None) -> List[Dict[str, Any]]:
     ]
 
 
-async def session_timeline(session_id: str, namespaces=None) -> List[Dict[str, Any]]:
-    """All SessionEvent nodes for a session, ordered by ordinal."""
+async def session_timeline(session_id: str, namespaces=None, include_all: bool = False) -> List[Dict[str, Any]]:
+    """All SessionEvent nodes for a session, ordered by ordinal.
+
+    ``include_all`` bypasses namespace scoping for internal pipelines only.
+    """
     try:
         _engine, raw_nodes, _edges = await _get_graph()
     except Exception:
@@ -176,10 +184,11 @@ async def session_timeline(session_id: str, namespaces=None) -> List[Dict[str, A
             break
     if session_props is None:
         return []
-    if not in_namespace(session_props, namespaces):
-        return []
-    if effective_namespace(session_props) == "demo" and str(session_id).startswith("mcp-"):
-        return []
+    if not include_all:
+        if not in_namespace(session_props, namespaces):
+            return []
+        if effective_namespace(session_props) == "demo" and str(session_id).startswith("mcp-"):
+            return []
     events: List[Dict[str, Any]] = []
     for entry in raw_nodes:
         _nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)

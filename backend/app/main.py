@@ -34,7 +34,7 @@ from typing import List, Optional
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.auth import write_allowed
+from app.auth import RESERVED_NAMESPACE, sanitize_namespace, write_allowed
 from app.cognee_runtime.bootstrap import configure_cognee
 from app.cognee_runtime.forget import forget_memory
 from app.cognee_runtime.graph import count_nodes, graph_view, list_sessions, session_timeline
@@ -120,11 +120,14 @@ def _write_allowed(authorization: Optional[str], env_token: Optional[str] = None
 
 
 def _read_namespaces(x_cf_namespace: Optional[str]) -> set[str]:
-    return {"demo"} if not x_cf_namespace else {"demo", x_cf_namespace}
+    ns = sanitize_namespace(x_cf_namespace)
+    return {RESERVED_NAMESPACE} if not ns else {RESERVED_NAMESPACE, ns}
 
 
 def _write_namespace(x_cf_namespace: Optional[str]) -> str:
-    return x_cf_namespace or "public"
+    ns = sanitize_namespace(x_cf_namespace)
+    # The bundled demo is immutable; never let a header write into it.
+    return ns if ns and ns != RESERVED_NAMESPACE else "public"
 
 
 @app.get("/")

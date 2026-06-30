@@ -201,10 +201,12 @@ async def forget_memory(
         pass
 
     ok = deleted["graph"] or deleted["vector"]
+    cleanup_done = False
     if ok:
         try:
             cleanup_ids = orphan_node_ids(graph_nodes, graph_edges, node_id)
             if cleanup_ids:
+                cleanup_done = True
                 try:
                     if hasattr(engine, "delete_nodes"):
                         await engine.delete_nodes(sorted(cleanup_ids))
