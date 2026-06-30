@@ -1,23 +1,52 @@
 # ContextFirewall MCP server
 
-Put the memory firewall **inside your coding agent**. This is a small [MCP](https://modelcontextprotocol.io) server that wraps the existing ContextFirewall API, so any MCP client (Claude Code, Cursor, Windsurf, Cline) can pull a governed context pack and record session memories that future packs will audit on Cognee.
+Put the memory firewall **inside your coding agent**. ContextFirewall speaks the [Model Context Protocol](https://modelcontextprotocol.io), so any MCP client (Claude Code, Cursor, Windsurf, Cline) can pull a governed context pack and record, distil, or forget memories, all audited on Cognee.
 
-It is a thin client over the HTTP API. It changes nothing about the backend.
+There are **two transports with an identical six-tool surface**:
+
+- **Hosted (streamable HTTP):** the server is mounted at `/mcp` on the backend. Connect in one line, nothing to install.
+- **Local (stdio):** this package, a tiny zero-dependency client over the HTTP API. Run it with `uvx`, pointed at any ContextFirewall backend.
 
 ## Tools
 
 | Tool | What it does | Cognee verb |
 |------|--------------|-------------|
-| `get_trusted_context(task, top_k=12)` | Returns a **trusted context pack** for the task. Only memories that pass all four checks (staleness, contradiction, secret, evidence) are included. | recall + audit |
-| `record_event(kind, content, subject="")` | Buffers a session event. If `subject` is set, it is also stored as a durable memory that future packs audit. | (stages remember) |
-| `commit_session(task="", repo="", cognify=true)` | Persists the buffered session into Cognee and cognifies it. | remember |
-| `forget_memory(memory_id, reason="")` | Deletes a memory from the graph and vector store so it can never resurface. | forget |
+| `get_trusted_context(task, top_k=12)` | Returns a **trusted context pack** for the task. Only memories that pass all four checks (staleness, contradiction, secret, evidence) are included. | recall |
+| `audit_context(task, top_k=12)` | Per-memory verdicts: what was **approved**, what was **blocked**, the failing check and a plain-language reason, plus the `memory_id`. | recall |
+| `remember(text, subject="", kind="fact")` | Store a durable fact. With a `subject` set, the firewall can later detect staleness and contradiction against peers. Secrets are redacted at ingest. | remember |
+| `forget_memory(memory_id, reason="")` | Delete a memory from the graph and vector store so it can never resurface. | forget |
+| `improve_rules()` | Distil reusable coding rules from recorded sessions (memify). | improve |
+| `list_coding_rules(query="")` | Retrieve the distilled coding rules (`CODING_RULES` search). | recall |
 
-The intended loop: call `get_trusted_context` before you act, `record_event` as you work, and `commit_session` when the task is done so the next session starts from governed memory.
+The intended loop: `get_trusted_context` before you act, `remember` durable facts as you work, `improve_rules` when a task is done, `forget_memory` to retract a bad one. The next session starts from governed memory, not a raw dump.
 
 ## Connect it
 
-### Claude Code
+### Hosted (one line, no install)
+
+**Claude Code:**
+
+```bash
+claude mcp add --transport http contextfirewall https://himanshukumarjha-contextfirewall.hf.space/mcp
+```
+
+**Cursor / Windsurf / generic (`.cursor/mcp.json`, `~/.codeium/windsurf/mcp_config.json`, or `mcp.json`):**
+
+```json
+{
+  "mcpServers": {
+    "contextfirewall": {
+      "url": "https://himanshukumarjha-contextfirewall.hf.space/mcp"
+    }
+  }
+}
+```
+
+### Local (stdio via uvx)
+
+Runs the server on your machine and talks to a ContextFirewall backend over HTTP. `uvx` (from [uv](https://docs.astral.sh/uv/)) fetches and runs it in one step.
+
+**Claude Code:**
 
 ```bash
 claude mcp add contextfirewall \
@@ -25,9 +54,7 @@ claude mcp add contextfirewall \
   -- uvx --from "git+https://github.com/himanshu748/ContextFirewall#subdirectory=mcp" contextfirewall-mcp
 ```
 
-### Cursor, Windsurf, Claude Desktop
-
-Add to your MCP config (`.cursor/mcp.json`, `~/.codeium/windsurf/mcp_config.json`, or `claude_desktop_config.json`):
+**Config form (Cursor, Windsurf, Claude Desktop):**
 
 ```json
 {
@@ -41,9 +68,7 @@ Add to your MCP config (`.cursor/mcp.json`, `~/.codeium/windsurf/mcp_config.json
 }
 ```
 
-`uvx` (from [uv](https://docs.astral.sh/uv/)) fetches and runs the server in one step. The git form needs the repo to be public; until then, use the local option below.
-
-### Local (from a clone, no install)
+### Local from a clone (no install)
 
 ```bash
 git clone https://github.com/himanshu748/ContextFirewall
@@ -51,38 +76,23 @@ cd ContextFirewall/mcp
 uv run --with mcp python -m contextfirewall_mcp
 ```
 
-Config form:
-
-```json
-{
-  "mcpServers": {
-    "contextfirewall": {
-      "command": "uv",
-      "args": ["run", "--with", "mcp", "python", "-m", "contextfirewall_mcp"],
-      "cwd": "/absolute/path/to/ContextFirewall/mcp",
-      "env": { "CF_API_BASE": "http://localhost:8000" }
-    }
-  }
-}
-```
-
 ## Configuration
 
 | Variable | Default | Notes |
 |----------|---------|-------|
-| `CF_API_BASE` | the public demo Space | The ContextFirewall API to talk to. |
-| `CF_SESSION_FILE` | `~/.contextfirewall/session.json` | Where `record_event` buffers the session. |
+| `CF_API_BASE` | the public demo Space | The ContextFirewall backend the stdio server talks to. |
 | `CF_HTTP_TIMEOUT` | `120` | Request timeout in seconds. |
 
 ## Privacy
 
-The default `CF_API_BASE` points at the shared public demo, which is convenient for trying `get_trusted_context` but is not where you want your real memories. For private use, run your own ContextFirewall instance and point `CF_API_BASE` at it. The backend runs fully local (SQLite, LanceDB, Kuzu) and can use a local model endpoint, so with a self-hosted instance nothing, prompts or memories, leaves your machine.
+The default `CF_API_BASE` points at the shared public demo, convenient for trying it but not where you want your real memories. For private use, run your own ContextFirewall backend and point `CF_API_BASE` at it. The backend runs fully local (SQLite, LanceDB, Kuzu) and can use a local model endpoint, so with a self-hosted instance nothing, prompts or memories, leaves your machine.
 
 ## Test
 
 ```bash
 cd mcp
-uv run --with mcp python tests/test_mcp.py
+# stdio package: mock write path + live MCP protocol handshake
+CF_API_BASE=https://himanshukumarjha-contextfirewall.hf.space uv run --with mcp python tests/test_mcp.py
 ```
 
-The write-path tools are tested against a local mock (so they never touch the public demo), and the read path plus MCP handshake are tested against the live API.
+The write-path tools are tested against a local mock (so they never touch a real graph); the read path plus MCP handshake run against the live API. The hosted streamable-HTTP endpoint is exercised by `backend/scripts/mcp_http_probe.py` and `backend/scripts/mcp_full_probe.py`.
