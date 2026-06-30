@@ -117,6 +117,13 @@ def _require_admin(token: Optional[str]) -> None:
 
 
 _WRITE_AUTH_DETAIL = "A valid ContextFirewall API key is required for writes. Sign in to the console to mint one."
+_SAFE_KIND_LABELS = {"fact", "decision", "lesson", "command", "config", "credential"}
+
+
+def _remember_kind_label(kind: object) -> str:
+    if isinstance(kind, str) and kind.lower() in _SAFE_KIND_LABELS:
+        return kind.lower()
+    return "memory"
 
 
 @app.get("/")
@@ -167,7 +174,7 @@ async def remember(req: RememberRequest, authorization: Optional[str] = Header(d
         nodes_added=res["nodes_added"],
         message=f"Remembered {req.kind}{subj}. It is now auditable by the firewall.",
     )
-    log_activity("api", "remember", f"stored {req.kind or 'fact'}")
+    log_activity("api", "remember", f"stored a {_remember_kind_label(req.kind)}")
     return response
 
 
@@ -242,7 +249,8 @@ async def forget(req: ForgetRequest, authorization: Optional[str] = Header(defau
         allow_demo=ident.allow_demo_write or _admin_token_ok(x_admin_token),
     )
     response = ForgetResponse(**result)
-    log_activity("api", "forget_memory", f"forgot {req.memory_id}")
+    status = str(result.get("status", "error"))
+    log_activity("api", "forget_memory", "forgot a memory" if status == "forgotten" else f"forget {status}")
     return response
 
 
@@ -256,6 +264,7 @@ async def improve_endpoint() -> dict:
 
 @app.get("/rules")
 async def rules_endpoint(query: str = "What coding rules apply when working in this repo?") -> dict:
+    log_activity("api", "list_coding_rules", "retrieved coding rules")
     return {"query": query, "rules": await recall_rules(query)}
 
 
