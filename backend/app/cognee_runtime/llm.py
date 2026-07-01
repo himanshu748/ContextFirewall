@@ -104,7 +104,10 @@ async def chat(
             try:
                 r = await client.post(endpoint, headers=headers, json=payload)
                 if r.status_code == 200:
-                    return r.json()["choices"][0]["message"]["content"]
+                    try:
+                        return r.json()["choices"][0]["message"]["content"]
+                    except (KeyError, IndexError, ValueError, TypeError) as exc:
+                        raise LLMUnavailable(f"malformed chat response: {exc!r}")
                 if r.status_code in _RETRY_STATUS:
                     last_err = f"HTTP {r.status_code}"
                     await asyncio.sleep(min(2**attempt, 8))

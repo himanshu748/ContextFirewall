@@ -156,9 +156,9 @@ async def contradiction_check(
         p
         for p in stronger
         if (p.get("text") or "").strip() != (mem.get("text") or "").strip()
-        and float(p.get("trust_score", 0.5)) >= float(mem.get("trust_score", 0.5)) + 0.15
+        and float(p.get("trust_score", 0.5) or 0.0) >= float(mem.get("trust_score", 0.5) or 0.0) + 0.15
     ]
-    if diff and float(mem.get("trust_score", 0.5)) < 0.6:
+    if diff and float(mem.get("trust_score", 0.5) or 0.0) < 0.6:
         winner = max(diff, key=_authority)
         return CheckOutcome(
             "contradiction",

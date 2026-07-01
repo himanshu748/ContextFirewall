@@ -6,8 +6,9 @@ namespace. We never store the raw key, only its SHA-256, so resolution is:
 
     bearer key --sha256--> key_hash --(cf_api_keys)--> namespace
 
-Reads are scoped to ``{demo, <namespace>}`` and writes target ``<namespace>``.
-Anonymous callers (no key) get read-only access to the public ``demo`` namespace.
+An authenticated caller's reads are scoped to just their own ``<namespace>`` —
+their console never mixes in the public sample data. Anonymous callers (no
+key) get read-only access to the public ``demo`` namespace only.
 
 The key table lives in the same Supabase Postgres the Cognee runtime already
 uses, so we resolve keys with asyncpg over the existing ``DB_*`` connection vars
@@ -124,7 +125,7 @@ async def resolve_identity(authorization: Optional[str], env_write_token: Option
                 namespace=ns,
                 can_write=True,
                 allow_demo_write=False,
-                read_namespaces={DEMO_NAMESPACE, ns},
+                read_namespaces={ns},
             )
         return _anonymous()  # unknown/revoked key -> no privileges
     env_token = env_write_token if env_write_token is not None else os.getenv("CF_WRITE_TOKEN")

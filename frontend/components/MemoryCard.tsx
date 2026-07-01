@@ -23,6 +23,17 @@ export function MemoryCard({
     <div
       onClick={() => onSelect?.(v)}
       role={onSelect ? "button" : undefined}
+      tabIndex={onSelect ? 0 : undefined}
+      onKeyDown={
+        onSelect
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onSelect(v);
+              }
+            }
+          : undefined
+      }
       className={`group relative animate-fade-up rounded-xl border p-4 transition-colors ${
         onSelect ? "cursor-pointer" : ""
       } ${

@@ -40,6 +40,7 @@ export function MemoryDrawer({
           </div>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="rounded-md p-1 text-slate-500 transition-colors hover:bg-ink-850 hover:text-slate-200"
           >
             <X className="h-4 w-4" />
