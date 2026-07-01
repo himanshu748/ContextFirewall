@@ -188,8 +188,9 @@ export function GraphView({
       return;
     }
     if (panRef.current) {
+      const { x: startX, y: startY, vx: originX, vy: originY } = panRef.current;
       const u = toUser(e);
-      setView((v) => ({ ...v, x: panRef.current!.vx + (u.x - panRef.current!.x), y: panRef.current!.vy + (u.y - panRef.current!.y) }));
+      setView((v) => ({ ...v, x: originX + (u.x - startX), y: originY + (u.y - startY) }));
     }
   }
   function endInteraction() {

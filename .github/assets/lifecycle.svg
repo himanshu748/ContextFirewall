@@ -1,0 +1,51 @@
+<svg width="920" height="124" viewBox="0 0 920 124" fill="none" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,sans-serif">
+  <rect x="0.5" y="0.5" width="919" height="123" rx="16" fill="#08090c" stroke="#161a23"/>
+  
+  <g transform="translate(20,34)">
+    <rect width="200" height="56" rx="12" fill="#0c0e13" stroke="#1e2330"/>
+    <circle cx="22" cy="28" r="4" fill="#38bdf8">
+      <animate attributeName="fill" values="#38bdf8;#34d399;#38bdf8" dur="3.6s" begin="0.0s" repeatCount="indefinite"/>
+    </circle>
+    <text x="38" y="26" font-size="14" font-weight="600" fill="#e6e9ef" font-family="ui-monospace,monospace">remember()</text>
+    <text x="38" y="44" font-size="11.5" fill="#8b95a7">cognify session</text>
+  </g>
+  <g transform="translate(222,62)">
+    <path d="M0 0 H18" stroke="#2a3446" stroke-width="1.5"/>
+    <path d="M14 -4 L20 0 L14 4" fill="none" stroke="#2a3446" stroke-width="1.5"/>
+    <circle cx="4" cy="0" r="2" fill="#38bdf8"><animate attributeName="cx" values="0;20" dur="1.8s" begin="0.0s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;0" dur="1.8s" begin="0.0s" repeatCount="indefinite"/></circle>
+  </g>
+  <g transform="translate(244,34)">
+    <rect width="200" height="56" rx="12" fill="#0c0e13" stroke="#1e2330"/>
+    <circle cx="22" cy="28" r="4" fill="#38bdf8">
+      <animate attributeName="fill" values="#38bdf8;#34d399;#38bdf8" dur="3.6s" begin="0.9s" repeatCount="indefinite"/>
+    </circle>
+    <text x="38" y="26" font-size="14" font-weight="600" fill="#e6e9ef" font-family="ui-monospace,monospace">recall()</text>
+    <text x="38" y="44" font-size="11.5" fill="#8b95a7">audit + gate</text>
+  </g>
+  <g transform="translate(446,62)">
+    <path d="M0 0 H18" stroke="#2a3446" stroke-width="1.5"/>
+    <path d="M14 -4 L20 0 L14 4" fill="none" stroke="#2a3446" stroke-width="1.5"/>
+    <circle cx="4" cy="0" r="2" fill="#38bdf8"><animate attributeName="cx" values="0;20" dur="1.8s" begin="0.9s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;0" dur="1.8s" begin="0.9s" repeatCount="indefinite"/></circle>
+  </g>
+  <g transform="translate(468,34)">
+    <rect width="200" height="56" rx="12" fill="#0c0e13" stroke="#1e2330"/>
+    <circle cx="22" cy="28" r="4" fill="#38bdf8">
+      <animate attributeName="fill" values="#38bdf8;#34d399;#38bdf8" dur="3.6s" begin="1.8s" repeatCount="indefinite"/>
+    </circle>
+    <text x="38" y="26" font-size="14" font-weight="600" fill="#e6e9ef" font-family="ui-monospace,monospace">improve()</text>
+    <text x="38" y="44" font-size="11.5" fill="#8b95a7">distil rules</text>
+  </g>
+  <g transform="translate(670,62)">
+    <path d="M0 0 H18" stroke="#2a3446" stroke-width="1.5"/>
+    <path d="M14 -4 L20 0 L14 4" fill="none" stroke="#2a3446" stroke-width="1.5"/>
+    <circle cx="4" cy="0" r="2" fill="#38bdf8"><animate attributeName="cx" values="0;20" dur="1.8s" begin="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" values="1;0" dur="1.8s" begin="1.8s" repeatCount="indefinite"/></circle>
+  </g>
+  <g transform="translate(692,34)">
+    <rect width="200" height="56" rx="12" fill="#0c0e13" stroke="#1e2330"/>
+    <circle cx="22" cy="28" r="4" fill="#38bdf8">
+      <animate attributeName="fill" values="#38bdf8;#34d399;#38bdf8" dur="3.6s" begin="2.7s" repeatCount="indefinite"/>
+    </circle>
+    <text x="38" y="26" font-size="14" font-weight="600" fill="#e6e9ef" font-family="ui-monospace,monospace">forget()</text>
+    <text x="38" y="44" font-size="11.5" fill="#8b95a7">retract memory</text>
+  </g>
+</svg>

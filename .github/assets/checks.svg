@@ -1,0 +1,70 @@
+<svg width="1200" height="290" viewBox="0 0 1200 290" fill="none"
+     xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif,system-ui,sans-serif">
+  <rect x="0.5" y="0.5" width="1199" height="289" rx="18" fill="#08090c" stroke="#161a23"/>
+  <text x="20" y="34" font-size="13" fill="#38bdf8" font-family="ui-monospace,monospace" letter-spacing="1.5">FOUR CHECKS · EVERY MEMORY, BEFORE IT REACHES THE MODEL</text>
+  
+  <g transform="translate(20,70)">
+    <rect width="276" height="188" rx="14" fill="#0c0e13" stroke="#1e2330"/>
+    <rect width="276" height="3" rx="1.5" fill="#fbbf24"/>
+    <circle cx="26" cy="34" r="5" fill="#fbbf24">
+      <animate attributeName="opacity" values="1;0.4;1" dur="2.4s" begin="0.00s" repeatCount="indefinite"/>
+    </circle>
+    <text x="42" y="39" font-size="16" font-weight="600" fill="#e6e9ef">Staleness</text>
+    <text x="20" y="66" font-size="12.5" fill="#8b95a7">a newer value supersedes it</text>
+    <g font-family="ui-monospace,monospace" font-size="12">
+      <rect x="20" y="82" width="236" height="26" rx="6" fill="#11141b" stroke="#1b2130"/>
+      <text x="32" y="99" fill="#6b7482" text-decoration="line-through">flyctl deploy</text>
+      <rect x="20" y="116" width="236" height="26" rx="6" fill="#0c1512" stroke="#fbbf24" stroke-opacity="0.4"/>
+      <text x="32" y="133" fill="#fbbf24">make release</text>
+    </g>
+    <text x="20" y="164" font-size="11.5" fill="#5b6472" font-family="ui-monospace,monospace">→ superseded</text>
+  </g>
+  <g transform="translate(314,70)">
+    <rect width="276" height="188" rx="14" fill="#0c0e13" stroke="#1e2330"/>
+    <rect width="276" height="3" rx="1.5" fill="#fb7185"/>
+    <circle cx="26" cy="34" r="5" fill="#fb7185">
+      <animate attributeName="opacity" values="1;0.4;1" dur="2.4s" begin="0.30s" repeatCount="indefinite"/>
+    </circle>
+    <text x="42" y="39" font-size="16" font-weight="600" fill="#e6e9ef">Contradiction</text>
+    <text x="20" y="66" font-size="12.5" fill="#8b95a7">a better-supported memory disagrees</text>
+    <g font-family="ui-monospace,monospace" font-size="12">
+      <rect x="20" y="82" width="236" height="26" rx="6" fill="#11141b" stroke="#1b2130"/>
+      <text x="32" y="99" fill="#6b7482" text-decoration="line-through">tokens never expire</text>
+      <rect x="20" y="116" width="236" height="26" rx="6" fill="#0c1512" stroke="#fb7185" stroke-opacity="0.4"/>
+      <text x="32" y="133" fill="#fb7185">expire in 15m ✓</text>
+    </g>
+    <text x="20" y="164" font-size="11.5" fill="#5b6472" font-family="ui-monospace,monospace">→ weaker side loses</text>
+  </g>
+  <g transform="translate(608,70)">
+    <rect width="276" height="188" rx="14" fill="#0c0e13" stroke="#1e2330"/>
+    <rect width="276" height="3" rx="1.5" fill="#38bdf8"/>
+    <circle cx="26" cy="34" r="5" fill="#38bdf8">
+      <animate attributeName="opacity" values="1;0.4;1" dur="2.4s" begin="0.60s" repeatCount="indefinite"/>
+    </circle>
+    <text x="42" y="39" font-size="16" font-weight="600" fill="#e6e9ef">Secret</text>
+    <text x="20" y="66" font-size="12.5" fill="#8b95a7">it carries a credential</text>
+    <g font-family="ui-monospace,monospace" font-size="12">
+      <rect x="20" y="82" width="236" height="26" rx="6" fill="#11141b" stroke="#1b2130"/>
+      <text x="32" y="99" fill="#6b7482" text-decoration="line-through">AWS_KEY=AKIA…PLE</text>
+      <rect x="20" y="116" width="236" height="26" rx="6" fill="#0c1512" stroke="#38bdf8" stroke-opacity="0.4"/>
+      <text x="32" y="133" fill="#38bdf8">«REDACTED»</text>
+    </g>
+    <text x="20" y="164" font-size="11.5" fill="#5b6472" font-family="ui-monospace,monospace">→ redacted at ingest</text>
+  </g>
+  <g transform="translate(902,70)">
+    <rect width="276" height="188" rx="14" fill="#0c0e13" stroke="#1e2330"/>
+    <rect width="276" height="3" rx="1.5" fill="#34d399"/>
+    <circle cx="26" cy="34" r="5" fill="#34d399">
+      <animate attributeName="opacity" values="1;0.4;1" dur="2.4s" begin="0.90s" repeatCount="indefinite"/>
+    </circle>
+    <text x="42" y="39" font-size="16" font-weight="600" fill="#e6e9ef">Evidence</text>
+    <text x="20" y="66" font-size="12.5" fill="#8b95a7">unsupported: low trust, no evidence</text>
+    <g font-family="ui-monospace,monospace" font-size="12">
+      <rect x="20" y="82" width="236" height="26" rx="6" fill="#11141b" stroke="#1b2130"/>
+      <text x="32" y="99" fill="#6b7482" text-decoration="line-through">1,000,000 req/s</text>
+      <rect x="20" y="116" width="236" height="26" rx="6" fill="#0c1512" stroke="#34d399" stroke-opacity="0.4"/>
+      <text x="32" y="133" fill="#34d399">trust 0.10</text>
+    </g>
+    <text x="20" y="164" font-size="11.5" fill="#5b6472" font-family="ui-monospace,monospace">→ below 0.30 bar</text>
+  </g>
+</svg>

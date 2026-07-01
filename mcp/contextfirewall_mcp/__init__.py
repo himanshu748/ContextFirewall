@@ -1,7 +1,7 @@
 """ContextFirewall MCP server (local stdio).
 
 Puts the ContextFirewall memory firewall inside your coding agent. Any MCP client
-(Claude Code, Cursor, Windsurf, Cline) can pull a trusted, governed context pack and
+(Claude Code, Cursor, Windsurf, Cline, Claude Desktop) can pull a trusted, governed context pack and
 record session memories that future packs will audit on Cognee.
 
 This server is a thin, zero-dependency client over the ContextFirewall HTTP API, so it
@@ -46,7 +46,10 @@ def _base() -> str:
 
 
 def _timeout() -> float:
-    return float(os.environ.get("CF_HTTP_TIMEOUT", "120"))
+    try:
+        return float(os.environ.get("CF_HTTP_TIMEOUT", "120"))
+    except ValueError:
+        return 120.0
 
 
 def _api_key() -> str:

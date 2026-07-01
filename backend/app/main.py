@@ -96,7 +96,7 @@ app.add_middleware(
 
 
 # Mount the ContextFirewall MCP server (streamable HTTP) at /mcp. This is the
-# headline surface: any MCP client (Claude Code, Cursor, Windsurf, ...) connects
+# headline surface: any MCP client (Claude Code, Cursor, Windsurf, Cline, ...) connects
 # here to get a governed memory layer. The same six tools are also shipped as a
 # local stdio package under mcp/ for laptops.
 app.mount("/mcp", mcp_http_app)
@@ -255,17 +255,24 @@ async def forget(req: ForgetRequest, authorization: Optional[str] = Header(defau
 
 
 @app.post("/improve")
-async def improve_endpoint() -> dict:
+async def improve_endpoint(authorization: Optional[str] = Header(default=None)) -> dict:
     """Distil durable coding rules from stored sessions (Cognee memify / improve)."""
-    res = await improve_memory()
+    ident = await resolve_identity(authorization)
+    if not ident.can_write:
+        raise HTTPException(status_code=401, detail=_WRITE_AUTH_DETAIL)
+    res = await improve_memory(namespaces={ident.namespace})
     log_activity("api", "improve_rules", res.get("message", "distilled rules"))
     return res
 
 
 @app.get("/rules")
-async def rules_endpoint(query: str = "What coding rules apply when working in this repo?") -> dict:
+async def rules_endpoint(
+    query: str = "What coding rules apply when working in this repo?",
+    authorization: Optional[str] = Header(default=None),
+) -> dict:
+    ident = await resolve_identity(authorization)
     log_activity("api", "list_coding_rules", "retrieved coding rules")
-    return {"query": query, "rules": await recall_rules(query)}
+    return {"query": query, "rules": await recall_rules(query, namespaces=ident.read_namespaces)}
 
 
 @app.get("/graph", response_model=GraphResponse)

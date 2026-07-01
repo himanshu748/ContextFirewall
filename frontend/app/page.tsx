@@ -211,8 +211,8 @@ export default function Landing() {
             Memory is a new attack surface for agents.
           </h2>
           <p className="mt-4 max-w-2xl text-base leading-relaxed text-slate-400">
-            Hand an agent your team's accumulated memory and it will confidently act on a stale deploy command, a fix
-            that was later contradicted, a leaked API key, or a claim nothing ever supported. Plain recall can't tell
+            Hand an agent your team&apos;s accumulated memory and it will confidently act on a stale deploy command, a fix
+            that was later contradicted, a leaked API key, or a claim nothing ever supported. Plain recall can&apos;t tell
             good memory from dangerous memory, so it serves all of it.
           </p>
         </Reveal>
@@ -303,7 +303,7 @@ export default function Landing() {
               The full memory lifecycle, including <span className="font-mono text-firewall-400">forget()</span>.
             </h2>
             <p className="mt-4 max-w-2xl text-base leading-relaxed text-slate-400">
-              ContextFirewall doesn't just read from Cognee; it exercises the whole lifecycle. Governance lives in
+              ContextFirewall doesn&apos;t just read from Cognee; it exercises the whole lifecycle. Governance lives in
               the loop: nothing is permanent until it has earned trust, and anything unsafe can be forgotten.
             </p>
           </Reveal>
@@ -377,7 +377,7 @@ export default function Landing() {
               Why a knowledge graph? Because trust is relational and temporal. Cognee lets the firewall see{" "}
               <span className="cf-accent-text">when a fact was superseded</span> and{" "}
               <span className="cf-accent-text">which memories contradict each other</span>. These are judgments a flat
-              vector store can't make.
+              vector store can&apos;t make.
             </p>
           </Reveal>
         </div>
@@ -390,7 +390,7 @@ export default function Landing() {
             <div className="pointer-events-none absolute inset-0 cf-grid opacity-60" aria-hidden />
             <div className="relative">
               <h2 className="mx-auto max-w-2xl text-3xl font-semibold tracking-tight text-slate-100 sm:text-4xl">
-                Put a firewall in front of your agent's memory.
+                Put a firewall in front of your agent&apos;s memory.
               </h2>
               <p className="mx-auto mt-4 max-w-xl text-base text-slate-400">
                 Connect your agent over MCP in one line, or open the console and watch every memory get audited live on

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X, Loader2, Upload, FileJson, CheckCircle2, Database } from "lucide-react";
 import { api } from "@/lib/api";
 import type { IngestResponse } from "@/lib/types";
@@ -43,6 +43,16 @@ export function IngestModal({
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<IngestResponse | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open) {
+      setText("");
+      setCognify(false);
+      setBusy(false);
+      setError(null);
+      setResult(null);
+    }
+  }, [open]);
 
   if (!open) return null;
 
@@ -90,6 +100,7 @@ export function IngestModal({
           </div>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="rounded-md p-1 text-slate-500 transition-colors hover:bg-ink-850 hover:text-slate-200"
           >
             <X className="h-4 w-4" />

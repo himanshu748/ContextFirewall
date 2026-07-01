@@ -35,7 +35,7 @@ function Line({ code }: { code: string }) {
         {copied ? <Check className="h-3 w-3 text-pass" /> : <Copy className="h-3 w-3" />}
         {copied ? "copied" : "copy"}
       </button>
-      <pre className="overflow-x-auto px-4 py-3 font-mono text-[12.5px] leading-relaxed text-slate-200">
+      <pre className="overflow-x-auto px-4 py-3 font-mono text-[12px] leading-relaxed text-slate-200">
         <code>{code}</code>
       </pre>
     </div>

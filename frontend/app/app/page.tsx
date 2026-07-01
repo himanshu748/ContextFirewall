@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ShieldCheck, ShieldX, Loader2, Circle, Upload } from "lucide-react";
 import { ApiError, api } from "@/lib/api";
 import type {
@@ -57,6 +57,7 @@ function ConsoleInner() {
   const [events, setEvents] = useState<TimelineEvent[] | null>(null);
   const [session, setSession] = useState<SessionSummary | null>(null);
   const [graph, setGraph] = useState<GraphResponse | null>(null);
+  const graphLoadingRef = useRef(false);
   const [queries, setQueries] = useState<string[]>([]);
   const [selected, setSelected] = useState<MemoryVerdict | null>(null);
   const [ingestOpen, setIngestOpen] = useState(false);
@@ -154,14 +155,18 @@ function ConsoleInner() {
         })
         .catch(() => setEvents([]));
     }
-    if (view === "graph" && graph === null) {
+    if (view === "graph" && graph === null && !graphLoadingRef.current) {
       // The graph query over Neo4j is slow on a cold backend; retry once before
       // surfacing an empty graph so a single transient timeout doesn't look broken.
+      graphLoadingRef.current = true;
       api
         .graph(450)
         .catch(() => api.graph(450))
         .then(setGraph)
-        .catch(() => setGraph({ nodes: [], edges: [] }));
+        .catch(() => setGraph({ nodes: [], edges: [] }))
+        .finally(() => {
+          graphLoadingRef.current = false;
+        });
     }
   }, [view, events, graph]);
 
@@ -172,6 +177,7 @@ function ConsoleInner() {
       await api.demoSeed();
       await refreshHealth();
       setGraph(null);
+      graphLoadingRef.current = false;
       setEvents(null);
       run(DEFAULT_QUERY);
     } catch (e: any) {
@@ -199,6 +205,7 @@ function ConsoleInner() {
   const onIngested = () => {
     setIngestOpen(false);
     setGraph(null);
+    graphLoadingRef.current = false;
     setEvents(null);
     refreshHealth();
     setView("firewall");
@@ -251,7 +258,7 @@ function ConsoleInner() {
           {view === "firewall" && (
             <div className="space-y-6">
               <div>
-                <h1 className="max-w-2xl text-lg font-semibold leading-tight tracking-tight text-slate-100">
+                <h1 className="max-w-2xl text-xl font-semibold leading-tight tracking-tight text-slate-100">
                   Audit memory for a task, then hand the agent only what passes.
                 </h1>
                 <div className="mt-4 max-w-3xl">

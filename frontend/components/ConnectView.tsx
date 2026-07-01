@@ -61,10 +61,18 @@ function hostedSnippets(key: string): Record<string, string> {
   return {
     "Claude Code": `claude mcp add --transport http contextfirewall ${MCP_URL} \\
   --header "Authorization: Bearer ${key}"`,
-    "Cursor / Windsurf / generic (mcp.json)": `{
+    "Cursor / Cline / generic (mcp.json)": `{
   "mcpServers": {
     "contextfirewall": {
       "url": "${MCP_URL}",
+      "headers": { "Authorization": "Bearer ${key}" }
+    }
+  }
+}`,
+    "Windsurf (~/.codeium/windsurf/mcp_config.json)": `{
+  "mcpServers": {
+    "contextfirewall": {
+      "serverUrl": "${MCP_URL}",
       "headers": { "Authorization": "Bearer ${key}" }
     }
   }
@@ -78,7 +86,7 @@ function localSnippets(key: string): Record<string, string> {
   --env CF_API_BASE=${API_BASE} \\
   --env CF_API_KEY=${key} \\
   -- uvx --from "${UVX_SPEC}" contextfirewall-mcp`,
-    "Cursor / Windsurf / Claude Desktop (mcp.json)": `{
+    "Cursor / Windsurf / Cline / Claude Desktop (mcp.json)": `{
   "mcpServers": {
     "contextfirewall": {
       "command": "uvx",
@@ -146,7 +154,7 @@ function LiveActivity({ online }: { online: boolean }) {
             {events.map((event) => (
               <div key={event.id} className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 px-3 py-2.5 text-xs">
                 <span
-                  className={`mt-0.5 inline-flex items-center rounded border px-1.5 py-0.5 font-mono uppercase tracking-wide ${
+                  className={`mt-0.5 inline-flex items-center rounded border px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide ${
                     event.source === "mcp"
                       ? "border-firewall-500/30 bg-firewall-500/10 text-firewall-400"
                       : "border-ink-700 bg-ink-850 text-slate-400"
@@ -183,10 +191,10 @@ export function ConnectView({ online }: { online: boolean }) {
   return (
     <div className="space-y-7">
       <div>
-        <div className="flex items-center gap-2 text-[11px] font-medium text-firewall-400">
+        <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-firewall-400">
           <Plug className="h-3.5 w-3.5" /> MODEL CONTEXT PROTOCOL
         </div>
-        <h1 className="mt-2 max-w-2xl text-2xl font-semibold leading-tight tracking-tight text-slate-100">
+        <h1 className="mt-2 max-w-2xl text-xl font-semibold leading-tight tracking-tight text-slate-100">
           Connect your agent to a governed memory layer.
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-400">
@@ -251,7 +259,7 @@ export function ConnectView({ online }: { online: boolean }) {
             return (
               <div key={t.name} className="rounded-xl border border-ink-700 bg-ink-900/40 p-4">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 font-mono text-[13px] text-slate-100">
+                  <div className="flex items-center gap-2 font-mono text-[12px] text-slate-100">
                     <Icon className="h-4 w-4 text-firewall-400" /> {t.name}
                   </div>
                   <span className="rounded border border-ink-700 bg-ink-850 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-slate-400">

@@ -1,7 +1,7 @@
 """ContextFirewall MCP server (hosted, streamable HTTP).
 
 This is the headline surface of ContextFirewall: it puts the memory firewall
-*inside the coding agent*. Any MCP client (Claude Code, Cursor, Windsurf, Cline, or
+*inside the coding agent*. Any MCP client (Claude Code, Cursor, Windsurf, Cline, Claude Desktop, or
 a generic MCP client) connects to one endpoint and gets a governed memory layer
 where every operation flows through Cognee and the four firewall checks.
 
@@ -216,11 +216,14 @@ async def improve_rules() -> str:
     mint higher-order Rule nodes, then returns the current rule set. This is memory
     that improves itself: raw events become reusable guidance.
     """
-    res = await _improve()
+    ident = await _ctx_identity()
+    if not ident.can_write:
+        return _WRITE_HINT
+    res = await _improve(namespaces={ident.namespace})
     summary = res.get("message", "")
     total = res.get("rules_total")
     added = res.get("rules_added")
-    rules_text = (await _recall_rules()).strip()
+    rules_text = (await _recall_rules(namespaces=ident.read_namespaces)).strip()
     head = f"{summary} (total rules: {total}, added: {added})."
     log_activity("mcp", "improve_rules", summary or "distilled rules")
     return f"{head}\n\n{rules_text}" if rules_text else head
@@ -229,7 +232,8 @@ async def improve_rules() -> str:
 @cf_mcp.tool()
 async def list_coding_rules(query: str = "What coding rules apply when working in this repo?") -> str:
     """Retrieve the distilled coding rules from Cognee (CODING_RULES search)."""
-    text = (await _recall_rules(query)).strip()
+    ident = await _ctx_identity()
+    text = (await _recall_rules(query, namespaces=ident.read_namespaces)).strip()
     log_activity("mcp", "list_coding_rules", "retrieved coding rules")
     return text or "No coding rules have been distilled yet. Call improve_rules first."
 

@@ -15,7 +15,7 @@ export function LogoStrip() {
   return (
     <section className="border-y border-ink-800/60 bg-ink-950/40">
       <div className="mx-auto max-w-6xl px-5 py-9">
-        <p className="text-center text-[11px] font-medium uppercase tracking-[0.22em] text-slate-600">
+        <p className="text-center text-[11px] font-medium uppercase tracking-wider text-slate-600">
           Runs on real infrastructure
         </p>
         <div className="mt-7 flex flex-wrap items-center justify-center gap-x-9 gap-y-6">
