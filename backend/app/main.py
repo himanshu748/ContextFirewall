@@ -260,7 +260,13 @@ async def improve_endpoint(authorization: Optional[str] = Header(default=None)) 
     ident = await resolve_identity(authorization)
     if not ident.can_write:
         raise HTTPException(status_code=401, detail=_WRITE_AUTH_DETAIL)
-    res = await improve_memory(namespaces={ident.namespace})
+    # A tenant improves their own sessions into their own rules node set. The
+    # operator (admin token) curates the public sample: read the demo sessions,
+    # write the demo node set — the one anonymous console visitors recall from.
+    if ident.kind == "admin":
+        res = await improve_memory(ident.read_namespaces, rules_namespace="demo")
+    else:
+        res = await improve_memory({ident.namespace}, rules_namespace=ident.namespace)
     log_activity("api", "improve_rules", res.get("message", "distilled rules"))
     return res
 
@@ -324,6 +330,24 @@ async def _demo_already_seeded() -> bool:
         return False
 
 
+async def _ensure_demo_rules() -> None:
+    """Distil the demo namespace's coding rules if none are recallable yet.
+
+    The public sample should always demonstrate the improve verb: seeding is the
+    one anonymous-safe write path, so it self-heals the demo rules (idempotent —
+    once rules are recallable this is a single read). Never raises: rules are a
+    nice-to-have on top of a successful seed.
+    """
+    try:
+        existing = (await recall_rules(namespaces={"demo"})).strip()
+        if existing and not existing.startswith("(coding rules unavailable"):
+            return
+        res = await improve_memory({"demo"}, rules_namespace="demo")
+        log_activity("api", "improve_rules", res.get("message", "distilled demo rules"))
+    except Exception:  # noqa: BLE001
+        pass
+
+
 @app.post("/demo/seed", response_model=IngestResponse)
 async def demo_seed(
     cognify: bool = True,
@@ -345,6 +369,7 @@ async def demo_seed(
     if do_reset:
         await _reset_memory()
     elif await _demo_already_seeded():
+        await _ensure_demo_rules()
         counts = await count_nodes()
         session = hydrate_demo_secrets(json.loads(DEMO_SESSION.read_text()))
         sid = session.get("session_id") or session.get("id") or "demo-session"
@@ -360,6 +385,7 @@ async def demo_seed(
 
     session = hydrate_demo_secrets(json.loads(DEMO_SESSION.read_text()))
     res = await ingest_session(session, cognify=cognify, namespace="demo")
+    await _ensure_demo_rules()
     response = IngestResponse(
         session_id=res["session_id"],
         nodes_added=res["nodes_added"],

@@ -18,21 +18,26 @@ from .bootstrap import configure_cognee
 RULES_NODESET = "coding_agent_rules"
 
 
-def _nodeset_for(namespaces: Optional[Set[str]]) -> str:
-    """Per-tenant rules node set name for the caller's namespace.
+def nodeset_for(namespace: str) -> str:
+    """Per-tenant rules node set: rules distilled for one namespace live in
+    ``coding_agent_rules_<namespace>`` so one tenant's rules never leak into
+    another's recall."""
+    return f"{RULES_NODESET}_{namespace or 'demo'}"
 
-    Mirrors ``in_namespace``'s default: an unscoped caller resolves to ``demo``.
-    A single-namespace caller gets ``coding_agent_rules_<ns>``; a multi-namespace
-    caller gets a stable, order-independent composite so the same set of
-    namespaces always maps to the same node set.
+
+def _nodesets_to_search(namespaces: Optional[Set[str]]) -> list[str]:
+    """Every rules node set the caller may read.
+
+    One per readable namespace, plus the legacy unsuffixed set when the caller
+    can read ``demo``: rules distilled before node sets became per-tenant were
+    written to the global ``coding_agent_rules`` set, and that pre-existing
+    content is demo/sample material — only operators could write back then.
     """
-    if not namespaces:
-        ns = "demo"
-    elif len(namespaces) == 1:
-        ns = next(iter(namespaces))
-    else:
-        ns = "+".join(sorted(namespaces))
-    return f"{RULES_NODESET}_{ns}"
+    ns = namespaces or {"demo"}
+    names = [nodeset_for(n) for n in sorted(ns)]
+    if "demo" in ns:
+        names.append(RULES_NODESET)
+    return names
 
 
 async def _stored_transcript(namespaces: Optional[Set[str]] = None) -> str:
@@ -48,17 +53,29 @@ async def _stored_transcript(namespaces: Optional[Set[str]] = None) -> str:
     return "\n".join(lines)
 
 
-async def improve(namespaces: Optional[Set[str]] = None) -> Dict[str, Any]:
+async def improve(
+    read_namespaces: Optional[Set[str]] = None,
+    *,
+    rules_namespace: str = "demo",
+) -> Dict[str, Any]:
+    """Distil rules from the sessions in ``read_namespaces`` into the node set
+    of ``rules_namespace``.
+
+    Read and write are separated on purpose: an API-key tenant improves their
+    own sessions into their own node set, while the operator (admin token)
+    reads the public sample sessions and writes the ``demo`` node set — the
+    one anonymous console visitors recall from.
+    """
     configure_cognee()
     from cognee.tasks.codingagents.coding_rule_associations import add_rule_associations
 
     from .graph import count_nodes
 
-    transcript = await _stored_transcript(namespaces)
+    transcript = await _stored_transcript(read_namespaces)
     if not transcript.strip():
         return {"status": "empty", "rules_total": 0, "rules_added": 0, "message": "No stored sessions to improve from."}
 
-    nodeset = _nodeset_for(namespaces)
+    nodeset = nodeset_for(rules_namespace)
     before = (await count_nodes()).get("Rule", 0)
     await add_rule_associations(data=transcript, rules_nodeset_name=nodeset)
     after = (await count_nodes()).get("Rule", 0)
@@ -82,7 +99,7 @@ async def recall_rules(
         res = await cognee.search(
             query_text=query,
             query_type=SearchType.CODING_RULES,
-            node_name=[_nodeset_for(namespaces)],
+            node_name=_nodesets_to_search(namespaces),
         )
     except Exception as exc:  # noqa: BLE001
         return f"(coding rules unavailable: {exc!r})"

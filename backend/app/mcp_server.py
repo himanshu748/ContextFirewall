@@ -219,7 +219,12 @@ async def improve_rules() -> str:
     ident = await _ctx_identity()
     if not ident.can_write:
         return _WRITE_HINT
-    res = await _improve(namespaces={ident.namespace})
+    # Tenants improve their own sessions into their own rules node set; the
+    # operator (admin token) curates the public demo sample's rules.
+    if ident.kind == "admin":
+        res = await _improve(ident.read_namespaces, rules_namespace="demo")
+    else:
+        res = await _improve({ident.namespace}, rules_namespace=ident.namespace)
     summary = res.get("message", "")
     total = res.get("rules_total")
     added = res.get("rules_added")
