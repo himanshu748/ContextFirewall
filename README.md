@@ -16,17 +16,17 @@ Every memory your agent recalls, stores, distils, or forgets flows through [Cogn
 [![Tests](https://img.shields.io/badge/tests-35%20passing-34d399?style=flat-square&labelColor=0c0e13)](#evidence-real-runs-no-mocks)
 [![Live](https://img.shields.io/badge/●%20Cognee-live-34d399?style=flat-square&labelColor=0c0e13)](https://himanshukumarjha-contextfirewall.hf.space/health)
 
-**[◆ Live console](https://contextfirewall.vercel.app)**  ·  **[⚡ MCP endpoint](https://himanshukumarjha-contextfirewall.hf.space/mcp)**  ·  **[📖 API docs](https://himanshukumarjha-contextfirewall.hf.space/docs)**  ·  **[▶ Demo video](https://pub.hyperagent.com/api/published/pbf01KWBWRQ03_TD5WV2G37P8HAFM8/hybrid.mp4)**
+**[◆ Live console](https://contextfirewall.vercel.app)**  ·  **[⚡ MCP endpoint](https://himanshukumarjha-contextfirewall.hf.space/mcp)**  ·  **[📖 API docs](https://himanshukumarjha-contextfirewall.hf.space/docs)**
 
 <sub>Built for the **WeMakeDevs × Cognee** hackathon — *The Hangover Part AI: Where's My Context?* (Jun 29 – Jul 5, 2026)</sub>
 
 <br/><br/>
 
-### ▶ Watch the launch (24s)
+### ▶ See it work — the four Cognee verbs, live
 
-<a href="https://github.com/himanshu748/ContextFirewall/raw/main/.github/assets/launch.mp4"><img src=".github/assets/launch.gif" alt="ContextFirewall launch film — memories flowing through the firewall" width="88%"></a>
+<a href="https://github.com/himanshu748/ContextFirewall/raw/main/.github/assets/demo.mp4"><img src=".github/assets/demo.gif" alt="ContextFirewall demo — remember, recall, improve, forget on the live console" width="90%"></a>
 
-<sub>▲ inline preview loops automatically · **[click for full-resolution MP4 ↗](https://github.com/himanshu748/ContextFirewall/raw/main/.github/assets/launch.mp4)**</sub>
+<sub>▲ real console, real Cognee calls (Neo4j · Postgres · pgvector · Qwen2.5-72B) — no mocks · **[full-resolution MP4 ↗](https://github.com/himanshu748/ContextFirewall/raw/main/.github/assets/demo.mp4)** · [40s brand teaser ↗](https://github.com/himanshu748/ContextFirewall/raw/main/.github/assets/launch.mp4)</sub>
 
 </div>
 
