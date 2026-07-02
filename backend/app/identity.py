@@ -88,26 +88,34 @@ async def _get_pool():
 
 
 async def _namespace_for_key(raw_key: str) -> Optional[str]:
-    pool = await _get_pool()
-    if pool is None:
-        return None
-    key_hash = hash_api_key(raw_key)
-    async with pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "select namespace from public.cf_api_keys where key_hash = $1 and revoked_at is null",
-            key_hash,
-        )
-        if row is None:
+    """Resolve a key to its namespace, failing CLOSED on any store error.
+
+    If the key table is unreachable (missing migration, connection loss), the
+    caller is treated as anonymous — never a 500, and never a write grant.
+    """
+    try:
+        pool = await _get_pool()
+        if pool is None:
             return None
-        # Best-effort usage stamp; never let it fail the request.
-        try:
-            await conn.execute(
-                "update public.cf_api_keys set last_used_at = now() where key_hash = $1",
+        key_hash = hash_api_key(raw_key)
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "select namespace from public.cf_api_keys where key_hash = $1 and revoked_at is null",
                 key_hash,
             )
-        except Exception:  # noqa: BLE001
-            pass
-    return str(row["namespace"])
+            if row is None:
+                return None
+            # Best-effort usage stamp; never let it fail the request.
+            try:
+                await conn.execute(
+                    "update public.cf_api_keys set last_used_at = now() where key_hash = $1",
+                    key_hash,
+                )
+            except Exception:  # noqa: BLE001
+                pass
+        return str(row["namespace"])
+    except Exception:  # noqa: BLE001
+        return None
 
 
 async def resolve_identity(authorization: Optional[str], env_write_token: Optional[str] = None) -> Identity:
