@@ -39,14 +39,17 @@ def _parse_date(value: Optional[str]) -> Optional[_dt.datetime]:
     raw = value.strip().replace("Z", "+00:00")
     for candidate in (raw, raw[:19], raw[:10]):
         try:
-            return _dt.datetime.fromisoformat(candidate)
+            parsed = _dt.datetime.fromisoformat(candidate)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=_dt.timezone.utc)
+            return parsed.astimezone(_dt.timezone.utc)
         except ValueError:
             continue
     return None
 
 
 def _date_key(value: Optional[str]) -> _dt.datetime:
-    return _parse_date(value) or _dt.datetime.min
+    return _parse_date(value) or _dt.datetime.min.replace(tzinfo=_dt.timezone.utc)
 
 
 def _is_newer(a: Optional[str], b: Optional[str]) -> bool:

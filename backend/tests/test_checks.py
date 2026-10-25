@@ -6,8 +6,12 @@ stay fast and offline. The live LLM adjudication is covered by the integration r
 from __future__ import annotations
 
 import asyncio
+import datetime as dt
 
 from app.firewall.checks import (
+    _authority,
+    _date_key,
+    _parse_date,
     contradiction_check,
     evidence_check,
     secret_check,
@@ -17,6 +21,41 @@ from app.firewall.checks import (
 
 def _run(coro):
     return asyncio.run(coro)
+
+
+# --- dates --------------------------------------------------------------------
+def test_parse_date_normalizes_offsets_and_date_only_values_to_utc():
+    utc = dt.timezone.utc
+    assert _parse_date("2026-06-01T10:00:00Z") == dt.datetime(
+        2026, 6, 1, 10, tzinfo=utc
+    )
+    assert _parse_date("2026-06-01T10:00:00+05:30") == dt.datetime(
+        2026, 6, 1, 4, 30, tzinfo=utc
+    )
+    assert _parse_date("2026-02-01") == dt.datetime(2026, 2, 1, tzinfo=utc)
+    assert _parse_date(None) is None
+
+
+def test_date_key_uses_aware_minimum_for_missing_dates():
+    assert _date_key(None) == dt.datetime.min.replace(tzinfo=dt.timezone.utc)
+
+
+def test_authority_sorts_mixed_timestamp_formats_by_utc_instant():
+    memories = [
+        {"created_at": "2026-06-01T10:00:00Z", "trust_score": 0.8},
+        {"created_at": "2026-06-01T10:00:00+05:30", "trust_score": 0.8},
+        {"created_at": "2026-06-01", "trust_score": 0.8},
+        {"created_at": None, "trust_score": 0.8},
+    ]
+
+    ordered = sorted(memories, key=_authority)
+
+    assert [memory["created_at"] for memory in ordered] == [
+        None,
+        "2026-06-01",
+        "2026-06-01T10:00:00+05:30",
+        "2026-06-01T10:00:00Z",
+    ]
 
 
 # --- secret -------------------------------------------------------------------
@@ -47,6 +86,39 @@ def test_staleness_passes_for_newest():
 def test_staleness_passes_without_subject():
     m = {"memory_id": "a", "subject": None, "created_at": "2026-06-20", "text": "x"}
     assert staleness_check(m, [m]).passed
+
+
+def test_staleness_handles_mixed_formats_offsets_and_missing_dates():
+    old = {
+        "memory_id": "old",
+        "subject": "release",
+        "created_at": "2026-02-01",
+        "text": "v1",
+    }
+    newer = {
+        "memory_id": "new",
+        "subject": "release",
+        "created_at": "2026-06-01T10:00:00Z",
+        "text": "v3",
+    }
+    offset = {
+        "memory_id": "offset",
+        "subject": "release",
+        "created_at": "2026-06-01T10:00:00+05:30",
+        "text": "v2",
+    }
+    undated = {
+        "memory_id": "unknown",
+        "subject": "release",
+        "created_at": None,
+        "text": "unknown",
+    }
+
+    cluster = [old, newer, offset, undated]
+    assert not staleness_check(old, cluster).passed
+    assert not staleness_check(offset, cluster).passed
+    assert staleness_check(newer, cluster).passed
+    assert staleness_check(undated, cluster).passed
 
 
 # --- evidence -----------------------------------------------------------------
@@ -84,6 +156,45 @@ def test_contradiction_passes_for_stronger_memory():
     strong = {"memory_id": "b", "subject": "s", "created_at": "2026-06-29", "text": "q", "trust_score": 0.85}
     # the strong one should NOT be flagged
     assert _run(contradiction_check(strong, [weak, strong], use_llm=False)).passed
+
+
+def test_contradiction_handles_mixed_formats_offsets_and_missing_dates():
+    weak = {
+        "memory_id": "weak",
+        "subject": "release",
+        "created_at": "2026-06-01T04:30:00Z",
+        "text": "release v1",
+        "trust_score": 0.4,
+    }
+    equally_recent = {
+        "memory_id": "strong",
+        "subject": "release",
+        "created_at": "2026-06-01T10:00:00+05:30",
+        "text": "release v2",
+        "trust_score": 0.85,
+    }
+    date_only = {
+        "memory_id": "date-only",
+        "subject": "release",
+        "created_at": "2026-06-01",
+        "text": "release v3",
+        "trust_score": 0.8,
+    }
+    undated = {
+        "memory_id": "undated",
+        "subject": "release",
+        "created_at": None,
+        "text": "release v4",
+        "trust_score": 0.7,
+    }
+
+    out = _run(
+        contradiction_check(
+            weak, [weak, equally_recent, date_only, undated], use_llm=False
+        )
+    )
+
+    assert not out.passed and out.check == "contradiction"
 
 
 if __name__ == "__main__":
