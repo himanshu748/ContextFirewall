@@ -222,9 +222,9 @@ Every environment variable read by `backend/app` and `frontend/`. The backend lo
 | Variable | Default (in code) | Purpose | Dev / Prod |
 |---|---|---|---|
 | `HUGGINGFACE_API_KEY` | none | Fallback LLM key when `LLM_API_KEY` is unset (`bootstrap.py`, `llm.py`). | Both |
-| `LLM_API_KEY` | `LLM_API_KEY` or `HUGGINGFACE_API_KEY` or `""` | API key for Cognee's LLM and the direct chat client. Without a key, chat raises `LLMUnavailable`. | Both (required for LLM features) |
+| `LLM_API_KEY` | none; falls back to `HUGGINGFACE_API_KEY` | API key for Cognee's LLM and the direct chat client. Without a key, chat raises `LLMUnavailable`. | Both (required for LLM features) |
 | `LLM_PROVIDER` | `custom` | Cognee LLM provider. | Both |
-| `LLM_MODEL` | `openai/Qwen/Qwen2.5-72B-Instruct:novita` (`bootstrap.py`); `openai/Qwen/Qwen2.5-72B-Instruct` (`llm.py`) | Chat / graph-extraction model. The `openai/` prefix is stripped for the direct chat client. Note the two code paths have different defaults; setting it explicitly avoids the mismatch. | Both |
+| `LLM_MODEL` | `openai/Qwen/Qwen2.5-72B-Instruct:novita` (`bootstrap.py`); `openai/Qwen/Qwen2.5-72B-Instruct` (`llm.py`) | Chat / graph-extraction model. The `openai/` prefix is stripped for the direct chat client. The different defaults are tracked in [#15](https://github.com/himanshu748/ContextFirewall/issues/15); setting it explicitly avoids the mismatch. | Both |
 | `LLM_ENDPOINT` | `https://router.huggingface.co/v1` | Cognee LLM base endpoint. | Both |
 | `LLM_CHAT_ENDPOINT` | `https://router.huggingface.co/v1/chat/completions` | Full chat-completions URL for the direct chat client (`llm.py`). | Optional |
 | `LLM_INSTRUCTOR_MODE` | `markdown_json_mode` when `LLM_PROVIDER=custom`, otherwise unset | Instructor mode passed to Cognee. | Optional |
@@ -234,7 +234,7 @@ Every environment variable read by `backend/app` and `frontend/`. The backend lo
 | `EMBEDDING_API_KEY` | falls back to the resolved LLM key | Key for `hf_router` embeddings. | Optional |
 | `EMBEDDING_ENDPOINT` | none (derived from the model) | Override the `hf_router` embeddings URL. | Optional |
 | `EMBEDDING_BATCH_SIZE` | `16` | `hf_router` embedding batch size. | Optional |
-| `CF_DATA_DIR` | `backend/.cf_data` | Root for Cognee's local system/data stores. | Both |
+| `CF_DATA_DIR` | `backend/.cf_data` (code); `/home/user/app/.cf_data` (Docker image) | Root for Cognee's local system/data stores. The Docker image sets this variable explicitly. | Both |
 | `ENABLE_BACKEND_ACCESS_CONTROL` | `false` (set via `setdefault`) | Cognee setting; ContextFirewall forces a single-tenant default. | Optional |
 | `CACHING` | `false` (set via `setdefault`) | Cognee session cache. | Optional |
 | `COGNEE_SKIP_CONNECTION_TEST` | `true` (set via `setdefault`) | Skips Cognee's embedding pre-flight. | Optional |
@@ -249,7 +249,7 @@ Every environment variable read by `backend/app` and `frontend/`. The backend lo
 | `DB_USERNAME` | `""` | Postgres user (Cognee + API-key store). | Prod |
 | `DB_PASSWORD` | `""` | Postgres password (Cognee + API-key store). | Prod |
 | `VECTOR_DB_PROVIDER` | none (LanceDB default) | Vector store provider, e.g. `pgvector`. | Prod |
-| `CF_ADMIN_TOKEN` | none | Enables admin-only destructive routes (e.g. `/reset`) for callers sending a matching `X-Admin-Token`. Unset means those routes return 403. | Optional |
+| `CF_ADMIN_TOKEN` | none | A matching `X-Admin-Token` authorizes `/reset`, lifts the demo-immutability guard for `/forget` (write and namespace checks still apply), and enables `POST /demo/seed?reset=true` to wipe all Cognee stores, not just demo data, before reseeding. Without a valid token, `/reset` returns 403 and demo seeding ignores `reset=true`. | Optional |
 | `CF_WRITE_TOKEN` | none | Bearer token granting admin write access to the public namespace when no valid API key is sent. | Optional |
 
 `HF_TOKEN` in `backend/.env.example` is not read by the app; only `backend/scripts/hf_embed_probe.py` uses it as a fallback for `HUGGINGFACE_API_KEY`.
