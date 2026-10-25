@@ -213,6 +213,57 @@ For local dev you only need a Hugging Face API key; Cognee uses local file store
 
 ---
 
+## Configuration
+
+Every environment variable read by `backend/app` and `frontend/`. The backend loads `backend/.env` (without overriding already-set variables); see `backend/.env.example` and `frontend/.env.local.example`. "Prod" means the Hugging Face Space / Vercel deployment with external stores.
+
+### Backend
+
+| Variable | Default (in code) | Purpose | Dev / Prod |
+|---|---|---|---|
+| `HUGGINGFACE_API_KEY` | none | Fallback LLM key when `LLM_API_KEY` is unset (`bootstrap.py`, `llm.py`). | Both |
+| `LLM_API_KEY` | `LLM_API_KEY` or `HUGGINGFACE_API_KEY` or `""` | API key for Cognee's LLM and the direct chat client. Without a key, chat raises `LLMUnavailable`. | Both (required for LLM features) |
+| `LLM_PROVIDER` | `custom` | Cognee LLM provider. | Both |
+| `LLM_MODEL` | `openai/Qwen/Qwen2.5-72B-Instruct:novita` (`bootstrap.py`); `openai/Qwen/Qwen2.5-72B-Instruct` (`llm.py`) | Chat / graph-extraction model. The `openai/` prefix is stripped for the direct chat client. Note the two code paths have different defaults; setting it explicitly avoids the mismatch. | Both |
+| `LLM_ENDPOINT` | `https://router.huggingface.co/v1` | Cognee LLM base endpoint. | Both |
+| `LLM_CHAT_ENDPOINT` | `https://router.huggingface.co/v1/chat/completions` | Full chat-completions URL for the direct chat client (`llm.py`). | Optional |
+| `LLM_INSTRUCTOR_MODE` | `markdown_json_mode` when `LLM_PROVIDER=custom`, otherwise unset | Instructor mode passed to Cognee. | Optional |
+| `EMBEDDING_PROVIDER` | `hf_router` | `hf_router` installs the HF feature-extraction engine; other values fall through to Cognee. | Both |
+| `EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | Embedding model. | Both |
+| `EMBEDDING_DIMENSIONS` | `384` | Embedding vector size. | Both |
+| `EMBEDDING_API_KEY` | falls back to the resolved LLM key | Key for `hf_router` embeddings. | Optional |
+| `EMBEDDING_ENDPOINT` | none (derived from the model) | Override the `hf_router` embeddings URL. | Optional |
+| `EMBEDDING_BATCH_SIZE` | `16` | `hf_router` embedding batch size. | Optional |
+| `CF_DATA_DIR` | `backend/.cf_data` | Root for Cognee's local system/data stores. | Both |
+| `ENABLE_BACKEND_ACCESS_CONTROL` | `false` (set via `setdefault`) | Cognee setting; ContextFirewall forces a single-tenant default. | Optional |
+| `CACHING` | `false` (set via `setdefault`) | Cognee session cache. | Optional |
+| `COGNEE_SKIP_CONNECTION_TEST` | `true` (set via `setdefault`) | Skips Cognee's embedding pre-flight. | Optional |
+| `GRAPH_DATABASE_PROVIDER` | none (Cognee default) | Graph store provider, e.g. `neo4j`. | Prod |
+| `GRAPH_DATABASE_URL` | `""` | Neo4j URL (only when provider is `neo4j`). | Prod |
+| `GRAPH_DATABASE_USERNAME` | `neo4j` | Neo4j user. | Prod |
+| `GRAPH_DATABASE_PASSWORD` | `""` | Neo4j password. | Prod |
+| `DB_PROVIDER` | none (SQLite default) | Set to `postgres` to use Postgres for Cognee's relational store. | Prod |
+| `DB_HOST` | `""` (Cognee); unset disables the API-key store (`identity.py`) | Postgres host. Also enables the API-key store in `identity.py`. | Prod |
+| `DB_PORT` | `5432` | Postgres port (Cognee + API-key store). | Prod |
+| `DB_NAME` | `postgres` | Postgres database (Cognee + API-key store). | Prod |
+| `DB_USERNAME` | `""` | Postgres user (Cognee + API-key store). | Prod |
+| `DB_PASSWORD` | `""` | Postgres password (Cognee + API-key store). | Prod |
+| `VECTOR_DB_PROVIDER` | none (LanceDB default) | Vector store provider, e.g. `pgvector`. | Prod |
+| `CF_ADMIN_TOKEN` | none | Enables admin-only destructive routes (e.g. `/reset`) for callers sending a matching `X-Admin-Token`. Unset means those routes return 403. | Optional |
+| `CF_WRITE_TOKEN` | none | Bearer token granting admin write access to the public namespace when no valid API key is sent. | Optional |
+
+`HF_TOKEN` in `backend/.env.example` is not read by the app; only `backend/scripts/hf_embed_probe.py` uses it as a fallback for `HUGGINGFACE_API_KEY`.
+
+### Frontend
+
+| Variable | Default (in code) | Purpose | Dev / Prod |
+|---|---|---|---|
+| `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Backend base URL (trailing `/` stripped). | Both (set to the Space URL in prod) |
+| `NEXT_PUBLIC_SUPABASE_URL` | none | Supabase project URL for console auth. | Optional |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | none | Supabase anon/publishable key. If either Supabase variable is unset, the console runs read-only and hides the auth UI. | Optional |
+
+---
+
 ## The demo data — and what is real
 
 The bundled demo is a **sample agent session on a fictional `taskflow-api` repo** (FastAPI, Postgres, Redis, Stripe). An agent onboards and picks up a search-latency ticket. The ten memories are clearly-illustrative **inputs**, engineered so each check is exercised:
