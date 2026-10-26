@@ -158,6 +158,8 @@ class GraphEdge(BaseModel):
 class GraphResponse(BaseModel):
     nodes: List[GraphNode] = Field(default_factory=list)
     edges: List[GraphEdge] = Field(default_factory=list)
+    truncated: bool = False
+    error: Optional[str] = None
 
 
 # --- replay timeline ----------------------------------------------------------

@@ -79,6 +79,8 @@ export interface GraphEdge {
 export interface GraphResponse {
   nodes: GraphNode[];
   edges: GraphEdge[];
+  truncated?: boolean;
+  error?: string | null;
 }
 
 export interface TimelineEvent {

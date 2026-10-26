@@ -7,6 +7,8 @@ defensive about adapter differences.
 """
 from __future__ import annotations
 
+import logging
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple
 
 from app.firewall.secrets import redact_text
@@ -14,8 +16,12 @@ from app.firewall.secrets import redact_text
 from .bootstrap import configure_cognee
 from .recall import effective_namespace, in_namespace
 
+logger = logging.getLogger(__name__)
+
 # Node "type" values we assign meaning to (others still render).
 _LABEL_FIELDS = ("name", "text", "task", "content", "memory_id", "event_id", "id")
+_RECENCY_FIELDS = ("updated_at", "created_at", "timestamp", "started_at")
+_GRAPH_ERROR = "Graph data is temporarily unavailable."
 
 
 async def _get_graph():
@@ -55,12 +61,42 @@ def _safe_props(props: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
+def _node_recency(props: Dict[str, Any]) -> float:
+    """Return a sortable timestamp for a node, or negative infinity if absent."""
+    for field in _RECENCY_FIELDS:
+        value = props.get(field)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return float(value)
+        if isinstance(value, datetime):
+            parsed = value
+        elif isinstance(value, str):
+            try:
+                parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+            except ValueError:
+                continue
+        else:
+            continue
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        try:
+            return parsed.timestamp()
+        except (OverflowError, OSError):
+            continue
+    return float("-inf")
+
+
+def _node_priority(props: Dict[str, Any]) -> Tuple[bool, float]:
+    """Prefer typed nodes, then the most recent node, when the graph is capped."""
+    return bool(props.get("type") or props.get("__type__")), _node_recency(props)
+
+
 async def graph_view(limit: int = 400, namespaces=None) -> Dict[str, Any]:
     """Return {nodes, edges} for visualization."""
     try:
         _engine, raw_nodes, raw_edges = await _get_graph()
-    except Exception as exc:  # noqa: BLE001
-        return {"nodes": [], "edges": [], "error": repr(exc)}
+    except Exception:  # noqa: BLE001
+        logger.exception("Failed to load graph data")
+        return {"nodes": [], "edges": [], "truncated": False, "error": _GRAPH_ERROR}
 
     session_namespaces: Dict[str, Dict[str, Any]] = {}
     for entry in raw_nodes:
@@ -72,9 +108,9 @@ async def graph_view(limit: int = 400, namespaces=None) -> Dict[str, Any]:
         if _node_type(props) == "AgentSession" and props.get("session_id"):
             session_namespaces[str(props["session_id"])] = props
 
-    nodes_out: List[Dict[str, Any]] = []
+    visible_nodes: List[Tuple[str, Dict[str, Any], str]] = []
     seen: set[str] = set()
-    for entry in raw_nodes[:limit]:
+    for entry in raw_nodes:
         try:
             nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)
         except Exception:  # noqa: BLE001
@@ -92,6 +128,17 @@ async def graph_view(limit: int = 400, namespaces=None) -> Dict[str, Any]:
         if not in_namespace(node_ns_props, namespaces):
             continue
         seen.add(nid)
+        visible_nodes.append((nid, props, node_type))
+
+    visible_limit = max(0, limit)
+    truncated = len(visible_nodes) > visible_limit
+    prioritized = sorted(visible_nodes, key=lambda node: _node_priority(node[1]), reverse=True)
+    selected_ids = {nid for nid, _props, _node_type_value in prioritized[:visible_limit]}
+
+    nodes_out: List[Dict[str, Any]] = []
+    for nid, props, node_type in visible_nodes:
+        if nid not in selected_ids:
+            continue
         nodes_out.append(
             {
                 "id": nid,
@@ -111,10 +158,10 @@ async def graph_view(limit: int = 400, namespaces=None) -> Dict[str, Any]:
                 src, tgt, label = str(entry.get("source")), str(entry.get("target")), str(entry.get("label", ""))
         except Exception:  # noqa: BLE001
             continue
-        if src in seen and tgt in seen:
+        if src in selected_ids and tgt in selected_ids:
             edges_out.append({"source": src, "target": tgt, "label": label})
 
-    return {"nodes": nodes_out, "edges": edges_out}
+    return {"nodes": nodes_out, "edges": edges_out, "truncated": truncated}
 
 
 def _event_session_id(props: Dict[str, Any]) -> str:

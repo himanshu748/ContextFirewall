@@ -301,7 +301,12 @@ async def rules_endpoint(
 async def graph(limit: int = 400, authorization: Optional[str] = Header(default=None)) -> GraphResponse:
     ident = await resolve_identity(authorization)
     data = await graph_view(limit=limit, namespaces=ident.read_namespaces)
-    return GraphResponse(nodes=data.get("nodes", []), edges=data.get("edges", []))
+    return GraphResponse(
+        nodes=data.get("nodes", []),
+        edges=data.get("edges", []),
+        truncated=data.get("truncated", False),
+        error=data.get("error"),
+    )
 
 
 @app.get("/sessions", response_model=List[SessionSummary])
