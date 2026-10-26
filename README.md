@@ -70,13 +70,15 @@ ContextFirewall is a Model Context Protocol server with **two transports and one
 claude mcp add --transport http contextfirewall https://himanshukumarjha-contextfirewall.hf.space/mcp
 ```
 
-**Claude Code — local & private (`uvx`, nothing leaves your machine):**
+**Claude Code — local stdio client (`uvx`, connects to the configured backend):**
 
 ```bash
 claude mcp add contextfirewall \
   --env CF_API_BASE=https://himanshukumarjha-contextfirewall.hf.space \
   -- uvx --from "git+https://github.com/himanshu748/ContextFirewall#subdirectory=mcp" contextfirewall-mcp
 ```
+
+This runs the MCP client locally; the example sends requests to the hosted backend. For a self-hosted backend, set `CF_API_BASE` to its URL. The backend's model and embedding configuration determines where inference runs.
 
 **Cursor / Cline / generic (`~/.cursor/mcp.json` or `mcp.json`):**
 
@@ -127,8 +129,6 @@ The graph is **load-bearing**: staleness rides on temporal supersession, contrad
 ---
 
 ## Privacy first
-
-Privacy isn't a feature bolted on — it's how the data path is built.
 
 - 🔒 **Secrets are redacted at ingest, then again on every read.** When a session is remembered, any detected credential (API key, DB URI, private key, AWS key, JWT, `secret=…` assignment, high-entropy token) is stripped **before** it is written to the graph, the vector store, or the cognified transcript. It never persists — and the firewall still blocks the memory it came from. Every read path (`/audit`, `/pack`, `/graph`, recall) redacts again as a second, defense-in-depth layer.
 - 🧭 **Local by default.** In dev, Cognee's stores are local files (SQLite + LanceDB + the default graph); by default the model and embeddings still call the Hugging Face router, but point them at a local OpenAI-compatible endpoint (see the Local model option below) and nothing leaves the machine. Managed Neo4j Aura + Supabase pgvector are only for the hosted demo; self-host and your memory graph stays yours.
