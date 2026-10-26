@@ -36,7 +36,7 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.activity import get_activity, log_activity
-from app.identity import llm_checks_allowed, resolve_identity
+from app.identity import Identity, IdentityError, llm_checks_allowed, resolve_identity
 from app.cognee_runtime.bootstrap import configure_cognee
 from app.cognee_runtime.forget import forget_memory
 from app.cognee_runtime.graph import count_nodes, graph_view, list_sessions, session_timeline
@@ -123,6 +123,19 @@ def _require_admin(token: Optional[str]) -> None:
 
 
 _WRITE_AUTH_DETAIL = "A valid ContextFirewall API key is required for writes. Sign in to the console to mint one."
+
+
+async def _resolve_identity(authorization: Optional[str]) -> Identity:
+    """Resolve the caller, surfacing identity failures as HTTP errors (#45).
+
+    A presented-but-rejected API key is a 401 and an unreachable key store a
+    503 — never a silent downgrade to anonymous demo data. Callers that send
+    no credential still get the anonymous identity from resolve_identity.
+    """
+    try:
+        return await resolve_identity(authorization)
+    except IdentityError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail) from e
 _SAFE_KIND_LABELS = {"fact", "decision", "lesson", "command", "config", "credential"}
 
 
@@ -154,7 +167,7 @@ async def root() -> dict:
 @app.post("/remember", response_model=RememberResponse)
 async def remember(req: RememberRequest, authorization: Optional[str] = Header(default=None)) -> RememberResponse:
     """Remember one durable fact (the single-shot 'remember' verb the MCP server uses)."""
-    ident = await resolve_identity(authorization)
+    ident = await _resolve_identity(authorization)
     if not ident.can_write:
         raise HTTPException(status_code=401, detail=_WRITE_AUTH_DETAIL)
     try:
@@ -198,7 +211,7 @@ async def activity(limit: int = 40) -> dict:
 
 @app.post("/ingest", response_model=IngestResponse)
 async def ingest(req: IngestRequest, authorization: Optional[str] = Header(default=None)) -> IngestResponse:
-    ident = await resolve_identity(authorization)
+    ident = await _resolve_identity(authorization)
     if not ident.can_write:
         raise HTTPException(status_code=401, detail=_WRITE_AUTH_DETAIL)
     try:
@@ -216,7 +229,7 @@ async def ingest(req: IngestRequest, authorization: Optional[str] = Header(defau
 
 @app.post("/audit", response_model=AuditResponse)
 async def audit(req: AuditRequest, authorization: Optional[str] = Header(default=None)) -> AuditResponse:
-    ident = await resolve_identity(authorization)
+    ident = await _resolve_identity(authorization)
     result = await audit_memories(
         req.query,
         top_k=req.top_k,
@@ -234,7 +247,7 @@ async def audit(req: AuditRequest, authorization: Optional[str] = Header(default
 
 @app.post("/pack", response_model=PackResponse)
 async def pack(req: PackRequest, authorization: Optional[str] = Header(default=None)) -> PackResponse:
-    ident = await resolve_identity(authorization)
+    ident = await _resolve_identity(authorization)
     result = await build_pack(
         req.query,
         top_k=req.top_k,
@@ -255,7 +268,7 @@ async def pack(req: PackRequest, authorization: Optional[str] = Header(default=N
 
 @app.post("/forget", response_model=ForgetResponse)
 async def forget(req: ForgetRequest, authorization: Optional[str] = Header(default=None), x_admin_token: Optional[str] = Header(default=None, alias="X-Admin-Token")) -> ForgetResponse:
-    ident = await resolve_identity(authorization)
+    ident = await _resolve_identity(authorization)
     if not ident.can_write:
         raise HTTPException(status_code=401, detail=_WRITE_AUTH_DETAIL)
     result = await forget_memory(
@@ -273,7 +286,7 @@ async def forget(req: ForgetRequest, authorization: Optional[str] = Header(defau
 @app.post("/improve")
 async def improve_endpoint(authorization: Optional[str] = Header(default=None)) -> dict:
     """Distil durable coding rules from stored sessions (Cognee memify / improve)."""
-    ident = await resolve_identity(authorization)
+    ident = await _resolve_identity(authorization)
     if not ident.can_write:
         raise HTTPException(status_code=401, detail=_WRITE_AUTH_DETAIL)
     # A tenant improves their own sessions into their own rules node set. The
@@ -292,14 +305,14 @@ async def rules_endpoint(
     query: str = "What coding rules apply when working in this repo?",
     authorization: Optional[str] = Header(default=None),
 ) -> dict:
-    ident = await resolve_identity(authorization)
+    ident = await _resolve_identity(authorization)
     log_activity("api", "list_coding_rules", "retrieved coding rules")
     return {"query": query, "rules": await recall_rules(query, namespaces=ident.read_namespaces)}
 
 
 @app.get("/graph", response_model=GraphResponse)
 async def graph(limit: int = 400, authorization: Optional[str] = Header(default=None)) -> GraphResponse:
-    ident = await resolve_identity(authorization)
+    ident = await _resolve_identity(authorization)
     data = await graph_view(limit=limit, namespaces=ident.read_namespaces)
     return GraphResponse(
         nodes=data.get("nodes", []),
@@ -311,13 +324,13 @@ async def graph(limit: int = 400, authorization: Optional[str] = Header(default=
 
 @app.get("/sessions", response_model=List[SessionSummary])
 async def sessions(authorization: Optional[str] = Header(default=None)) -> List[SessionSummary]:
-    ident = await resolve_identity(authorization)
+    ident = await _resolve_identity(authorization)
     return [SessionSummary(**s) for s in await list_sessions(namespaces=ident.read_namespaces)]
 
 
 @app.get("/sessions/{session_id}/timeline", response_model=TimelineResponse)
 async def timeline(session_id: str, authorization: Optional[str] = Header(default=None)) -> TimelineResponse:
-    ident = await resolve_identity(authorization)
+    ident = await _resolve_identity(authorization)
     events = await session_timeline(session_id, namespaces=ident.read_namespaces)
     summary = SessionSummary(session_id=session_id, task="", event_count=len(events))
     return TimelineResponse(session=summary, events=events)

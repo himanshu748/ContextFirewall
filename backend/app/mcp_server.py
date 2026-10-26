@@ -67,6 +67,11 @@ async def _ctx_identity() -> Identity:
     cf_live_...`` (configured in its MCP server entry). That scopes every tool
     call to the client's own private namespace. Without a key the client gets
     read-only access to the public ``demo`` namespace and cannot write.
+
+    Identity failures propagate as tool errors instead of silently
+    downgrading: a presented key that is unknown/revoked, or a key store
+    that is down, must not hand the client demo data as if it were its
+    own (#45).
     """
     authorization = None
     try:

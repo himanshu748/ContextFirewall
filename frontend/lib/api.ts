@@ -62,6 +62,15 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // keep raw body text
     }
+    if (res.status === 401 && getActiveApiKey()) {
+      // A stored key was attached and still rejected: it is unknown or
+      // revoked (#45). Say so plainly instead of showing a bare 401, so the
+      // user knows to mint a fresh key rather than wonder why they are
+      // seeing demo data.
+      message =
+        "Your saved API key was rejected — it may have been revoked. " +
+        "Mint a new key from the Connect view, or clear the saved key to keep browsing the public demo.";
+    }
     throw new ApiError(res.status, message);
   }
   return res.json() as Promise<T>;
