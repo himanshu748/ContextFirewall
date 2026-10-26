@@ -311,18 +311,13 @@ or [`help wanted`](https://github.com/himanshu748/ContextFirewall/labels/help%20
 
 ## Contributors
 
-Thanks to the community contributors behind these merged improvements:
-
-| Contributor | Contribution |
-|---|---|
-| [@HarshRajSinghania](https://github.com/HarshRajSinghania) | Constant-time comparisons for admin and write tokens ([#30](https://github.com/himanshu748/ContextFirewall/pull/30)). |
-| [@mikemikimike](https://github.com/mikemikimike) | UTC normalization for mixed memory timestamps ([#33](https://github.com/himanshu748/ContextFirewall/pull/33)). |
-| [@unvisible789](https://github.com/unvisible789) | Clarifications to configuration defaults and admin reset documentation ([#34](https://github.com/himanshu748/ContextFirewall/pull/34)). |
-| [@dannyward630](https://github.com/dannyward630) | Namespace filtering before graph limits, truncation metadata, and error handling ([#50](https://github.com/himanshu748/ContextFirewall/pull/50)). |
-| [@alanveloper-epam](https://github.com/alanveloper-epam) | Full UTC timestamps for remembered facts and a same-day staleness regression test ([#54](https://github.com/himanshu748/ContextFirewall/pull/54)). |
-
-See the [contributors graph](https://github.com/himanshu748/ContextFirewall/graphs/contributors)
-and [commit history](https://github.com/himanshu748/ContextFirewall/commits/main/) for the full record of contributions.
+<p>
+  <a href="https://github.com/HarshRajSinghania"><img src="https://avatars.githubusercontent.com/u/40535627?v=4&amp;s=96" width="48" height="48" alt="HarshRajSinghania's GitHub profile"></a>
+  <a href="https://github.com/mikemikimike"><img src="https://avatars.githubusercontent.com/u/186855910?v=4&amp;s=96" width="48" height="48" alt="mikemikimike's GitHub profile"></a>
+  <a href="https://github.com/unvisible789"><img src="https://avatars.githubusercontent.com/u/69988225?v=4&amp;s=96" width="48" height="48" alt="unvisible789's GitHub profile"></a>
+  <a href="https://github.com/dannyward630"><img src="https://avatars.githubusercontent.com/u/71604164?v=4&amp;s=96" width="48" height="48" alt="dannyward630's GitHub profile"></a>
+  <a href="https://github.com/alanveloper-epam"><img src="https://avatars.githubusercontent.com/u/251251017?v=4&amp;s=96" width="48" height="48" alt="alanveloper-epam's GitHub profile"></a>
+</p>
 
 ---
 
