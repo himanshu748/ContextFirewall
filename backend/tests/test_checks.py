@@ -7,7 +7,9 @@ from __future__ import annotations
 
 import asyncio
 import datetime as dt
+from unittest.mock import patch
 
+from app.cognee_runtime import ingest as ingest_mod
 from app.firewall.checks import (
     _authority,
     _date_key,
@@ -119,6 +121,39 @@ def test_staleness_handles_mixed_formats_offsets_and_missing_dates():
     assert not staleness_check(offset, cluster).passed
     assert staleness_check(newer, cluster).passed
     assert staleness_check(undated, cluster).passed
+
+
+def test_remember_fact_same_day_supersedes_earlier_memory():
+    recorded_memories = []
+
+    async def fake_ingest_session(session: dict, *, cognify: bool = True, namespace: str = "public") -> dict:
+        recorded_memories.extend(session.get("memories") or [])
+        return {
+            "session_id": session["session_id"],
+            "nodes_added": 3,
+            "memories_created": len(session.get("memories") or []),
+            "cognified": False,
+        }
+
+    morning = dt.datetime(2026, 10, 25, 9, 15, 0, tzinfo=dt.timezone.utc)
+    afternoon = dt.datetime(2026, 10, 25, 14, 30, 0, tzinfo=dt.timezone.utc)
+
+    with patch.object(ingest_mod, "ingest_session", side_effect=fake_ingest_session):
+        with patch.object(ingest_mod, "datetime") as mock_dt:
+            mock_dt.now.side_effect = [morning, afternoon]
+            _run(ingest_mod.remember_fact("deploy with make release", subject="deploy command", kind="command"))
+            _run(ingest_mod.remember_fact("deploy with make ship", subject="deploy command", kind="command"))
+
+    assert len(recorded_memories) == 2
+    earlier, later = recorded_memories[0], recorded_memories[1]
+    assert earlier["created_at"] == "2026-10-25T09:15:00+00:00"
+    assert later["created_at"] == "2026-10-25T14:30:00+00:00"
+
+    cluster = [earlier, later]
+    earlier_outcome = staleness_check(earlier, cluster)
+    later_outcome = staleness_check(later, cluster)
+    assert not earlier_outcome.passed and earlier_outcome.check == "staleness"
+    assert later_outcome.passed
 
 
 # --- evidence -----------------------------------------------------------------

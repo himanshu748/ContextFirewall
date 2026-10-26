@@ -230,6 +230,7 @@ async def remember_fact(
     if not text:
         raise ValueError("remember_fact requires non-empty text")
     now = datetime.now(timezone.utc)
+    iso_now = now.isoformat(timespec="seconds")
     sid = f"mcp-{now.strftime('%Y%m%d')}-{uuid.uuid4().hex[:8]}"
     eid, mid = f"{sid}:e1", f"{sid}:m1"
     mem: dict[str, Any] = {
@@ -237,7 +238,7 @@ async def remember_fact(
         "text": text,
         "kind": kind,
         "subject": (subject or "").strip() or None,
-        "created_at": now.strftime("%Y-%m-%d"),
+        "created_at": iso_now,
         "evidence_event_ids": [eid],
     }
     if trust_score is not None:
@@ -246,14 +247,14 @@ async def remember_fact(
         "session_id": sid,
         "task": f"Remembered via MCP: {(subject or kind)}",
         "agent": "mcp-client",
-        "started_at": now.isoformat(timespec="seconds"),
+        "started_at": iso_now,
         "repo": {},
         "events": [
             {
                 "event_id": eid,
                 "kind": kind,
                 "content": text,
-                "timestamp": now.isoformat(timespec="seconds"),
+                "timestamp": iso_now,
                 "ordinal": 0,
             }
         ],
