@@ -116,7 +116,25 @@ def orphan_node_ids(nodes: Iterable[Any], edges: Iterable[Any], forgotten_memory
     return cleanup
 
 
-async def _find_memory_node_id(memory_id: str) -> Tuple[Optional[str], Any]:
+async def _find_memory_node_id(
+    memory_id: str,
+    allowed_namespaces: set[str] | None = None,
+    *,
+    allow_demo: bool = False,
+) -> Tuple[Optional[str], Any]:
+    """Find the graph node for ``memory_id`` that THIS caller may forget.
+
+    ``memory_id``s are not globally unique (they default to
+    ``<session_id>:m<i>`` and session IDs are caller-chosen), so matching on
+    the ID alone can resolve another tenant's node — or a demo node — and
+    shadow the caller's own memory with the same ID (#13). Eligible nodes
+    are matched on ``(memory_id, namespace)``: the namespace must pass the
+    same demo / allowed-namespace rules :func:`forget_memory` enforces
+    afterwards. The first *eligible* node wins; if none is eligible, the
+    first match overall is returned so the caller's checks can still
+    report ``forbidden`` (rather than a misleading ``not_found``) exactly
+    as before.
+    """
     from cognee.infrastructure.databases.graph import get_graph_engine
 
     engine = await get_graph_engine()
@@ -125,10 +143,22 @@ async def _find_memory_node_id(memory_id: str) -> Tuple[Optional[str], Any]:
             nodes, _edges = await engine.get_graph_data()
         except Exception:  # noqa: BLE001
             return None, engine
+        first_match: Optional[str] = None
         for entry in nodes:
             nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)
-            if (props or {}).get("memory_id") == memory_id:
-                return str(nid), engine
+            props = props or {}
+            if props.get("memory_id") != memory_id:
+                continue
+            if first_match is None:
+                first_match = str(nid)
+            namespace = str(props.get("namespace") or "demo")
+            if namespace == "demo" and not allow_demo:
+                continue
+            if allowed_namespaces is not None and namespace not in allowed_namespaces:
+                continue
+            return str(nid), engine
+        if first_match is not None:
+            return first_match, engine
     return None, engine
 
 
@@ -140,7 +170,7 @@ async def forget_memory(
     allow_demo: bool = False,
 ) -> Dict[str, Any]:
     configure_cognee()
-    node_id, engine = await _find_memory_node_id(memory_id)
+    node_id, engine = await _find_memory_node_id(memory_id, allowed_namespaces, allow_demo=allow_demo)
     if not node_id:
         return {
             "memory_id": memory_id,
