@@ -78,3 +78,101 @@ def test_lookup_matches_on_memory_id_and_namespace(monkeypatch):
     assert node_id == "node-b"
     node_id, _ = asyncio.run(forget_module._find_memory_node_id("s1:m0", {"tenant_a"}))
     assert node_id == "node-a"
+
+
+class _FakeGraphEngine:
+    """In-memory graph engine that also carries edges (for cleanup tests)."""
+
+    def __init__(self, nodes, edges):
+        self._nodes = nodes
+        self._edges = edges
+        self.deleted: list[str] = []
+
+    async def get_graph_data(self):
+        return list(self._nodes), list(self._edges)
+
+    async def delete_node(self, node_id):
+        self.deleted.append(str(node_id))
+
+    async def delete_nodes(self, node_ids):
+        self.deleted.extend(str(n) for n in node_ids)
+
+
+def _memory(node_id: str, memory_id: str, namespace: str, session_id: str):
+    return (
+        node_id,
+        {
+            "memory_id": memory_id,
+            "namespace": namespace,
+            "type": "Memory",
+            "source_session_id": session_id,
+        },
+    )
+
+
+def _session(node_id: str, session_id: str, namespace: str):
+    return (node_id, {"session_id": session_id, "namespace": namespace, "type": "AgentSession"})
+
+
+def _event(node_id: str, session_id: str):
+    # SessionEvent carries no namespace of its own; it inherits its session's.
+    return (node_id, {"session_id": session_id, "type": "SessionEvent"})
+
+
+def _shared_session_graph():
+    """Two tenants, one shared session_id (session ids are caller-chosen).
+
+    Tenant A has session/event nodes but NO Memory node left; tenant B's last
+    memory points at the shared session via source_session_id.
+    """
+    nodes = [
+        _session("sess-a", "shared-s", "tenant_a"),
+        _event("evt-a", "shared-s"),
+        _session("sess-b", "shared-s", "tenant_b"),
+        _event("evt-b", "shared-s"),
+        _memory("mem-b", "shared-s:m0", "tenant_b", "shared-s"),
+    ]
+    edges = [("evt-a", "sess-a", "session"), ("evt-b", "sess-b", "session")]
+    return nodes, edges
+
+
+def test_forget_as_b_removes_only_bs_orphans_when_session_id_is_shared(monkeypatch):
+    # Regression test requested on PR #61: forgetting B's last memory must
+    # remove only B's memory and B's orphaned session/events — never A's,
+    # even though both tenants share the same session_id.
+    nodes, edges = _shared_session_graph()
+    engine = _FakeGraphEngine(nodes, edges)
+    _install(monkeypatch, engine)
+    res = asyncio.run(forget_module.forget_memory("shared-s:m0", allowed_namespaces={"tenant_b"}))
+    assert res["status"] == "forgotten"
+    assert set(engine.deleted) == {"mem-b", "sess-b", "evt-b"}
+    assert "sess-a" not in engine.deleted
+    assert "evt-a" not in engine.deleted
+
+
+def test_orphan_cleanup_is_scoped_to_the_forgotten_memorys_namespace():
+    nodes, edges = _shared_session_graph()
+    cleanup = forget_module.orphan_node_ids(nodes, edges, "mem-b")
+    assert cleanup == {"sess-b", "evt-b"}
+
+
+def test_orphan_cleanup_still_works_for_a_single_tenant_without_edges():
+    # Legacy shape: no session edges in the graph payload at all.
+    nodes = [
+        _session("sess-a", "s1", "tenant_a"),
+        _event("evt-a", "s1"),
+        _memory("mem-a", "s1:m0", "tenant_a", "s1"),
+    ]
+    assert forget_module.orphan_node_ids(nodes, [], "mem-a") == {"sess-a", "evt-a"}
+
+
+def test_orphan_cleanup_skips_session_while_own_tenant_memory_remains():
+    nodes, edges = _shared_session_graph()
+    nodes.append(_memory("mem-b2", "shared-s:m1", "tenant_b", "shared-s"))
+    assert forget_module.orphan_node_ids(nodes, edges, "mem-b") == set()
+
+
+def test_other_tenants_remaining_memory_does_not_block_cleanup():
+    nodes, edges = _shared_session_graph()
+    nodes.append(_memory("mem-a", "shared-s:m9", "tenant_a", "shared-s"))
+    assert forget_module.orphan_node_ids(nodes, edges, "mem-b") == {"sess-b", "evt-b"}
