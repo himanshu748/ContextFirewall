@@ -109,6 +109,16 @@ def configure_cognee() -> dict[str, Any]:
     # --- posture: single-tenant tool, no auth gate, no session cache by default ---
     os.environ.setdefault("ENABLE_BACKEND_ACCESS_CONTROL", "false")
     os.environ.setdefault("CACHING", "false")
+    # Cognee sends product telemetry unless TELEMETRY_DISABLED is set, but the
+    # README promises "local by default — nothing leaves the machine", so
+    # telemetry is OFF by default here (#47). Cognee treats ANY non-empty
+    # value as "disabled", so an explicit opt-in value (0/false/no/off) is
+    # removed again — that is the only way telemetry actually turns back on.
+    _telemetry = os.getenv("TELEMETRY_DISABLED")
+    if _telemetry is None:
+        os.environ["TELEMETRY_DISABLED"] = "1"
+    elif _telemetry.strip().lower() in {"0", "false", "no", "off"}:
+        os.environ.pop("TELEMETRY_DISABLED", None)
     # Skip cognee's 30s embedding pre-flight: our HF-router engine has its own retry
     # path for cold model loads, and the pre-flight false-fails on a cold start.
     os.environ.setdefault("COGNEE_SKIP_CONNECTION_TEST", "true")
