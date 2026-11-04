@@ -1,10 +1,11 @@
 name: Sync backend to Hugging Face Space
 
 # Deploys the FastAPI + Cognee backend to the Hugging Face Space whenever the
-# backend changes on main. The Space root is the backend/ directory (its
-# Dockerfile notes "Deployed with the backend/ directory as the Space root"),
-# and the Space README must carry HF frontmatter, which lives in
-# backend/README_hf.md and is published as README.md on the Space.
+# backend changes on main, after the full CI suite passes. The Space root is
+# the backend/ directory (its Dockerfile notes "Deployed with the backend/
+# directory as the Space root"), and the Space README must carry HF
+# frontmatter, which lives in backend/README_hf.md and is published as
+# README.md on the Space.
 on:
   push:
     branches: [main]
@@ -13,16 +14,23 @@ on:
       - ".github/workflows/sync-hf-space.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: hf-space-sync
   cancel-in-progress: true
 
 jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
   sync:
+    needs: ci
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Push backend/ to the Hugging Face Space
         env:

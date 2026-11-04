@@ -290,10 +290,15 @@ Everything **downstream of those inputs is real system output**: the verdicts, t
 
 ## Roadmap
 
-- **Trust re-weighting over time** — reinforce memories that prove correct, decay those that don't.
+- **Trust re-weighting over time** — reinforce memories that prove correct, decay those that don't ([#48](https://github.com/himanshu748/ContextFirewall/issues/48)).
+- **Configurable firewall policy** with structured verdicts and pluggable checks ([#41](https://github.com/himanshu748/ContextFirewall/issues/41)).
+- **Firewall accuracy benchmark** with per-check precision and recall ([#49](https://github.com/himanshu748/ContextFirewall/issues/49)).
+- **Scale** — namespace-scoped recall without full-graph scans ([#21](https://github.com/himanshu748/ContextFirewall/issues/21)).
 - **Continuous auto-recording** of live agent sessions, instead of explicit `remember` calls.
 - **Cross-session accumulating memory** with the firewall governing the growing graph.
 - **Managed Cognee Cloud** as a hosting option alongside self-host.
+
+Release notes live in [`CHANGELOG.md`](CHANGELOG.md).
 
 ---
 
@@ -305,6 +310,7 @@ labelled [`good first issue`](https://github.com/himanshu748/ContextFirewall/lab
 or [`help wanted`](https://github.com/himanshu748/ContextFirewall/labels/help%20wanted).
 
 - [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Getting help](SUPPORT.md)
 - [Security policy](SECURITY.md) — please report vulnerabilities privately
 - [MIT License](LICENSE)
 
