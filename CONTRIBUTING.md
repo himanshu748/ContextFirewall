@@ -17,6 +17,7 @@ By participating you agree to follow our [Code of Conduct](CODE_OF_CONDUCT.md).
 - [Coding guidelines](#coding-guidelines)
 - [Commits and pull requests](#commits-and-pull-requests)
 - [Reporting security issues](#reporting-security-issues)
+- [Getting help](SUPPORT.md)
 - [License](#license)
 
 ## Ways to contribute
@@ -125,7 +126,10 @@ cd backend && PYTHONPATH=. .venv/bin/python -m pytest -q
 # Frontend lint, typecheck, production build
 cd frontend && npm run lint && npx tsc --noEmit && npm run build
 
-# MCP package tests (Part B talks to a live API — point it at your local backend)
+# MCP package: offline write-path tests (what CI runs)
+cd mcp && .venv/bin/python -c "from tests.test_mcp import part_a_write_path; part_a_write_path()"
+
+# MCP package: full suite (Part B talks to a live API — point it at your local backend)
 cd mcp && CF_API_BASE=http://localhost:8000 .venv/bin/python -m tests.test_mcp
 ```
 
@@ -215,6 +219,15 @@ with a safe default and a one-line comment.
 4. Run the checks above, then open a PR and fill in the template. Link the issue with `Closes #123`.
 5. A maintainer will review as soon as possible. Please address feedback by pushing new commits
    rather than force-pushing, so reviewers can see what changed.
+
+### What to expect on your first pull request
+
+- **CI waits for approval.** GitHub holds workflow runs from first-time contributors until a
+  maintainer clicks *Approve and run*. A missing CI result on your first PR is normal.
+- **The Vercel check may fail on forks.** Preview deployments from forks need maintainer
+  authorization on Vercel. This failure doesn't reflect your change, and you can ignore it.
+- **No changelog entry needed.** Maintainers update [`CHANGELOG.md`](CHANGELOG.md) when merging.
+- **Credit.** Merged contributions are listed in the README's Contributors section.
 
 Merges to `main` that touch `backend/` are automatically deployed to the public Hugging Face Space,
 so `main` should always be deployable.
