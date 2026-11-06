@@ -33,7 +33,7 @@ from app.cognee_runtime.improve import improve as _improve, recall_rules as _rec
 from app.cognee_runtime.ingest import remember_fact as _remember_fact
 from app.firewall.audit import audit_memories as _audit_memories
 from app.firewall.pack import build_pack as _build_pack
-from app.identity import Identity, resolve_identity
+from app.identity import Identity, llm_checks_allowed, resolve_identity
 
 INSTRUCTIONS = (
     "ContextFirewall is a trust firewall for an AI coding agent's long-term memory, "
@@ -110,7 +110,9 @@ async def get_trusted_context(task: str, top_k: int = 12) -> str:
     instead of raw, ungoverned recall.
     """
     ident = await _ctx_identity()
-    result = await _build_pack(task, top_k=int(top_k), namespaces=ident.read_namespaces)
+    result = await _build_pack(
+        task, top_k=int(top_k), use_llm=llm_checks_allowed(ident), namespaces=ident.read_namespaces
+    )
     audit = result.get("audit") or {}
     pack = (result.get("pack_markdown") or "").strip()
     header = _pack_header(audit)
@@ -134,7 +136,9 @@ async def audit_context(task: str, top_k: int = 12) -> str:
     withheld, or to decide what to retract.
     """
     ident = await _ctx_identity()
-    audit = await _audit_memories(task, top_k=int(top_k), namespaces=ident.read_namespaces)
+    audit = await _audit_memories(
+        task, top_k=int(top_k), use_llm=llm_checks_allowed(ident), namespaces=ident.read_namespaces
+    )
     cands: List[Dict[str, Any]] = audit.get("candidates", [])
     approved = [c for c in cands if c.get("passed")]
     blocked = [c for c in cands if not c.get("passed")]

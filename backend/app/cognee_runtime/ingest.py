@@ -131,6 +131,7 @@ def build_nodes(session: dict, namespace: str) -> Tuple[List[Any], List[Memory]]
                 content=ev.get("content", ""),
                 timestamp=ev.get("timestamp"),
                 ordinal=(ev.get("ordinal") if ev.get("ordinal") is not None else i),
+                namespace=namespace,
                 session=sess,
             )
         )

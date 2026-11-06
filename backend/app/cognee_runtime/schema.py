@@ -72,6 +72,7 @@ class SessionEvent(DataPoint):
     content: str
     timestamp: Optional[str] = None
     ordinal: int = 0
+    namespace: Optional[str] = None  # owner; session ids alone can collide across tenants
     session: SkipValidation[Any] = None  # -> AgentSession (typed edge)
     metadata: dict = {"index_fields": ["content"]}
 

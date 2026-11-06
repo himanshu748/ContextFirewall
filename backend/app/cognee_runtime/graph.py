@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.firewall.secrets import redact_text
 
@@ -98,15 +98,7 @@ async def graph_view(limit: int = 400, namespaces=None) -> Dict[str, Any]:
         logger.exception("Failed to load graph data")
         return {"nodes": [], "edges": [], "truncated": False, "error": _GRAPH_ERROR}
 
-    session_namespaces: Dict[str, Dict[str, Any]] = {}
-    for entry in raw_nodes:
-        try:
-            _nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)
-        except Exception:  # noqa: BLE001
-            continue
-        props = props or {}
-        if _node_type(props) == "AgentSession" and props.get("session_id"):
-            session_namespaces[str(props["session_id"])] = props
+    owners = _EventOwners(raw_nodes, raw_edges)
 
     visible_nodes: List[Tuple[str, Dict[str, Any], str]] = []
     seen: set[str] = set()
@@ -122,9 +114,8 @@ async def graph_view(limit: int = 400, namespaces=None) -> Dict[str, Any]:
         node_type = _node_type(props)
         node_ns_props = props
         if node_type == "SessionEvent":
-            session_props = session_namespaces.get(_event_session_id(props))
-            if session_props is not None:
-                node_ns_props = session_props
+            ns = owners.namespace(nid, props)
+            node_ns_props = {"namespace": ns} if ns else {}
         if not in_namespace(node_ns_props, namespaces):
             continue
         seen.add(nid)
@@ -173,6 +164,61 @@ def _event_session_id(props: Dict[str, Any]) -> str:
     return eid.split(":", 1)[0] if ":" in eid else ""
 
 
+def _entry(entry: Any) -> Tuple[str, Dict[str, Any]]:
+    nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)
+    return str(nid), props or {}
+
+
+def _edge_ends(entry: Any) -> Tuple[str, str]:
+    if isinstance(entry, tuple):
+        return str(entry[0]), str(entry[1])
+    return str(entry.get("source")), str(entry.get("target"))
+
+
+class _EventOwners:
+    """Resolve which namespace owns each SessionEvent.
+
+    Session ids are caller-chosen, so two tenants (or a tenant and the public
+    demo) can share one. An event is attributed by its own ``namespace`` tag,
+    then (older events) by its edge to an AgentSession node, then by session id
+    only when no other namespace uses that id. Anything else is unattributable.
+    """
+
+    def __init__(self, raw_nodes: List[Any], raw_edges: List[Any]) -> None:
+        sessions_by_node: Dict[str, Dict[str, Any]] = {}
+        self.sessions_by_id: Dict[str, List[Dict[str, Any]]] = {}
+        for entry in raw_nodes:
+            try:
+                nid, props = _entry(entry)
+            except Exception:  # noqa: BLE001
+                continue
+            if _node_type(props) == "AgentSession" and props.get("session_id"):
+                sessions_by_node[nid] = props
+                self.sessions_by_id.setdefault(str(props["session_id"]), []).append(props)
+        self._linked: Dict[str, Dict[str, Any]] = {}
+        for entry in raw_edges or []:
+            try:
+                src, tgt = _edge_ends(entry)
+            except Exception:  # noqa: BLE001
+                continue
+            if tgt in sessions_by_node:
+                self._linked.setdefault(src, sessions_by_node[tgt])
+            elif src in sessions_by_node:
+                self._linked.setdefault(tgt, sessions_by_node[src])
+
+    def namespace(self, node_id: str, props: Dict[str, Any]) -> Optional[str]:
+        own = props.get("namespace")
+        if own:
+            return str(own)
+        linked = self._linked.get(node_id)
+        if linked is not None:
+            return effective_namespace(linked)
+        owners = {effective_namespace(p) for p in self.sessions_by_id.get(_event_session_id(props), [])}
+        if len(owners) == 1 and None not in owners:
+            return next(iter(owners))
+        return None
+
+
 async def list_sessions(namespaces=None, include_all: bool = False) -> List[Dict[str, Any]]:
     """All AgentSession nodes with an event count.
 
@@ -180,19 +226,20 @@ async def list_sessions(namespaces=None, include_all: bool = False) -> List[Dict
     span every namespace; public endpoints always leave it False.
     """
     try:
-        _engine, raw_nodes, _edges = await _get_graph()
+        _engine, raw_nodes, raw_edges = await _get_graph()
     except Exception:
         return []
-    event_counts: Dict[str, int] = {}
+    owners = _EventOwners(raw_nodes, raw_edges)
+    event_counts: Dict[Tuple[Optional[str], str], int] = {}
     agent_sessions: List[Dict[str, Any]] = []
     for entry in raw_nodes:
-        _nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)
-        props = props or {}
+        nid, props = _entry(entry)
         t = _node_type(props)
         if t == "SessionEvent":
             sid = _event_session_id(props)
             if sid:
-                event_counts[sid] = event_counts.get(sid, 0) + 1
+                key = (owners.namespace(nid, props), sid)
+                event_counts[key] = event_counts.get(key, 0) + 1
         elif t == "AgentSession":
             if not include_all:
                 if not in_namespace(props, namespaces):
@@ -207,7 +254,7 @@ async def list_sessions(namespaces=None, include_all: bool = False) -> List[Dict
             "agent": p.get("agent"),
             "started_at": p.get("started_at"),
             "repo": {},
-            "event_count": event_counts.get(p.get("session_id", ""), 0),
+            "event_count": event_counts.get((effective_namespace(p), p.get("session_id", "")), 0),
         }
         for p in agent_sessions
     ]
@@ -219,30 +266,31 @@ async def session_timeline(session_id: str, namespaces=None, include_all: bool =
     ``include_all`` bypasses namespace scoping for internal pipelines only.
     """
     try:
-        _engine, raw_nodes, _edges = await _get_graph()
+        _engine, raw_nodes, raw_edges = await _get_graph()
     except Exception:
         return []
-    session_props = None
-    for entry in raw_nodes:
-        _nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)
-        props = props or {}
-        if _node_type(props) == "AgentSession" and props.get("session_id") == session_id:
-            session_props = props
-            break
-    if session_props is None:
-        return []
+    owners = _EventOwners(raw_nodes, raw_edges)
+    candidates = owners.sessions_by_id.get(str(session_id), [])
     if not include_all:
-        if not in_namespace(session_props, namespaces):
-            return []
-        if effective_namespace(session_props) == "demo" and str(session_id).startswith("mcp-"):
-            return []
+        candidates = [
+            p
+            for p in candidates
+            if in_namespace(p, namespaces)
+            and not (effective_namespace(p) == "demo" and str(session_id).startswith("mcp-"))
+        ]
+    if not candidates:
+        return []
+    owner_ns = effective_namespace(candidates[0])
+    if owner_ns is None:
+        return []
     events: List[Dict[str, Any]] = []
     for entry in raw_nodes:
-        _nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)
-        props = props or {}
+        nid, props = _entry(entry)
         if _node_type(props) != "SessionEvent":
             continue
         if session_id and _event_session_id(props) != session_id:
+            continue
+        if owners.namespace(nid, props) != owner_ns:
             continue
         events.append(
             {
