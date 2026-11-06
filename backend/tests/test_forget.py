@@ -67,7 +67,28 @@ def test_other_tenants_node_is_never_deleted(monkeypatch):
     engine = _FakeEngine([_node("node-a", "s1:m0", "tenant_a")])
     _install(monkeypatch, engine)
     res = asyncio.run(forget_module.forget_memory("s1:m0", allowed_namespaces={"tenant_b"}))
-    assert res["status"] != "forgotten"
+    missing = asyncio.run(forget_module.forget_memory("no-such-memory", allowed_namespaces={"tenant_b"}))
+    assert res == {**missing, "memory_id": "s1:m0"}
+    assert "tenant_a" not in str(res)
+    assert engine.deleted == []
+
+
+def test_demo_memory_still_reports_immutable_without_deletion(monkeypatch):
+    engine = _FakeEngine([_node("node-demo", "demo:m0", "demo")])
+    _install(monkeypatch, engine)
+    res = asyncio.run(forget_module.forget_memory("demo:m0", allowed_namespaces={"tenant_b"}))
+    assert res["status"] == "forbidden"
+    assert res["message"] == "Demo memories are immutable."
+    assert engine.deleted == []
+
+
+def test_foreign_memory_is_indistinguishable_from_missing_with_default_scope(monkeypatch):
+    engine = _FakeEngine([_node("node-a", "private:m0", "tenant_a")])
+    _install(monkeypatch, engine)
+    foreign = asyncio.run(forget_module.forget_memory("private:m0", allowed_namespaces={"tenant_b"}))
+    missing = asyncio.run(forget_module.forget_memory("missing:m0", allowed_namespaces={"tenant_b"}))
+    assert foreign["status"] == missing["status"] == "not_found"
+    assert foreign["message"] == missing["message"]
     assert engine.deleted == []
 
 
