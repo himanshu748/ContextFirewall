@@ -166,9 +166,8 @@ async def _find_memory_node_id(
     are matched on ``(memory_id, namespace)``: the namespace must pass the
     same demo / allowed-namespace rules :func:`forget_memory` enforces
     afterwards. The first *eligible* node wins; if none is eligible, the
-    first match overall is returned so the caller's checks can still
-    report ``forbidden`` (rather than a misleading ``not_found``) exactly
-    as before.
+    first match overall is returned for the caller's final authorization
+    check. Foreign namespaces must be indistinguishable from missing IDs.
     """
     from cognee.infrastructure.databases.graph import get_graph_engine
 
@@ -237,8 +236,8 @@ async def forget_memory(
     if allowed_namespaces is not None and namespace not in allowed_namespaces:
         return {
             "memory_id": memory_id,
-            "status": "forbidden",
-            "message": f"Memory lives in namespace '{namespace}', which is not allowed here.",
+            "status": "not_found",
+            "message": "No matching memory node found in the graph.",
         }
 
     # Graph node delete (cascades its edges).
