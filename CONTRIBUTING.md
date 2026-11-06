@@ -34,6 +34,9 @@ so we can agree on the approach and avoid duplicate work.
 
 ## Finding something to work on
 
+The pinned [**Start here** issue](https://github.com/himanshu748/ContextFirewall/issues/81) lists all
+open work grouped by area, with good first issues and help-wanted items at the top.
+
 | Label | Meaning |
 |-------|---------|
 | [`good first issue`](https://github.com/himanshu748/ContextFirewall/labels/good%20first%20issue) | Small, well-scoped, with pointers to the code involved |

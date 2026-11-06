@@ -305,8 +305,9 @@ Release notes live in [`CHANGELOG.md`](CHANGELOG.md).
 ## Contributing
 
 Contributions are welcome — from typo fixes to new firewall checks. Start with
-[`CONTRIBUTING.md`](CONTRIBUTING.md) for setup, tests, and the project's invariants, then pick an issue
-labelled [`good first issue`](https://github.com/himanshu748/ContextFirewall/labels/good%20first%20issue)
+[`CONTRIBUTING.md`](CONTRIBUTING.md) for setup, tests, and the project's invariants. The pinned
+[**Start here** roadmap](https://github.com/himanshu748/ContextFirewall/issues/81) groups all open work by
+area and difficulty, or pick an issue labelled [`good first issue`](https://github.com/himanshu748/ContextFirewall/labels/good%20first%20issue)
 or [`help wanted`](https://github.com/himanshu748/ContextFirewall/labels/help%20wanted).
 
 - [Code of Conduct](CODE_OF_CONDUCT.md)
