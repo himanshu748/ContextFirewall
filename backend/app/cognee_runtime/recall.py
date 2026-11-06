@@ -5,8 +5,8 @@ custom Memory fields (subject, trust_score, created_at, ...). Those live as grap
 node properties. So recall *joins* the two: vector search for relevance ranking,
 the graph for the full, trustworthy record (keyed by the shared node id).
 
-We return the full memory set (ranked) so the cluster-level checks (staleness /
-contradiction) always see a memory's same-subject peers.
+We return ranked memories together with their same-subject peers so the
+cluster-level checks (staleness / contradiction) still see related context.
 
 ``recall_answer`` returns the ungoverned GRAPH_COMPLETION answer — the baseline
 the firewall improves on in the demo.
@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import logging
 from typing import Any, Dict, List, Optional, Set
 
 from app.firewall.secrets import redact_text
@@ -23,6 +24,8 @@ from .bootstrap import configure_cognee
 
 MEMORY_COLLECTION = "Memory_text"
 _MAX_CLUSTER = 200
+
+logger = logging.getLogger(__name__)
 
 
 def _coerce_record(node_id: str, props: Dict[str, Any]) -> Dict[str, Any]:
@@ -135,16 +138,23 @@ async def _load_graph_memories(namespaces: Optional[Set[str]] = None) -> Dict[st
 
 async def _vector_rank(query: str, top_k: int) -> List[str]:
     """Node ids ordered by vector relevance to the query (best effort)."""
-    from cognee.infrastructure.databases.vector import get_vector_engine
-
-    engine = get_vector_engine()  # sync factory -> handle
     try:
+        from cognee.infrastructure.databases.vector import get_vector_engine
+
+        engine = get_vector_engine()  # sync factory -> handle
         results = engine.search(
             collection_name=MEMORY_COLLECTION, query_text=query, limit=top_k, include_payload=False
         )
         if inspect.isawaitable(results):
             results = await results
-    except Exception:
+    except Exception as exc:
+        # Fail closed: an unavailable index must not turn into an unranked dump
+        # of every memory. Log the exception type only - the query and vector
+        # payloads may contain secrets (project invariant 1).
+        logger.warning(
+            "vector search failed during recall (%s); returning no candidates",
+            type(exc).__name__,
+        )
         return []
     return [str(getattr(r, "id", "")) for r in (results or [])]
 
@@ -170,7 +180,11 @@ async def recall_memory_candidates(
             ordered.append(rec)
             seen.add(nid)
     if not ordered:
-        return list(graph_mems.values())[:_MAX_CLUSTER]
+        # No vector hit means we have no relevance signal at all. Returning the
+        # whole graph here handed the caller (and the LLM contradiction check)
+        # up to _MAX_CLUSTER unrelated memories whenever the index was empty or
+        # unhealthy. Fail closed instead.
+        return []
     subjects = {(rec.get("subject") or "").strip().lower() for rec in ordered if (rec.get("subject") or "").strip()}
     for nid, rec in graph_mems.items():
         if nid in seen:
