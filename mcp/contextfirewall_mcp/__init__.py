@@ -4,10 +4,13 @@ Puts the ContextFirewall memory firewall inside your coding agent. Any MCP clien
 (Claude Code, Cursor, Windsurf, Cline, Claude Desktop) can pull a trusted, governed context pack and
 record session memories that future packs will audit on Cognee.
 
-This server is a thin, zero-dependency client over the ContextFirewall HTTP API, so it
-runs anywhere uvx/uv can and needs nothing but the standard library plus `mcp`. It
-exposes the SAME six tools as the hosted streamable-HTTP endpoint (mounted at /mcp on
-the backend), so the agent experience and the docs are identical across transports:
+This server is a thin client over the ContextFirewall HTTP API. It uses only the
+standard library plus its one declared dependency, the `mcp` SDK
+(`mcp/pyproject.toml`), so it runs anywhere uvx/uv can.
+It exposes the same six tool names and arguments as the hosted streamable-HTTP
+endpoint (mounted at /mcp on the backend). The two are separate implementations —
+the hosted one calls the firewall/Cognee core in-process, this one calls the REST
+API — so their text output is not byte-identical:
 
     get_trusted_context   recall + audit -> a trusted context pack   (Cognee: recall)
     audit_context         recall + audit -> per-memory verdicts        (Cognee: recall)
