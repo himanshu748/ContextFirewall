@@ -227,9 +227,9 @@ Every environment variable read by `backend/app` and `frontend/`. The backend lo
 | `HUGGINGFACE_API_KEY` | none | Fallback LLM key when `LLM_API_KEY` is unset (`bootstrap.py`, `llm.py`). | Both |
 | `LLM_API_KEY` | none; falls back to `HUGGINGFACE_API_KEY` | API key for Cognee's LLM and the direct chat client. Without a key, chat raises `LLMUnavailable`. | Both (required for LLM features) |
 | `LLM_PROVIDER` | `custom` | Cognee LLM provider. | Both |
-| `LLM_MODEL` | `openai/Qwen/Qwen2.5-72B-Instruct:novita` (`bootstrap.py`); `openai/Qwen/Qwen2.5-72B-Instruct` (`llm.py`) | Chat / graph-extraction model. The `openai/` prefix is stripped for the direct chat client. The different defaults are tracked in [#15](https://github.com/himanshu748/ContextFirewall/issues/15); setting it explicitly avoids the mismatch. | Both |
-| `LLM_ENDPOINT` | `https://router.huggingface.co/v1` | Cognee LLM base endpoint. | Both |
-| `LLM_CHAT_ENDPOINT` | `https://router.huggingface.co/v1/chat/completions` | Full chat-completions URL for the direct chat client (`llm.py`). | Optional |
+| `LLM_MODEL` | `openai/Qwen/Qwen2.5-72B-Instruct:novita` | Chat / graph-extraction model, resolved once in `app/config.py` and shared by Cognee and the direct chat client (`llm.py`). The `openai/` prefix is stripped for the direct client. | Both |
+| `LLM_ENDPOINT` | `https://router.huggingface.co/v1` | LLM base endpoint for Cognee; the direct chat client derives `{LLM_ENDPOINT}/chat/completions` from it. | Both |
+| `LLM_CHAT_ENDPOINT` | `{LLM_ENDPOINT}/chat/completions` | Optional explicit full chat-completions URL; overrides the derived one in `llm.py`. | Optional |
 | `LLM_INSTRUCTOR_MODE` | `markdown_json_mode` when `LLM_PROVIDER=custom`, otherwise unset | Instructor mode passed to Cognee. | Optional |
 | `EMBEDDING_PROVIDER` | `hf_router` | `hf_router` installs the HF feature-extraction engine; other values fall through to Cognee. | Both |
 | `EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | Embedding model. | Both |

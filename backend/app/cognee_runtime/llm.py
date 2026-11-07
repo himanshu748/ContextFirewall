@@ -1,22 +1,22 @@
-"""Minimal async chat client for the Hugging Face inference router.
+"""Minimal async chat client for an OpenAI-compatible chat endpoint (HF router by default).
 
 The firewall's contradiction and evidence checks need a small, dependable
 structured-LLM call. Rather than reach into cognee's internal LLM client, we call
-the HF router's OpenAI-compatible chat endpoint directly (same key/model as the
-cognee LLM config) and degrade gracefully: if the model is unreachable, the
+the OpenAI-compatible chat endpoint directly (model, endpoint and key come from
+``app.config``, shared with the cognee LLM config) and degrade gracefully: if the model is unreachable, the
 caller falls back to deterministic logic and the verdict is labelled accordingly.
 """
 from __future__ import annotations
 
 import asyncio
 import json
-import os
 import re
 from typing import Any, List, Optional
 
 import httpx
 
-DEFAULT_CHAT_ENDPOINT = "https://router.huggingface.co/v1/chat/completions"
+from app.config import resolve_llm_settings
+
 _RETRY_STATUS = {429, 500, 502, 503, 504, 524}
 _THINK_RE = re.compile(r"<think>.*?</think>", re.S)
 
@@ -69,16 +69,6 @@ class LLMUnavailable(RuntimeError):
     """Raised when the chat model cannot be reached (callers fall back)."""
 
 
-def _model_name() -> str:
-    # cognee uses an "openai/" litellm routing prefix; the raw router wants the bare id.
-    model = os.getenv("LLM_MODEL", "openai/Qwen/Qwen2.5-72B-Instruct")
-    return model.split("openai/", 1)[1] if model.startswith("openai/") else model
-
-
-def _api_key() -> str:
-    return os.getenv("LLM_API_KEY") or os.getenv("HUGGINGFACE_API_KEY") or ""
-
-
 async def chat(
     messages: List[dict],
     *,
@@ -87,12 +77,13 @@ async def chat(
     timeout: float = 60.0,
     max_retries: int = 4,
 ) -> str:
-    key = _api_key()
+    cfg = resolve_llm_settings()
+    key = cfg.api_key
     if not key:
         raise LLMUnavailable("no HF/LLM API key in environment")
-    endpoint = os.getenv("LLM_CHAT_ENDPOINT") or DEFAULT_CHAT_ENDPOINT
+    endpoint = cfg.chat_endpoint
     payload = {
-        "model": _model_name(),
+        "model": cfg.chat_model,
         "messages": messages,
         "max_tokens": max_tokens,
         "temperature": temperature,
