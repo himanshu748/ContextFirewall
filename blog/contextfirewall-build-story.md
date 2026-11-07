@@ -14,7 +14,7 @@ ContextFirewall ships two transports with an identical six-tool surface. The hos
 claude mcp add --transport http contextfirewall https://himanshukumarjha-contextfirewall.hf.space/mcp
 ```
 
-Prefer to keep everything local? A zero-dependency stdio package runs the same six tools with `uvx`, pointed at a backend you host yourself. Either way the agent gets six tools, and together they exercise all four of Cognee's lifecycle verbs:
+Prefer to keep everything local? A stdio package with a single dependency (the `mcp` SDK) runs the same six tools with `uvx`, pointed at a backend you host yourself. Either way the agent gets six tools, and together they exercise all four of Cognee's lifecycle verbs:
 
 - `get_trusted_context(task)` and `audit_context(task)` are **recall**: the first returns only memory that passes all four checks, the second returns the per-memory verdicts, the failing check, and why.
 - `remember(text, subject, kind)` is **remember**: a durable fact that becomes auditable on the next recall. Secrets are redacted at ingest.
@@ -68,7 +68,7 @@ These are real notes from building ContextFirewall itself, not from the demo.
 
 ## Architecture
 
-The MCP server is the headline surface, mounted at `/mcp` on the backend as a stateless streamable-HTTP transport, with a zero-dependency stdio package alongside it for laptops. Both expose the same six tools from one definition, and both call the same firewall and Cognee core that the REST API uses, so there is no duplicated logic.
+The MCP server is the headline surface, mounted at `/mcp` on the backend as a stateless streamable-HTTP transport, with a small stdio package alongside it for laptops (its only dependency is the `mcp` SDK). Both expose the same six tool names and arguments, but they are two implementations: the hosted server calls the firewall and Cognee core in-process, while the stdio client goes through the REST API. Their text output is not byte-identical — the stdio client's trusted-pack comment also names the API base URL. Keeping the two surfaces aligned is the job of the parity test planned in #43; the core itself is shared, so there is no duplicated firewall logic.
 
 The backend is FastAPI + Cognee on a Dockerized Hugging Face Space. Qwen2.5-72B and BAAI/bge-small-en-v1.5 run through the Hugging Face inference router, with no local model in RAM. Storage is environment-switched: local SQLite, LanceDB, and Kuzu in dev; Supabase Postgres + pgvector and Neo4j Aura in production, with identical code. A Next.js front end on Vercel shows the firewall verdicts, a session replay timeline, the distilled coding rules, the live knowledge graph, and the trusted pack versus the ungoverned baseline, plus a live feed of MCP and API calls hitting the firewall.
 
