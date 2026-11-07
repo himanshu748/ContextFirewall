@@ -5,7 +5,9 @@ Put the memory firewall **inside your coding agent**. ContextFirewall speaks the
 There are **two transports with an identical six-tool surface**:
 
 - **Hosted (streamable HTTP):** the server is mounted at `/mcp` on the backend. Connect in one line, nothing to install.
-- **Local (stdio):** this package, a tiny zero-dependency client over the HTTP API. Run it with `uvx`, pointed at any ContextFirewall backend.
+- **Local (stdio):** this package, a small client over the HTTP API with one dependency (the `mcp` SDK). Run it with `uvx`, pointed at any ContextFirewall backend.
+
+Both expose the same six tool names and arguments, but they are separate implementations: the hosted server calls the firewall and Cognee core in-process, while this package goes through the REST API. Their text output is therefore not byte-identical — the trusted-pack comment here includes the API base URL, for example. The parity test planned in [#43](https://github.com/himanshu748/ContextFirewall/issues/43) is meant to keep the surfaces aligned.
 
 ## Tools
 
