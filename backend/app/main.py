@@ -34,6 +34,7 @@ from typing import List, Optional
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.activity import get_activity, log_activity
 from app.identity import llm_checks_allowed, resolve_identity
@@ -124,6 +125,15 @@ def _require_admin(token: Optional[str]) -> None:
 
 _WRITE_AUTH_DETAIL = "A valid ContextFirewall API key is required for writes. Sign in to the console to mint one."
 _SAFE_KIND_LABELS = {"fact", "decision", "lesson", "command", "config", "credential"}
+
+# A failed forget is still a failed request. Keep the ForgetResponse body so the
+# console can show its message, but give clients a status they can check.
+_FORGET_HTTP_STATUS = {
+    "forgotten": 200,
+    "not_found": 404,
+    "forbidden": 403,
+    "error": 500,
+}
 
 
 def _remember_kind_label(kind: object) -> str:
@@ -267,6 +277,9 @@ async def forget(req: ForgetRequest, authorization: Optional[str] = Header(defau
     response = ForgetResponse(**result)
     status = str(result.get("status", "error"))
     log_activity("api", "forget_memory", "forgot a memory" if status == "forgotten" else f"forget {status}")
+    code = _FORGET_HTTP_STATUS.get(status, 500)
+    if code != 200:
+        return JSONResponse(status_code=code, content=response.model_dump())
     return response
 
 
