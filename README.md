@@ -161,7 +161,7 @@ Live console (Next.js / Vercel) ──────────────┘
         dev:  SQLite · LanceDB · Kuzu graph   │   prod:  Neo4j Aura · Supabase pgvector
 ```
 
-- **MCP server** — the headline surface, mounted at `/mcp` (streamable HTTP, stateless), plus a zero-dependency `uvx` stdio package under [`mcp/`](mcp) for laptops. Both expose the same six tools from one definition.
+- **MCP server** — the headline surface, mounted at `/mcp` (streamable HTTP, stateless), plus a `uvx` stdio package under [`mcp/`](mcp) for laptops whose only dependency is the `mcp` SDK. Both expose the same six tools, implemented separately for each transport; the parity test planned in #43 is meant to keep them aligned.
 - **Backend** — FastAPI + Cognee SDK (Python 3.12), deployed as a Docker **Hugging Face Space**. MCP tools and REST endpoints call **one** firewall/Cognee core — no duplicated logic.
 - **Model layer** — Hugging Face inference router: **Qwen2.5-72B-Instruct** for graph extraction and contradiction adjudication, **BAAI/bge-small-en-v1.5** embeddings (384-dim).
 - **Storage** — env-switched in `bootstrap.py`: local stores in dev, Supabase Postgres + pgvector and Neo4j Aura in prod. Identical code.
