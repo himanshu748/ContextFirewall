@@ -19,13 +19,51 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import logging
 import os
 from dataclasses import dataclass, field
-from typing import Optional, Set
+from typing import Optional, Set, Tuple
+
+logger = logging.getLogger(__name__)
 
 DEMO_NAMESPACE = "demo"
 PUBLIC_NAMESPACE = "public"
 API_KEY_PREFIX = "cf_live_"
+
+
+class IdentityError(Exception):
+    """Identity resolution failed in a way the caller must hear about.
+
+    Carries the HTTP ``status_code`` / ``detail`` the REST layer should
+    return; over MCP the detail surfaces as the tool error. Raised only
+    when a credential was *presented* but could not be honoured — callers
+    that send no credential still resolve to anonymous (see
+    :func:`resolve_identity`).
+    """
+
+    status_code = 500
+    detail = "Identity resolution failed."
+
+    def __init__(self, detail: Optional[str] = None) -> None:
+        self.detail = detail or type(self).detail
+        super().__init__(self.detail)
+
+
+class InvalidApiKeyError(IdentityError):
+    """A ``cf_live_`` key was presented but is unknown or revoked."""
+
+    status_code = 401
+    detail = (
+        "The API key provided is unknown or has been revoked. "
+        "Sign in to the console to mint a new key."
+    )
+
+
+class KeyStoreUnavailableError(IdentityError):
+    """The API-key store is configured but unreachable."""
+
+    status_code = 503
+    detail = "The API key store is temporarily unavailable; please retry shortly."
 
 
 def hash_api_key(raw_key: str) -> str:
@@ -98,24 +136,35 @@ async def _get_pool():
     return _pool
 
 
-async def _namespace_for_key(raw_key: str) -> Optional[str]:
-    """Resolve a key to its namespace, failing CLOSED on any store error.
+async def _key_lookup(raw_key: str) -> Tuple[str, Optional[str]]:
+    """Look a raw key up in the store.
 
-    If the key table is unreachable (missing migration, connection loss), the
-    caller is treated as anonymous — never a 500, and never a write grant.
+    Returns ``(status, namespace)`` where ``status`` is one of:
+
+    - ``"ok"`` — key found and not revoked; ``namespace`` is its namespace.
+    - ``"unknown"`` — the store answered, but no live key matches (the key
+      is unknown or revoked; the query filters revoked rows out).
+    - ``"unavailable"`` — a store is configured but the lookup failed
+      (connection loss, missing migration, ...). Logged, never silent.
+    - ``"not_configured"`` — no key store on this deployment (dev profile
+      without ``DB_HOST``), so keys cannot be checked at all.
     """
     try:
         pool = await _get_pool()
-        if pool is None:
-            return None
-        key_hash = hash_api_key(raw_key)
+    except Exception:  # noqa: BLE001
+        logger.exception("API key store unavailable: could not open a connection pool")
+        return "unavailable", None
+    if pool is None:
+        return "not_configured", None
+    key_hash = hash_api_key(raw_key)
+    try:
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
                 "select namespace from public.cf_api_keys where key_hash = $1 and revoked_at is null",
                 key_hash,
             )
             if row is None:
-                return None
+                return "unknown", None
             # Best-effort usage stamp; never let it fail the request.
             try:
                 await conn.execute(
@@ -124,9 +173,10 @@ async def _namespace_for_key(raw_key: str) -> Optional[str]:
                 )
             except Exception:  # noqa: BLE001
                 pass
-        return str(row["namespace"])
+        return "ok", str(row["namespace"])
     except Exception:  # noqa: BLE001
-        return None
+        logger.exception("API key store unavailable: key lookup failed")
+        return "unavailable", None
 
 
 async def resolve_identity(authorization: Optional[str], env_write_token: Optional[str] = None) -> Identity:
@@ -134,11 +184,20 @@ async def resolve_identity(authorization: Optional[str], env_write_token: Option
 
     Order: a valid API key wins (its account namespace); otherwise the optional
     ``CF_WRITE_TOKEN`` admin override; otherwise anonymous demo-read.
+
+    Anonymous is only for callers that present *no* credential. A presented
+    ``cf_live_`` key that the store rejects raises :class:`InvalidApiKeyError`
+    (401) and a key store that cannot be reached raises
+    :class:`KeyStoreUnavailableError` (503) — silently downgrading either to
+    anonymous would hand the caller demo data as if it were their own (#45).
+    On a deployment with no key store configured at all (dev profile), an
+    API-key-shaped token still resolves to anonymous: there is nothing to
+    check it against, and anonymous grants no privileges.
     """
     token = bearer_token(authorization)
     if looks_like_api_key(token):
-        ns = await _namespace_for_key(token)  # type: ignore[arg-type]
-        if ns:
+        status, ns = await _key_lookup(token)  # type: ignore[arg-type]
+        if status == "ok" and ns:
             return Identity(
                 kind="apikey",
                 namespace=ns,
@@ -146,7 +205,15 @@ async def resolve_identity(authorization: Optional[str], env_write_token: Option
                 allow_demo_write=False,
                 read_namespaces={ns},
             )
-        return _anonymous()  # unknown/revoked key -> no privileges
+        if status == "unknown":
+            logger.warning(
+                "Rejected unknown or revoked API key (sha256 prefix %s)",
+                hash_api_key(token)[:8],  # type: ignore[arg-type]
+            )
+            raise InvalidApiKeyError()
+        if status == "unavailable":
+            raise KeyStoreUnavailableError()
+        return _anonymous()  # no key store configured (dev profile)
     env_token = env_write_token if env_write_token is not None else os.getenv("CF_WRITE_TOKEN")
     if env_token and token and hmac.compare_digest(token.encode(), env_token.encode()):
         return Identity(
