@@ -432,14 +432,12 @@ export default function Landing() {
             <Link href="/app" className="transition-colors hover:text-slate-100">Live demo</Link>
             <a href={REPO} target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-slate-100">GitHub</a>
             <a href="https://www.cognee.ai" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-slate-100">Cognee</a>
-            <a href="https://wemakedevs.org/hackathons/cognee" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-slate-100">Hackathon</a>
           </div>
         </div>
         <div className="mx-auto max-w-6xl px-5 pb-10">
           <p className="text-xs leading-relaxed text-slate-600">
-            Built by Himanshu Kumar for the WeMakeDevs × Cognee hackathon. Built with the help of an AI assistant
-            (Hyperagent); every Cognee and model call shown is real, with no fabricated memories or results. The demo
-            runs on a sample agent session (taskflow-api) so no private data is exposed.
+            Built by Himanshu Kumar. The console demo uses a clearly labeled, fictional agent session
+            (taskflow-api) rather than private user data. Cognee and model integrations process the sample live.
           </p>
         </div>
       </footer>

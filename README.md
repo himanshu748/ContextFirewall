@@ -20,8 +20,6 @@ Every memory your agent recalls, stores, distils, or forgets flows through [Cogn
 
 **[◆ Live console](https://contextfirewall.vercel.app)**  ·  **[⚡ MCP endpoint](https://himanshukumarjha-contextfirewall.hf.space/mcp)**  ·  **[📖 API docs](https://himanshukumarjha-contextfirewall.hf.space/docs)**
 
-<sub>Built for the **WeMakeDevs × Cognee** hackathon — *The Hangover Part AI: Where's My Context?* (Jun 29 – Jul 5, 2026)</sub>
-
 <br/><br/>
 
 ### ▶ See it work — the four Cognee verbs, live
@@ -329,7 +327,7 @@ and [commit history](https://github.com/himanshu748/ContextFirewall/commits/main
 
 <div align="center">
 
-<sub>Built with AI assistance (**Hyperagent**), disclosed per the hackathon rules. All Cognee usage is real — live model and graph calls, not mocked. The demo session is a clearly-labeled sample; every firewall verdict shown is genuine system output.</sub>
+<sub>The demo uses a clearly labeled sample session. Cognee and model integrations run live, and the firewall verdicts shown are genuine system output.</sub>
 
 <br/>
 

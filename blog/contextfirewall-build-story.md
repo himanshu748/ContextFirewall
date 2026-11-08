@@ -1,7 +1,5 @@
 # ContextFirewall: a trust firewall for your coding agent's memory
 
-*Built for the WeMakeDevs × Cognee hackathon, "The Hangover Part AI: Where's My Context?"*
-
 AI coding agents are finally getting long-term memory. That is the good news. The bad news is the part nobody likes to say out loud: **a memory layer is only as trustworthy as the worst fact in it.** The moment an agent can remember, it can also remember *wrong*, and confidently hand that wrong thing to the next agent in line.
 
 ContextFirewall is a small idea taken seriously: **audit every remembered fact before it reaches the next agent.** And because the agents people actually use speak the Model Context Protocol, we shipped it as an MCP server. You point Claude Code, Cursor, or Windsurf at one endpoint, and from then on every memory the agent recalls, stores, distils, or forgets flows through Cognee and four firewall checks first. Memory that is stale, contradicted, secret-bearing, or unproven is held back. Only what survives the audit is assembled into a trusted context pack for the model.
@@ -47,7 +45,7 @@ Each verdict is explainable. Click any memory in the console and you see all fou
 
 ## Why Cognee is load-bearing
 
-The hackathon's whole theme is memory that *forgets the right things*, and ContextFirewall leans on all four of Cognee's lifecycle verbs:
+A reliable memory layer must remember, retrieve, refine, and forget deliberately. ContextFirewall uses Cognee's four lifecycle operations to support that workflow:
 
 - **Remember.** `cognee.add` + `cognify` build the entity graph from a session transcript, while a typed `Repo → AgentSession → SessionEvent → Memory` graph (with `supersedes` relations) gives the firewall deterministic objects to audit.
 - **Recall.** Vector recall over the memory nodes joined with their graph properties, plus `GRAPH_COMPLETION` for the "ungoverned baseline" we show side by side in the UI.
@@ -80,6 +78,6 @@ The end-to-end check is green on real infrastructure: ingest, cognify, recall, f
 
 The demo runs on a clearly-labeled sample session (`taskflow-api`); its memories are illustrative inputs. Everything downstream of them is genuine: the verdicts, trust scores, the knowledge graph, and the distilled rules are all real output from live Cognee and the live model. Nothing is hard-coded or fabricated.
 
-## Disclosure
+## Development note
 
-This project was built with AI assistance (Hyperagent), disclosed per the hackathon rules. Every Cognee call is real. The honesty bar we held ourselves to is the same one ContextFirewall enforces: do not pass along anything you cannot back up.
+AI-assisted tooling was used during development. The Cognee graph and model calls are real, and the bundled example session is fictional. The same evidence-first principle guides ContextFirewall: avoid passing along claims that cannot be supported.
