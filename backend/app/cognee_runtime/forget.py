@@ -2,8 +2,8 @@
 
 When the firewall blocks a memory or a human rejects it, ContextFirewall deletes
 it from Cognee — the graph node and its vector embedding — so it disappears from
-both recall and any future trusted context pack. This is the Cognee 'forget' verb
-at per-memory granularity (the headline of the hackathon's forget() theme).
+both recall and future trusted context packs. This provides per-memory
+forgetting through Cognee's graph and vector storage.
 """
 from __future__ import annotations
 
