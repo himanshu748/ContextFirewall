@@ -7,7 +7,7 @@ realistic string to match — the detector under test is what builds the full va
 """
 from __future__ import annotations
 
-from app.firewall.secrets import find_secrets, has_secret, redact_text
+from app.firewall.secrets import find_secrets, has_secret, redact_text, redacted_kinds, label_for_kind
 
 
 def _uri(scheme: str, user: str, pwd: str, host: str, tail: str = "") -> str:
@@ -24,6 +24,25 @@ def test_detects_huggingface_token():
 def test_detects_openai_key():
     key = "sk-" + "proj-" + "AbCd1234EfGh5678IjKl9012MnOp"
     assert has_secret(f"the key was {key}")
+
+
+def test_detects_stripe_live_secret_and_restricted_keys_without_leaking():
+    for prefix in ("sk_live_", "rk_live_"):
+        fake_value = prefix + "A" * 24  # Synthetic fixture, no live credentials.
+        findings = find_secrets(f"payment processor key: {fake_value}")
+        assert len(findings) == 1
+        assert findings[0].kind == "stripe_live_key"
+        assert fake_value not in findings[0].redacted
+        redacted = redact_text(f"payment processor key: {fake_value}")
+        assert fake_value not in redacted
+        assert redacted_kinds(redacted) == ["stripe_live_key"]
+    assert label_for_kind("stripe_live_key") == "Stripe live secret or restricted key"
+
+
+def test_stripe_public_and_short_keys_are_not_flagged():
+    assert not has_secret("pk_live_" + "A" * 24)  # Publishable, not a secret.
+    assert not has_secret("sk_live_" + "A" * 15)  # Too short to be a key.
+    assert not has_secret("rk_test_" + "A" * 24)  # Only live keys in this scope.
 
 
 def test_detects_postgres_uri_password():
