@@ -263,6 +263,12 @@ Every environment variable read by `backend/app` and `frontend/`. The backend lo
 | `NEXT_PUBLIC_SUPABASE_URL` | none | Supabase project URL for console auth. | Optional |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | none | Supabase anon/publishable key. If either Supabase variable is unset, the console runs read-only and hides the auth UI. | Optional |
 
+The console sends a Content-Security-Policy for its own origin, the configured
+backend and Supabase (including its secure WebSocket endpoint), plus clickjacking
+and MIME-sniffing protections. Next.js 14's inline hydration scripts currently
+require `script-src 'unsafe-inline'`; production builds do **not** allow
+`unsafe-eval`. The public landing page also serves `robots.txt` and `sitemap.xml`.
+
 ---
 
 ## The demo data — and what is real
