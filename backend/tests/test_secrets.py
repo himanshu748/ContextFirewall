@@ -64,6 +64,28 @@ def test_sendgrid_incomplete_or_extended_key_is_not_a_secret():
     assert not has_secret("SG." + "A" * 22 + "." + "B" * 44)
 
 
+def test_detects_and_redacts_npm_access_token():
+    # Synthetic fragments: no credential-shaped token literal is committed.
+    token = "npm_" + "Ab3x" * 9
+    raw = f"Use this npm credential: {token}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "npm_token"
+    assert token not in findings[0].redacted
+    redacted = redact_text(raw)
+    assert redacted == "Use this npm credential: «REDACTED:npm_token»"
+    assert token not in redacted
+    assert redacted_kinds(redacted) == ["npm_token"]
+    assert label_for_kind("npm_token") == "npm access token"
+
+
+def test_npm_prose_and_wrong_length_tokens_are_not_flagged():
+    assert not has_secret("Run npm install before npm test")
+    assert not has_secret("npm_" + "A" * 35)
+    assert not has_secret("npm_" + "A" * 37)
+    assert not has_secret("notnpm_" + "A" * 36)
+
+
 def test_detects_stripe_live_secret_and_restricted_keys_without_leaking():
     for prefix in ("sk_live_", "rk_live_"):
         fake_value = prefix + "A" * 24  # Synthetic fixture, no live credentials.
