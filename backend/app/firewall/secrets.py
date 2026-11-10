@@ -48,6 +48,8 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     # SendGrid API keys contain two base64url segments of fixed lengths.
     ("sendgrid_api_key", "SendGrid API key", re.compile(r"(?<![A-Za-z0-9_-])SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])")),
     ("npm_token", "npm access token", re.compile(r"(?<![A-Za-z0-9_])npm_[A-Za-z0-9]{36}(?![A-Za-z0-9])")),
+    # PyPI's secret-reporting API documents at least 85 base64url characters after pypi-.
+    ("pypi_token", "PyPI API token", re.compile(r"(?<![A-Za-z0-9_-])pypi-[A-Za-z0-9_-]{85,}(?![A-Za-z0-9_-])")),
     # Public pk_live_ keys are intentionally excluded; only live secret or
     # restricted keys should block a memory.
     ("stripe_live_key", "Stripe live secret or restricted key", re.compile(r"\b(?:sk|rk)_live_[A-Za-z0-9]{16,}\b")),

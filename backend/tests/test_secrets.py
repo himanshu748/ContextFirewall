@@ -104,6 +104,24 @@ def test_npm_prose_and_wrong_length_tokens_are_not_flagged():
     assert not has_secret("notnpm_" + "A" * 36)
 
 
+def test_detects_and_redacts_pypi_api_token():
+    token = "pypi-" + "Ab3_" * 22  # Synthetic base64url body, safely above PyPI's minimum length.
+    raw = f"Python package upload credential: {token}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "pypi_token"
+    assert token not in findings[0].redacted
+    assert redact_text(raw) == "Python package upload credential: «REDACTED:pypi_token»"
+    assert redacted_kinds(redact_text(raw)) == ["pypi_token"]
+    assert label_for_kind("pypi_token") == "PyPI API token"
+
+
+def test_pypi_prose_and_short_values_are_not_flagged():
+    assert not has_secret("Use twine to upload packages to PyPI")
+    assert not has_secret("pypi-" + "A" * 84)
+    assert not has_secret("notpypi-" + "A" * 90)
+
+
 def test_detects_stripe_live_secret_and_restricted_keys_without_leaking():
     for prefix in ("sk_live_", "rk_live_"):
         fake_value = prefix + "A" * 24  # Synthetic fixture, no live credentials.
