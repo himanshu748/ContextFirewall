@@ -26,6 +26,24 @@ def test_detects_openai_key():
     assert has_secret(f"the key was {key}")
 
 
+def test_detects_and_redacts_github_fine_grained_pat():
+    # Assemble a fake PAT; GitHub documents github_pat_ as the token prefix.
+    token = "github_" + "pat_" + "Ab3_" * 11
+    raw = f"GitHub credential: {token}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "github_token"
+    assert token not in findings[0].redacted
+    assert redact_text(raw) == "GitHub credential: «REDACTED:github_token»"
+    assert label_for_kind("github_token") == "GitHub token"
+
+
+def test_github_pat_lookalikes_are_not_secrets():
+    assert not has_secret("Configure GITHUB_PAT in your environment")
+    assert not has_secret("github_" + "pat_" + "A" * 39)
+    assert not has_secret("notgithub_" + "pat_" + "A" * 44)
+
+
 def test_detects_and_redacts_gitlab_access_token():
     token = "glpat-" + "Ab12" * 5  # Deliberately synthetic; no usable credentials.
     findings = find_secrets(f"GITLAB_TOKEN={token}")
