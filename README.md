@@ -20,8 +20,6 @@ Every memory your agent recalls, stores, distils, or forgets flows through [Cogn
 
 **[◆ Live console](https://contextfirewall.vercel.app)**  ·  **[⚡ MCP endpoint](https://himanshukumarjha-contextfirewall.hf.space/mcp)**  ·  **[📖 API docs](https://himanshukumarjha-contextfirewall.hf.space/docs)**
 
-<sub>Built for the **WeMakeDevs × Cognee** hackathon — *The Hangover Part AI: Where's My Context?* (Jun 29 – Jul 5, 2026)</sub>
-
 <br/><br/>
 
 ### ▶ See it work — the four Cognee verbs, live
@@ -130,8 +128,9 @@ The graph is **load-bearing**: staleness rides on temporal supersession, contrad
 
 ## Privacy first
 
-- 🔒 **Secrets are redacted at ingest, then again on every read.** When a session is remembered, any detected credential (API key, DB URI, private key, AWS key, JWT, `secret=…` assignment, high-entropy token) is stripped **before** it is written to the graph, the vector store, or the cognified transcript. It never persists — and the firewall still blocks the memory it came from. Every read path (`/audit`, `/pack`, `/graph`, recall) redacts again as a second, defense-in-depth layer.
+- 🔒 **Secrets are redacted at ingest, then again on every read.** When a session is remembered, any detected credential (API key, DB URI, private key, AWS key, Stripe live secret/restricted key, JWT, `secret=…` assignment, high-entropy token) is stripped **before** it is written to the graph, the vector store, or the cognified transcript. It never persists — and the firewall still blocks the memory it came from. Every read path (`/audit`, `/pack`, `/graph`, recall) redacts again as a second, defense-in-depth layer.
 - 🧭 **Local by default.** In dev, Cognee's stores are local files (SQLite + LanceDB + the default graph); by default the model and embeddings still call the Hugging Face router, but point them at a local OpenAI-compatible endpoint (see the Local model option below) and nothing leaves the machine. Managed Neo4j Aura + Supabase pgvector are only for the hosted demo; self-host and your memory graph stays yours.
+- 📵 **No product telemetry.** Cognee's built-in product telemetry is disabled by default (`TELEMETRY_DISABLED=1` is set for you when unset). If you ever want to opt back in, set `TELEMETRY_DISABLED=0` in your environment — see `backend/.env.example`.
 - 🧩 **Per-account namespace isolation.** An authenticated caller's API key resolves to a private namespace; reads are scoped to **that namespace only** — your console never mixes in the public sample data. Supabase RLS locks the underlying tables.
 - 💻 **Local model option.** Model and embedding endpoints are env-configurable — point them at a local OpenAI-compatible server (e.g. Ollama) for a fully offline deployment.
 
@@ -160,7 +159,7 @@ Live console (Next.js / Vercel) ──────────────┘
         dev:  SQLite · LanceDB · Kuzu graph   │   prod:  Neo4j Aura · Supabase pgvector
 ```
 
-- **MCP server** — the headline surface, mounted at `/mcp` (streamable HTTP, stateless), plus a zero-dependency `uvx` stdio package under [`mcp/`](mcp) for laptops. Both expose the same six tools from one definition.
+- **MCP server** — the headline surface, mounted at `/mcp` (streamable HTTP, stateless), plus a `uvx` stdio package under [`mcp/`](mcp) for laptops whose only dependency is the `mcp` SDK. Both expose the same six tools, implemented separately for each transport; the parity test planned in #43 is meant to keep them aligned.
 - **Backend** — FastAPI + Cognee SDK (Python 3.12), deployed as a Docker **Hugging Face Space**. MCP tools and REST endpoints call **one** firewall/Cognee core — no duplicated logic.
 - **Model layer** — Hugging Face inference router: **Qwen2.5-72B-Instruct** for graph extraction and contradiction adjudication, **BAAI/bge-small-en-v1.5** embeddings (384-dim).
 - **Storage** — env-switched in `bootstrap.py`: local stores in dev, Supabase Postgres + pgvector and Neo4j Aura in prod. Identical code.
@@ -226,9 +225,9 @@ Every environment variable read by `backend/app` and `frontend/`. The backend lo
 | `HUGGINGFACE_API_KEY` | none | Fallback LLM key when `LLM_API_KEY` is unset (`bootstrap.py`, `llm.py`). | Both |
 | `LLM_API_KEY` | none; falls back to `HUGGINGFACE_API_KEY` | API key for Cognee's LLM and the direct chat client. Without a key, chat raises `LLMUnavailable`. | Both (required for LLM features) |
 | `LLM_PROVIDER` | `custom` | Cognee LLM provider. | Both |
-| `LLM_MODEL` | `openai/Qwen/Qwen2.5-72B-Instruct:novita` (`bootstrap.py`); `openai/Qwen/Qwen2.5-72B-Instruct` (`llm.py`) | Chat / graph-extraction model. The `openai/` prefix is stripped for the direct chat client. The different defaults are tracked in [#15](https://github.com/himanshu748/ContextFirewall/issues/15); setting it explicitly avoids the mismatch. | Both |
-| `LLM_ENDPOINT` | `https://router.huggingface.co/v1` | Cognee LLM base endpoint. | Both |
-| `LLM_CHAT_ENDPOINT` | `https://router.huggingface.co/v1/chat/completions` | Full chat-completions URL for the direct chat client (`llm.py`). | Optional |
+| `LLM_MODEL` | `openai/Qwen/Qwen2.5-72B-Instruct:novita` | Chat / graph-extraction model, resolved once in `app/config.py` and shared by Cognee and the direct chat client (`llm.py`). The `openai/` prefix is stripped for the direct client. | Both |
+| `LLM_ENDPOINT` | `https://router.huggingface.co/v1` | LLM base endpoint for Cognee; the direct chat client derives `{LLM_ENDPOINT}/chat/completions` from it. | Both |
+| `LLM_CHAT_ENDPOINT` | `{LLM_ENDPOINT}/chat/completions` | Optional explicit full chat-completions URL; overrides the derived one in `llm.py`. | Optional |
 | `LLM_INSTRUCTOR_MODE` | `markdown_json_mode` when `LLM_PROVIDER=custom`, otherwise unset | Instructor mode passed to Cognee. | Optional |
 | `EMBEDDING_PROVIDER` | `hf_router` | `hf_router` installs the HF feature-extraction engine; other values fall through to Cognee. | Both |
 | `EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | Embedding model. | Both |
@@ -263,6 +262,12 @@ Every environment variable read by `backend/app` and `frontend/`. The backend lo
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Backend base URL (trailing `/` stripped). | Both (set to the Space URL in prod) |
 | `NEXT_PUBLIC_SUPABASE_URL` | none | Supabase project URL for console auth. | Optional |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | none | Supabase anon/publishable key. If either Supabase variable is unset, the console runs read-only and hides the auth UI. | Optional |
+
+The console sends a Content-Security-Policy for its own origin, the configured
+backend and Supabase (including its secure WebSocket endpoint), plus clickjacking
+and MIME-sniffing protections. Next.js 14's inline hydration scripts currently
+require `script-src 'unsafe-inline'`; production builds do **not** allow
+`unsafe-eval`. The public landing page also serves `robots.txt` and `sitemap.xml`.
 
 ---
 
@@ -311,19 +316,29 @@ or [`help wanted`](https://github.com/himanshu748/ContextFirewall/labels/help%20
 
 ## Contributors
 
+Thanks to the community contributors behind these merged improvements:
+
 <p>
-  <a href="https://github.com/HarshRajSinghania"><img src="https://avatars.githubusercontent.com/u/40535627?v=4&amp;s=96" width="48" height="48" alt="HarshRajSinghania's GitHub profile"></a>
-  <a href="https://github.com/mikemikimike"><img src="https://avatars.githubusercontent.com/u/186855910?v=4&amp;s=96" width="48" height="48" alt="mikemikimike's GitHub profile"></a>
-  <a href="https://github.com/unvisible789"><img src="https://avatars.githubusercontent.com/u/69988225?v=4&amp;s=96" width="48" height="48" alt="unvisible789's GitHub profile"></a>
-  <a href="https://github.com/dannyward630"><img src="https://avatars.githubusercontent.com/u/71604164?v=4&amp;s=96" width="48" height="48" alt="dannyward630's GitHub profile"></a>
-  <a href="https://github.com/alanveloper-epam"><img src="https://avatars.githubusercontent.com/u/251251017?v=4&amp;s=96" width="48" height="48" alt="alanveloper-epam's GitHub profile"></a>
+  <a href="https://github.com/HarshRajSinghania" title="@HarshRajSinghania"><img src="https://avatars.githubusercontent.com/u/40535627?v=4&amp;s=96" width="48" height="48" alt="HarshRajSinghania's GitHub profile"></a>
+  <a href="https://github.com/mikemikimike" title="@mikemikimike"><img src="https://avatars.githubusercontent.com/u/186855910?v=4&amp;s=96" width="48" height="48" alt="mikemikimike's GitHub profile"></a>
+  <a href="https://github.com/unvisible789" title="@unvisible789"><img src="https://avatars.githubusercontent.com/u/69988225?v=4&amp;s=96" width="48" height="48" alt="unvisible789's GitHub profile"></a>
+  <a href="https://github.com/dannyward630" title="@dannyward630"><img src="https://avatars.githubusercontent.com/u/71604164?v=4&amp;s=96" width="48" height="48" alt="dannyward630's GitHub profile"></a>
+  <a href="https://github.com/alanveloper-epam" title="@alanveloper-epam"><img src="https://avatars.githubusercontent.com/u/251251017?v=4&amp;s=96" width="48" height="48" alt="alanveloper-epam's GitHub profile"></a>
+  <a href="https://github.com/kushkrg" title="@kushkrg"><img src="https://avatars.githubusercontent.com/u/65346284?v=4&amp;s=96" width="48" height="48" alt="kushkrg's GitHub profile"></a>
+  <a href="https://github.com/jdotc1" title="@jdotc1"><img src="https://avatars.githubusercontent.com/u/138259519?v=4&amp;s=96" width="48" height="48" alt="jdotc1's GitHub profile"></a>
+  <a href="https://github.com/lhjl-j" title="@lhjl-j"><img src="https://avatars.githubusercontent.com/u/252149781?v=4&amp;s=96" width="48" height="48" alt="lhjl-j's GitHub profile"></a>
+  <a href="https://github.com/Kushagra481" title="@Kushagra481"><img src="https://avatars.githubusercontent.com/u/176615642?v=4&amp;s=96" width="48" height="48" alt="Kushagra481's GitHub profile"></a>
+  <a href="https://github.com/sudonishant" title="@sudonishant"><img src="https://avatars.githubusercontent.com/u/302756519?v=4&amp;s=96" width="48" height="48" alt="sudonishant's GitHub profile"></a>
 </p>
+
+See the [contributors graph](https://github.com/himanshu748/ContextFirewall/graphs/contributors)
+and [commit history](https://github.com/himanshu748/ContextFirewall/commits/main/) for the full record of contributions.
 
 ---
 
 <div align="center">
 
-<sub>Built with AI assistance (**Hyperagent**), disclosed per the hackathon rules. All Cognee usage is real — live model and graph calls, not mocked. The demo session is a clearly-labeled sample; every firewall verdict shown is genuine system output.</sub>
+<sub>The demo uses a clearly labeled sample session. Cognee and model integrations run live, and the firewall verdicts shown are genuine system output.</sub>
 
 <br/>
 

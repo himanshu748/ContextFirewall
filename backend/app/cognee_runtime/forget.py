@@ -2,8 +2,8 @@
 
 When the firewall blocks a memory or a human rejects it, ContextFirewall deletes
 it from Cognee — the graph node and its vector embedding — so it disappears from
-both recall and any future trusted context pack. This is the Cognee 'forget' verb
-at per-memory granularity (the headline of the hackathon's forget() theme).
+both recall and future trusted context packs. This provides per-memory
+forgetting through Cognee's graph and vector storage.
 """
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import inspect
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from .bootstrap import configure_cognee
-from .recall import MEMORY_COLLECTION
+from .recall import MEMORY_COLLECTION, effective_namespace
 
 
 def _entry_id(entry: Any) -> str:
@@ -66,29 +66,64 @@ def orphan_node_ids(nodes: Iterable[Any], edges: Iterable[Any], forgotten_memory
     if not session_id:
         return set()
 
-    # If any other memory remains in the same session, nothing else should be removed.
+    # Cleanup is scoped to the forgotten memory's namespace (#13 follow-up):
+    # session ids are caller-chosen, so another tenant can own an AgentSession
+    # with the SAME session_id. Matching on session_id alone would delete that
+    # tenant's session and events. Fail closed when the memory cannot be
+    # attributed to exactly one namespace.
+    namespace = effective_namespace(mem_props)
+    if namespace is None:
+        return set()
+
+    # If any other memory of the SAME tenant remains in the same session,
+    # nothing else should be removed. (Another tenant's memory in a shared
+    # session_id must not block this tenant's cleanup.)
     for nid, props in node_map.items():
         if nid == forgotten_id:
             continue
-        if props.get("type") == "Memory" and props.get("source_session_id") == session_id:
+        if (
+            props.get("type") == "Memory"
+            and props.get("source_session_id") == session_id
+            and effective_namespace(props) == namespace
+        ):
             return set()
 
     cleanup: set[str] = set()
     session_node_ids = {
         nid
         for nid, props in node_map.items()
-        if props.get("type") == "AgentSession" and props.get("session_id") == session_id
+        if props.get("type") == "AgentSession"
+        and props.get("session_id") == session_id
+        and effective_namespace(props) == namespace
     }
     if not session_node_ids:
         return set()
     cleanup.update(session_node_ids)
 
-    event_ids = {
+    # SessionEvent carries no namespace of its own — it inherits its
+    # session's. When another tenant's AgentSession shares this session_id,
+    # only events edge-linked to a session being removed may go; when the
+    # session_id is unambiguous, the legacy session_id match is safe.
+    event_node_ids = {
         nid
         for nid, props in node_map.items()
         if props.get("type") == "SessionEvent" and _same_subject(props.get("session_id"), session_id)
     }
-    cleanup.update(event_ids)
+    foreign_session = any(
+        props.get("type") == "AgentSession"
+        and props.get("session_id") == session_id
+        and nid not in session_node_ids
+        for nid, props in node_map.items()
+    )
+    if not foreign_session:
+        cleanup.update(event_node_ids)
+    else:
+        for entry in edges:
+            src, tgt, _label = _edge_parts(entry)
+            if src in session_node_ids and tgt in event_node_ids:
+                cleanup.add(tgt)
+            elif tgt in session_node_ids and src in event_node_ids:
+                cleanup.add(src)
 
     repo_ids: set[str] = set()
     for entry in edges:
@@ -116,7 +151,24 @@ def orphan_node_ids(nodes: Iterable[Any], edges: Iterable[Any], forgotten_memory
     return cleanup
 
 
-async def _find_memory_node_id(memory_id: str) -> Tuple[Optional[str], Any]:
+async def _find_memory_node_id(
+    memory_id: str,
+    allowed_namespaces: set[str] | None = None,
+    *,
+    allow_demo: bool = False,
+) -> Tuple[Optional[str], Any]:
+    """Find the graph node for ``memory_id`` that THIS caller may forget.
+
+    ``memory_id``s are not globally unique (they default to
+    ``<session_id>:m<i>`` and session IDs are caller-chosen), so matching on
+    the ID alone can resolve another tenant's node — or a demo node — and
+    shadow the caller's own memory with the same ID (#13). Eligible nodes
+    are matched on ``(memory_id, namespace)``: the namespace must pass the
+    same demo / allowed-namespace rules :func:`forget_memory` enforces
+    afterwards. The first *eligible* node wins; if none is eligible, the
+    first match overall is returned for the caller's final authorization
+    check. Foreign namespaces must be indistinguishable from missing IDs.
+    """
     from cognee.infrastructure.databases.graph import get_graph_engine
 
     engine = await get_graph_engine()
@@ -125,10 +177,22 @@ async def _find_memory_node_id(memory_id: str) -> Tuple[Optional[str], Any]:
             nodes, _edges = await engine.get_graph_data()
         except Exception:  # noqa: BLE001
             return None, engine
+        first_match: Optional[str] = None
         for entry in nodes:
             nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)
-            if (props or {}).get("memory_id") == memory_id:
-                return str(nid), engine
+            props = props or {}
+            if props.get("memory_id") != memory_id:
+                continue
+            if first_match is None:
+                first_match = str(nid)
+            namespace = str(props.get("namespace") or "demo")
+            if namespace == "demo" and not allow_demo:
+                continue
+            if allowed_namespaces is not None and namespace not in allowed_namespaces:
+                continue
+            return str(nid), engine
+        if first_match is not None:
+            return first_match, engine
     return None, engine
 
 
@@ -140,7 +204,7 @@ async def forget_memory(
     allow_demo: bool = False,
 ) -> Dict[str, Any]:
     configure_cognee()
-    node_id, engine = await _find_memory_node_id(memory_id)
+    node_id, engine = await _find_memory_node_id(memory_id, allowed_namespaces, allow_demo=allow_demo)
     if not node_id:
         return {
             "memory_id": memory_id,
@@ -172,8 +236,8 @@ async def forget_memory(
     if allowed_namespaces is not None and namespace not in allowed_namespaces:
         return {
             "memory_id": memory_id,
-            "status": "forbidden",
-            "message": f"Memory lives in namespace '{namespace}', which is not allowed here.",
+            "status": "not_found",
+            "message": "No matching memory node found in the graph.",
         }
 
     # Graph node delete (cascades its edges).

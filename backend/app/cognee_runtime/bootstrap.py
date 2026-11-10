@@ -28,6 +28,8 @@ from typing import Any
 
 from dotenv import load_dotenv
 
+from app.config import resolve_llm_settings
+
 # .../backend/app/cognee_runtime/bootstrap.py -> parents[2] == .../backend
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 ENV_PATH = BACKEND_DIR / ".env"
@@ -115,17 +117,24 @@ def configure_cognee() -> dict[str, Any]:
 
     import cognee
 
+    # Cognee reloads backend/.env with override=True during import. Apply the
+    # project's telemetry policy afterward so an explicit .env opt-in survives
+    # that reload. Empty values count as unset; telemetry stays off by default.
+    # Cognee treats any non-empty value as "disabled", so explicit opt-in values
+    # must be removed to enable telemetry.
+    _telemetry = (os.getenv("TELEMETRY_DISABLED") or "").strip().lower()
+    if not _telemetry:
+        os.environ["TELEMETRY_DISABLED"] = "1"
+    elif _telemetry in {"0", "false", "no", "off"}:
+        os.environ.pop("TELEMETRY_DISABLED", None)
+
     cognee.config.system_root_directory(str(system_root))
     cognee.config.data_root_directory(str(data_root))
 
     # --- LLM: chat / graph extraction (cognify) ---
     llm_provider = os.getenv("LLM_PROVIDER", "custom")
-    # Pin the HF router inference provider (":novita") — the bare model lets the
-    # router auto-pick a provider, which intermittently returns 403 (e.g. deepinfra
-    # not available for this key). novita serves Qwen2.5-72B + Llama-3.1-8B reliably.
-    llm_model = os.getenv("LLM_MODEL", "openai/Qwen/Qwen2.5-72B-Instruct:novita")
-    llm_endpoint = os.getenv("LLM_ENDPOINT", "https://router.huggingface.co/v1")
-    llm_api_key = os.getenv("LLM_API_KEY") or os.getenv("HUGGINGFACE_API_KEY") or ""
+    llm = resolve_llm_settings()
+    llm_model, llm_endpoint, llm_api_key = llm.model, llm.endpoint, llm.api_key
     cognee.config.set_llm_config(
         {
             "llm_provider": llm_provider,

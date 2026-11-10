@@ -7,7 +7,7 @@ realistic string to match — the detector under test is what builds the full va
 """
 from __future__ import annotations
 
-from app.firewall.secrets import find_secrets, has_secret, redact_text
+from app.firewall.secrets import find_secrets, has_secret, redact_text, redacted_kinds, label_for_kind
 
 
 def _uri(scheme: str, user: str, pwd: str, host: str, tail: str = "") -> str:
@@ -24,6 +24,85 @@ def test_detects_huggingface_token():
 def test_detects_openai_key():
     key = "sk-" + "proj-" + "AbCd1234EfGh5678IjKl9012MnOp"
     assert has_secret(f"the key was {key}")
+
+
+def test_detects_and_redacts_gitlab_access_token():
+    token = "glpat-" + "Ab12" * 5  # Deliberately synthetic; no usable credentials.
+    findings = find_secrets(f"GITLAB_TOKEN={token}")
+    assert len(findings) == 1
+    assert findings[0].kind == "gitlab_token"
+    assert token not in findings[0].redacted
+    redacted = redact_text(f"GITLAB_TOKEN={token}")
+    assert token not in redacted
+    assert redacted_kinds(redacted) == ["gitlab_token"]
+    assert label_for_kind("gitlab_token") == "GitLab access token"
+
+
+def test_gitlab_prefix_without_a_full_token_is_not_a_secret():
+    assert not has_secret("glpat-" + "a" * 19)
+
+
+def test_detects_and_redacts_sendgrid_api_key():
+    # Assemble a synthetic key from fragments to avoid committed credentials.
+    key = "SG." + "Ab3_" * 5 + "Q-" + "." + "Cd4-" * 10 + "x_7"
+    raw = f"SendGrid credential: {key}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "sendgrid_api_key"
+    assert key not in findings[0].redacted
+    redacted = redact_text(raw)
+    assert redacted == "SendGrid credential: «REDACTED:sendgrid_api_key»"
+    assert key not in redacted
+    assert redacted_kinds(redacted) == ["sendgrid_api_key"]
+    assert label_for_kind("sendgrid_api_key") == "SendGrid API key"
+
+
+def test_sendgrid_incomplete_or_extended_key_is_not_a_secret():
+    assert not has_secret("SendGrid is a service, not a credential")
+    assert not has_secret("SG." + "A" * 21 + "." + "B" * 43)
+    assert not has_secret("SG." + "A" * 22 + "." + "B" * 42)
+    assert not has_secret("SG." + "A" * 22 + "." + "B" * 44)
+
+
+def test_detects_and_redacts_npm_access_token():
+    # Synthetic fragments: no credential-shaped token literal is committed.
+    token = "npm_" + "Ab3x" * 9
+    raw = f"Use this npm credential: {token}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "npm_token"
+    assert token not in findings[0].redacted
+    redacted = redact_text(raw)
+    assert redacted == "Use this npm credential: «REDACTED:npm_token»"
+    assert token not in redacted
+    assert redacted_kinds(redacted) == ["npm_token"]
+    assert label_for_kind("npm_token") == "npm access token"
+
+
+def test_npm_prose_and_wrong_length_tokens_are_not_flagged():
+    assert not has_secret("Run npm install before npm test")
+    assert not has_secret("npm_" + "A" * 35)
+    assert not has_secret("npm_" + "A" * 37)
+    assert not has_secret("notnpm_" + "A" * 36)
+
+
+def test_detects_stripe_live_secret_and_restricted_keys_without_leaking():
+    for prefix in ("sk_live_", "rk_live_"):
+        fake_value = prefix + "A" * 24  # Synthetic fixture, no live credentials.
+        findings = find_secrets(f"payment processor key: {fake_value}")
+        assert len(findings) == 1
+        assert findings[0].kind == "stripe_live_key"
+        assert fake_value not in findings[0].redacted
+        redacted = redact_text(f"payment processor key: {fake_value}")
+        assert fake_value not in redacted
+        assert redacted_kinds(redacted) == ["stripe_live_key"]
+    assert label_for_kind("stripe_live_key") == "Stripe live secret or restricted key"
+
+
+def test_stripe_public_and_short_keys_are_not_flagged():
+    assert not has_secret("pk_live_" + "A" * 24)  # Publishable, not a secret.
+    assert not has_secret("sk_live_" + "A" * 15)  # Too short to be a key.
+    assert not has_secret("rk_test_" + "A" * 24)  # Only live keys in this scope.
 
 
 def test_detects_postgres_uri_password():

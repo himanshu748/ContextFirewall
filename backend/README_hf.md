@@ -26,5 +26,4 @@ Model layer: Hugging Face inference router (Qwen2.5-72B chat + BAAI/bge-small-en
 embeddings). Storage: Cognee (local stores, or externalized to Supabase Postgres +
 pgvector and Neo4j Aura via Space secrets).
 
-Built for the WeMakeDevs × Cognee hackathon. Built with AI assistance (Hyperagent),
-disclosed per the rules; all Cognee usage is real — live model and graph calls.
+ContextFirewall uses live Cognee model and graph integrations. The bundled sample session is illustrative and does not require personal data.
