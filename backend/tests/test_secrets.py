@@ -120,6 +120,33 @@ def test_detects_inline_secret_assignment():
     assert any(x.kind == "secret_assignment" for x in find_secrets(f'config: password = "{pwd}"'))
 
 
+def test_detects_provider_prefixed_secret_assignments():
+    # Hexadecimal auth tokens are not reliably detected by the entropy fallback.
+    fake_twilio_token = "a1b2c3d4" * 4
+    for key, value in [
+        ("TWILIO_AUTH_TOKEN", fake_twilio_token),
+        ("DB_PASSWORD", "fake-secret-12345"),
+        ("OPENAI_API_KEY", "example-placeholder-key-123"),
+        ("PAYMENTS_CLIENT_SECRET", "not-a-real-secret-987"),
+    ]:
+        raw = f"{key}={value}"
+        findings = find_secrets(raw)
+        assert any(f.kind == "secret_assignment" for f in findings), key
+        assert value not in redact_text(raw), key
+        assert redact_text(raw) == "«REDACTED:secret_assignment»", key
+
+
+def test_provider_prefixed_assignment_negatives():
+    for ordinary in [
+        "GIT_COMMIT_SHA=" + "a1b2c3d4" * 4,
+        "FEATURE_FLAG_ENABLED=abcdefgh12345678",
+        "SECRET_HINT=not-a-credential",
+        "myapisecret=just-a-description",
+        "PAYMENTS_CLIENT_SECRET_HINT=use-the-vault",
+    ]:
+        assert not has_secret(ordinary), ordinary
+
+
 def test_detects_private_key_block():
     header = "-----BEGIN " + "RSA PRIVATE KEY" + "-----"
     assert has_secret(header + "\nMIIEog...")
