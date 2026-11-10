@@ -68,7 +68,10 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
         "secret_assignment",
         "inline secret assignment",
         re.compile(
-            r"(?i)\b(?:password|passwd|pwd|secret|api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret)\b"
+            # Allow provider prefixes such as TWILIO_AUTH_TOKEN and DB_PASSWORD;
+            # the sensitive suffix must still be a whole identifier component.
+            r"(?i)(?<![A-Za-z0-9_])(?:[A-Za-z][A-Za-z0-9]*[_-])*"
+            r"(?:password|passwd|pwd|secret|api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret)\b"
             r"\s*[:=]\s*[\"']?([^\s\"',;]{8,})"
         ),
     ),
