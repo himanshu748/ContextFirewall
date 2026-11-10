@@ -41,6 +41,7 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("aws_access_key", "AWS access key id", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),
     ("google_api_key", "Google API key", re.compile(r"\bAIza[0-9A-Za-z_\-]{35}\b")),
     ("github_token", "GitHub token", re.compile(r"\bgh[pousr]_[A-Za-z0-9]{36,}\b")),
+    ("gitlab_token", "GitLab access token", re.compile(r"\bglpat-[A-Za-z0-9_-]{20,}\b")),
     # Public pk_live_ keys are intentionally excluded; only live secret or
     # restricted keys should block a memory.
     ("stripe_live_key", "Stripe live secret or restricted key", re.compile(r"\b(?:sk|rk)_live_[A-Za-z0-9]{16,}\b")),

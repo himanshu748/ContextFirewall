@@ -26,6 +26,22 @@ def test_detects_openai_key():
     assert has_secret(f"the key was {key}")
 
 
+def test_detects_and_redacts_gitlab_access_token():
+    token = "glpat-" + "Ab12" * 5  # Deliberately synthetic; no usable credentials.
+    findings = find_secrets(f"GITLAB_TOKEN={token}")
+    assert len(findings) == 1
+    assert findings[0].kind == "gitlab_token"
+    assert token not in findings[0].redacted
+    redacted = redact_text(f"GITLAB_TOKEN={token}")
+    assert token not in redacted
+    assert redacted_kinds(redacted) == ["gitlab_token"]
+    assert label_for_kind("gitlab_token") == "GitLab access token"
+
+
+def test_gitlab_prefix_without_a_full_token_is_not_a_secret():
+    assert not has_secret("glpat-" + "a" * 19)
+
+
 def test_detects_stripe_live_secret_and_restricted_keys_without_leaking():
     for prefix in ("sk_live_", "rk_live_"):
         fake_value = prefix + "A" * 24  # Synthetic fixture, no live credentials.
