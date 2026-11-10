@@ -42,6 +42,28 @@ def test_gitlab_prefix_without_a_full_token_is_not_a_secret():
     assert not has_secret("glpat-" + "a" * 19)
 
 
+def test_detects_and_redacts_sendgrid_api_key():
+    # Assemble a synthetic key from fragments to avoid committed credentials.
+    key = "SG." + "Ab3_" * 5 + "Q-" + "." + "Cd4-" * 10 + "x_7"
+    raw = f"SendGrid credential: {key}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "sendgrid_api_key"
+    assert key not in findings[0].redacted
+    redacted = redact_text(raw)
+    assert redacted == "SendGrid credential: «REDACTED:sendgrid_api_key»"
+    assert key not in redacted
+    assert redacted_kinds(redacted) == ["sendgrid_api_key"]
+    assert label_for_kind("sendgrid_api_key") == "SendGrid API key"
+
+
+def test_sendgrid_incomplete_or_extended_key_is_not_a_secret():
+    assert not has_secret("SendGrid is a service, not a credential")
+    assert not has_secret("SG." + "A" * 21 + "." + "B" * 43)
+    assert not has_secret("SG." + "A" * 22 + "." + "B" * 42)
+    assert not has_secret("SG." + "A" * 22 + "." + "B" * 44)
+
+
 def test_detects_stripe_live_secret_and_restricted_keys_without_leaking():
     for prefix in ("sk_live_", "rk_live_"):
         fake_value = prefix + "A" * 24  # Synthetic fixture, no live credentials.
