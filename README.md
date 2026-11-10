@@ -316,23 +316,33 @@ or [`help wanted`](https://github.com/himanshu748/ContextFirewall/labels/help%20
 
 ## Contributors
 
-Thanks to the community contributors behind these merged improvements:
+Thanks to everyone who has contributed a pull request to ContextFirewall. The linked avatars below represent individual GitHub users, not automated bots.
+
+**Contributors with merged PRs**
 
 <p>
-  <a href="https://github.com/HarshRajSinghania" title="@HarshRajSinghania"><img src="https://avatars.githubusercontent.com/u/40535627?v=4&amp;s=96" width="48" height="48" alt="HarshRajSinghania's GitHub profile"></a>
-  <a href="https://github.com/mikemikimike" title="@mikemikimike"><img src="https://avatars.githubusercontent.com/u/186855910?v=4&amp;s=96" width="48" height="48" alt="mikemikimike's GitHub profile"></a>
-  <a href="https://github.com/unvisible789" title="@unvisible789"><img src="https://avatars.githubusercontent.com/u/69988225?v=4&amp;s=96" width="48" height="48" alt="unvisible789's GitHub profile"></a>
-  <a href="https://github.com/dannyward630" title="@dannyward630"><img src="https://avatars.githubusercontent.com/u/71604164?v=4&amp;s=96" width="48" height="48" alt="dannyward630's GitHub profile"></a>
-  <a href="https://github.com/alanveloper-epam" title="@alanveloper-epam"><img src="https://avatars.githubusercontent.com/u/251251017?v=4&amp;s=96" width="48" height="48" alt="alanveloper-epam's GitHub profile"></a>
-  <a href="https://github.com/kushkrg" title="@kushkrg"><img src="https://avatars.githubusercontent.com/u/65346284?v=4&amp;s=96" width="48" height="48" alt="kushkrg's GitHub profile"></a>
-  <a href="https://github.com/jdotc1" title="@jdotc1"><img src="https://avatars.githubusercontent.com/u/138259519?v=4&amp;s=96" width="48" height="48" alt="jdotc1's GitHub profile"></a>
-  <a href="https://github.com/lhjl-j" title="@lhjl-j"><img src="https://avatars.githubusercontent.com/u/252149781?v=4&amp;s=96" width="48" height="48" alt="lhjl-j's GitHub profile"></a>
-  <a href="https://github.com/Kushagra481" title="@Kushagra481"><img src="https://avatars.githubusercontent.com/u/176615642?v=4&amp;s=96" width="48" height="48" alt="Kushagra481's GitHub profile"></a>
-  <a href="https://github.com/sudonishant" title="@sudonishant"><img src="https://avatars.githubusercontent.com/u/302756519?v=4&amp;s=96" width="48" height="48" alt="sudonishant's GitHub profile"></a>
+  <a href="https://github.com/HarshRajSinghania" title="@HarshRajSinghania: merged PR #30"><img src="https://avatars.githubusercontent.com/u/40535627?v=4&amp;s=96" width="48" height="48" alt="HarshRajSinghania's GitHub avatar"></a>
+  <a href="https://github.com/mikemikimike" title="@mikemikimike: merged PR #33"><img src="https://avatars.githubusercontent.com/u/186855910?v=4&amp;s=96" width="48" height="48" alt="mikemikimike's GitHub avatar"></a>
+  <a href="https://github.com/unvisible789" title="@unvisible789: merged PR #34"><img src="https://avatars.githubusercontent.com/u/69988225?v=4&amp;s=96" width="48" height="48" alt="unvisible789's GitHub avatar"></a>
+  <a href="https://github.com/dannyward630" title="@dannyward630: merged PR #50"><img src="https://avatars.githubusercontent.com/u/71604164?v=4&amp;s=96" width="48" height="48" alt="dannyward630's GitHub avatar"></a>
+  <a href="https://github.com/alanveloper-epam" title="@alanveloper-epam: merged PR #54"><img src="https://avatars.githubusercontent.com/u/251251017?v=4&amp;s=96" width="48" height="48" alt="alanveloper-epam's GitHub avatar"></a>
+  <a href="https://github.com/kushkrg" title="@kushkrg: merged PRs #60, #61"><img src="https://avatars.githubusercontent.com/u/65346284?v=4&amp;s=96" width="48" height="48" alt="kushkrg's GitHub avatar"></a>
+  <a href="https://github.com/jdotc1" title="@jdotc1: merged PRs #64, #88, #89, #91, #92, #93"><img src="https://avatars.githubusercontent.com/u/138259519?v=4&amp;s=96" width="48" height="48" alt="jdotc1's GitHub avatar"></a>
+  <a href="https://github.com/lhjl-j" title="@lhjl-j: merged PRs #82, #83, #84"><img src="https://avatars.githubusercontent.com/u/252149781?v=4&amp;s=96" width="48" height="48" alt="lhjl-j's GitHub avatar"></a>
+  <a href="https://github.com/Kushagra481" title="@Kushagra481: merged PR #85"><img src="https://avatars.githubusercontent.com/u/176615642?v=4&amp;s=96" width="48" height="48" alt="Kushagra481's GitHub avatar"></a>
+  <a href="https://github.com/sudonishant" title="@sudonishant: merged PR #90"><img src="https://avatars.githubusercontent.com/u/302756519?v=4&amp;s=96" width="48" height="48" alt="sudonishant's GitHub avatar"></a>
 </p>
 
+**Additional PR contributors**
+
+<p>
+  <a href="https://github.com/bfs2021" title="@bfs2021: submitted PR #56 (not merged)"><img src="https://avatars.githubusercontent.com/u/101915083?v=4&amp;s=96" width="48" height="48" alt="bfs2021's GitHub avatar"></a>
+</p>
+
+<sub>The additional contributor submitted a PR that was closed without merging. See the [pull request history](https://github.com/himanshu748/ContextFirewall/pulls?q=is%3Apr) for contribution details.</sub>
+
 See the [contributors graph](https://github.com/himanshu748/ContextFirewall/graphs/contributors)
-and [commit history](https://github.com/himanshu748/ContextFirewall/commits/main/) for the full record of contributions.
+and [commit history](https://github.com/himanshu748/ContextFirewall/commits/main/) for the full record of merged changes.
 
 ---
 
