@@ -89,6 +89,33 @@ def test_digitalocean_lookalikes_are_not_secrets():
         assert not has_secret(ordinary), ordinary
 
 
+def test_detects_and_redacts_azure_storage_account_key():
+    # 64 bytes encoded in base64; synthetic key assembled from harmless pieces.
+    account_key = ("Ab3/" * 21) + "Ab" + "=="
+    assert len(account_key) == 88
+    for prefix in ("AccountKey=", "accountkey = "):
+        raw = "DefaultEndpointsProtocol=https;AccountName=sample;" + prefix + account_key + ";EndpointSuffix=core.windows.net"
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "azure_storage_account_key"
+        assert account_key not in findings[0].redacted
+        redacted = redact_text(raw)
+        assert account_key not in redacted
+        assert redacted_kinds(redacted) == ["azure_storage_account_key"]
+    assert label_for_kind("azure_storage_account_key") == "Azure Storage account key"
+
+
+def test_azure_storage_key_lookalikes_are_not_secrets():
+    for ordinary in (
+        "AccountKey=myAccountKey",  # placeholder in documentation
+        "AccountKey=" + "A" * 85 + "==",  # shorter than 512 bits
+        "AccountKey=" + "A" * 87 + "==",  # longer than 512 bits
+        "AccountKey=" + "A" * 86 + "==suffix",  # not an entire value
+        "StorageAccountKey=" + "A" * 86 + "==",  # unrelated field
+    ):
+        assert not has_secret(ordinary), ordinary
+
+
 def test_detects_and_redacts_sendgrid_api_key():
     # Assemble a synthetic key from fragments to avoid committed credentials.
     key = "SG." + "Ab3_" * 5 + "Q-" + "." + "Cd4-" * 10 + "x_7"
