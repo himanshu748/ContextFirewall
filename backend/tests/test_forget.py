@@ -14,8 +14,10 @@ class _FakeEngine:
     def __init__(self, nodes):
         self._nodes = nodes
         self.deleted: list[str] = []
+        self.graph_reads = 0
 
     async def get_graph_data(self):
+        self.graph_reads += 1
         return list(self._nodes), []
 
     async def delete_node(self, node_id):
@@ -71,6 +73,7 @@ def test_other_tenants_node_is_never_deleted(monkeypatch):
     assert res == {**missing, "memory_id": "s1:m0"}
     assert "tenant_a" not in str(res)
     assert engine.deleted == []
+    assert engine.graph_reads == 2  # One lookup for each ID; neither enters deletion.
 
 
 def test_demo_memory_still_reports_immutable_without_deletion(monkeypatch):
@@ -82,7 +85,7 @@ def test_demo_memory_still_reports_immutable_without_deletion(monkeypatch):
     assert engine.deleted == []
 
 
-def test_foreign_memory_is_indistinguishable_from_missing_with_default_scope(monkeypatch):
+def test_foreign_memory_is_indistinguishable_from_missing_with_restricted_scope(monkeypatch):
     engine = _FakeEngine([_node("node-a", "private:m0", "tenant_a")])
     _install(monkeypatch, engine)
     foreign = asyncio.run(forget_module.forget_memory("private:m0", allowed_namespaces={"tenant_b"}))
@@ -90,6 +93,15 @@ def test_foreign_memory_is_indistinguishable_from_missing_with_default_scope(mon
     assert foreign["status"] == missing["status"] == "not_found"
     assert foreign["message"] == missing["message"]
     assert engine.deleted == []
+    assert engine.graph_reads == 2
+
+
+def test_default_scope_can_forget_a_non_demo_memory(monkeypatch):
+    engine = _FakeEngine([_node("node-a", "private:m0", "tenant_a")])
+    _install(monkeypatch, engine)
+    result = asyncio.run(forget_module.forget_memory("private:m0"))
+    assert result["status"] == "forgotten"
+    assert engine.deleted == ["node-a"]
 
 
 def test_lookup_matches_on_memory_id_and_namespace(monkeypatch):
