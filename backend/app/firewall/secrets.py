@@ -49,6 +49,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("digitalocean_token", "DigitalOcean API token", re.compile(
         r"(?<![A-Za-z0-9_])(?:dop|doo|dor)_v1_[0-9a-f]{64}(?![A-Za-z0-9_])"
     )),
+    # Azure Storage account keys are 512-bit values (86 base64 chars plus ==).
+    # Require the connection-string field name to avoid flagging unrelated data.
+    ("azure_storage_account_key", "Azure Storage account key", re.compile(
+        r"(?i)(?<![A-Za-z0-9_])AccountKey\s*=\s*([A-Za-z0-9+/]{86}==)(?![A-Za-z0-9+/=])"
+    )),
     # SendGrid API keys contain two base64url segments of fixed lengths.
     ("sendgrid_api_key", "SendGrid API key", re.compile(r"(?<![A-Za-z0-9_-])SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])")),
     ("npm_token", "npm access token", re.compile(r"(?<![A-Za-z0-9_])npm_[A-Za-z0-9]{36}(?![A-Za-z0-9])")),
