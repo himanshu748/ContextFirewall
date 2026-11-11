@@ -60,6 +60,35 @@ def test_gitlab_prefix_without_a_full_token_is_not_a_secret():
     assert not has_secret("glpat-" + "a" * 19)
 
 
+def test_detects_and_redacts_digitalocean_tokens():
+    for prefix in ("dop", "doo", "dor"):
+        token = prefix + "_v1_" + "a1b2c3d4" * 8
+        raw = f"DigitalOcean credential: {token}"
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "digitalocean_token"
+        assert token not in findings[0].redacted
+        assert redact_text(raw) == "DigitalOcean credential: «REDACTED:digitalocean_token»"
+        assert redacted_kinds(redact_text(raw)) == ["digitalocean_token"]
+    assert label_for_kind("digitalocean_token") == "DigitalOcean API token"
+
+
+def test_digitalocean_lookalikes_are_not_secrets():
+    token = "dop_v1_" + "a1b2c3d4" * 8
+    for ordinary in (
+        "DigitalOcean supports personal access tokens",
+        "dop_v1_" + "a" * 63,
+        "doo_v1_" + "b" * 65,
+        "dor_v2_" + "c" * 64,
+        "not" + token,
+        "var_" + token,
+        token + "f",
+        token + "_suffix",
+        "dop_v1_" + "g" * 64,
+    ):
+        assert not has_secret(ordinary), ordinary
+
+
 def test_detects_and_redacts_sendgrid_api_key():
     # Assemble a synthetic key from fragments to avoid committed credentials.
     key = "SG." + "Ab3_" * 5 + "Q-" + "." + "Cd4-" * 10 + "x_7"
