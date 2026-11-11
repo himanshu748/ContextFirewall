@@ -7,6 +7,8 @@ realistic string to match — the detector under test is what builds the full va
 """
 from __future__ import annotations
 
+import base64
+
 from app.firewall.secrets import find_secrets, has_secret, redact_text, redacted_kinds, label_for_kind
 
 
@@ -58,6 +60,34 @@ def test_detects_and_redacts_gitlab_access_token():
 
 def test_gitlab_prefix_without_a_full_token_is_not_a_secret():
     assert not has_secret("glpat-" + "a" * 19)
+
+
+def test_detects_and_redacts_discord_bot_token():
+    # All three parts are synthetic and constructed at runtime.
+    snowflake = base64.urlsafe_b64encode(b"123456789012345678").decode("ascii").rstrip("=")
+    token = snowflake + "." + "Ab3_xY" + "." + "Cd4_" * 8
+    raw = f"Discord bot credential: {token}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "discord_bot_token"
+    assert token not in findings[0].redacted
+    assert redact_text(raw) == "Discord bot credential: «REDACTED:discord_bot_token»"
+    assert redacted_kinds(redact_text(raw)) == ["discord_bot_token"]
+    assert label_for_kind("discord_bot_token") == "Discord bot token"
+
+
+def test_discord_token_shape_and_snowflake_false_positives():
+    snowflake = base64.urlsafe_b64encode(b"123456789012345678").decode("ascii").rstrip("=")
+    token = snowflake + "." + "Ab3_xY" + "." + "Cd4_" * 8
+    for ordinary in (
+        "Use a Discord bot token to authenticate the integration",
+        "A" * 24 + "." + "b" * 6 + "." + "c" * 32,  # No encoded numeric snowflake.
+        snowflake + "." + "A" * 5 + "." + "B" * 32,  # Too-short second segment.
+        snowflake + "." + "A" * 6 + "." + "B" * 26,  # Too-short third segment.
+        "prefix_" + token,
+        token + "_suffix",
+    ):
+        assert not has_secret(ordinary), ordinary
 
 
 def test_detects_and_redacts_digitalocean_tokens():
