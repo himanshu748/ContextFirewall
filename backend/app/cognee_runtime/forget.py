@@ -165,9 +165,9 @@ async def _find_memory_node_id(
     shadow the caller's own memory with the same ID (#13). Eligible nodes
     are matched on ``(memory_id, namespace)``: the namespace must pass the
     same demo / allowed-namespace rules :func:`forget_memory` enforces
-    afterwards. The first *eligible* node wins; if none is eligible, the
-    first match overall is returned for the caller's final authorization
-    check. Foreign namespaces must be indistinguishable from missing IDs.
+    afterwards. The first *eligible* node wins. An inaccessible demo node
+    may still be returned so the caller can report that demo memories are
+    immutable; foreign-namespace nodes are indistinguishable from missing IDs.
     """
     from cognee.infrastructure.databases.graph import get_graph_engine
 
@@ -177,22 +177,22 @@ async def _find_memory_node_id(
             nodes, _edges = await engine.get_graph_data()
         except Exception:  # noqa: BLE001
             return None, engine
-        first_match: Optional[str] = None
+        demo_match: Optional[str] = None
         for entry in nodes:
             nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)
             props = props or {}
             if props.get("memory_id") != memory_id:
                 continue
-            if first_match is None:
-                first_match = str(nid)
             namespace = str(props.get("namespace") or "demo")
             if namespace == "demo" and not allow_demo:
+                if demo_match is None:
+                    demo_match = str(nid)
                 continue
             if allowed_namespaces is not None and namespace not in allowed_namespaces:
                 continue
             return str(nid), engine
-        if first_match is not None:
-            return first_match, engine
+        if demo_match is not None:
+            return demo_match, engine
     return None, engine
 
 
