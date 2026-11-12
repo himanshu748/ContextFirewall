@@ -197,6 +197,34 @@ def test_stripe_public_and_short_keys_are_not_flagged():
     assert not has_secret("rk_test_" + "A" * 24)  # Only live keys in this scope.
 
 
+def test_detects_and_redacts_slack_incoming_webhook_url():
+    # Assemble a synthetic Slack-style webhook without storing a complete URL.
+    webhook = (
+        "https://" + "hooks.slack.com/services/"
+        + "T" + "0" * 8 + "/B" + "1" * 8 + "/" + "Ab3x" * 6
+    )
+    raw = "Send notifications to " + webhook
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "slack_webhook_url"
+    assert webhook not in findings[0].redacted
+    assert redact_text(raw) == "Send notifications to «REDACTED:slack_webhook_url»"
+    assert redacted_kinds(redact_text(raw)) == ["slack_webhook_url"]
+    assert label_for_kind("slack_webhook_url") == "Slack incoming webhook URL"
+
+
+def test_slack_webhook_lookalikes_do_not_trigger():
+    service_path = "/services/T" + "0" * 8 + "/B" + "1" * 8 + "/"
+    for ordinary in (
+        "https://hooks.slack.com/help",
+        "https://example.org" + service_path + "A" * 24,
+        "https://hooks.slack.com" + service_path + "A" * 19,
+        "https://hooks.slack.com" + "/services/T" + "0" * 7 + "/B" + "1" * 8 + "/" + "A" * 24,
+        "https://not-hooks.slack.com" + service_path + "A" * 24,
+    ):
+        assert not has_secret(ordinary), ordinary
+
+
 def test_detects_postgres_uri_password():
     uri = _uri("postgre" + "sql", "appuser", "Pg" + "x7QwZ9", "db.example.supabase.co", ":5432/appdb")
     assert any(x.kind == "connection_uri_password" for x in find_secrets(f"DATABASE_URL={uri}"))

@@ -63,6 +63,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     # restricted keys should block a memory.
     ("stripe_live_key", "Stripe live secret or restricted key", re.compile(r"\b(?:sk|rk)_live_[A-Za-z0-9]{16,}\b")),
     ("slack_token", "Slack token", re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b")),
+    # Incoming webhook URLs are bearer credentials: their final path segment
+    # permits posting to a channel without a separate API token.
+    ("slack_webhook_url", "Slack incoming webhook URL", re.compile(
+        r"(?i)(?<![A-Za-z0-9._-])https://hooks\.slack\.com/services/[TE][A-Z0-9]{8,}/B[A-Z0-9]{8,}/[A-Za-z0-9]{20,}(?![A-Za-z0-9])"
+    )),
     ("jwt", "JSON Web Token", re.compile(r"\beyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\b")),
     (
         "private_key_block",
