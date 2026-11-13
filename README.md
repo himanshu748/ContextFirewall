@@ -316,22 +316,23 @@ or [`help wanted`](https://github.com/himanshu748/ContextFirewall/labels/help%20
 
 ## Contributors
 
-Thanks to these external contributors whose pull requests have been merged into ContextFirewall:
+Thanks to these external contributors whose pull requests have been merged into ContextFirewall. Each avatar links to the contributor's GitHub profile; hover to see their merged PR numbers.
 
-| Contributor | Merged contributions |
-|---|---|
-| [@HarshRajSinghania](https://github.com/HarshRajSinghania) | Constant-time comparisons for admin and write tokens ([#30](https://github.com/himanshu748/ContextFirewall/pull/30)). |
-| [@mikemikimike](https://github.com/mikemikimike) | UTC normalization for mixed memory timestamps ([#33](https://github.com/himanshu748/ContextFirewall/pull/33)). |
-| [@unvisible789](https://github.com/unvisible789) | Documentation for environment variables and configuration defaults ([#34](https://github.com/himanshu748/ContextFirewall/pull/34)). |
-| [@dannyward630](https://github.com/dannyward630) | Namespace filtering before graph limits and clearer truncation/error handling ([#50](https://github.com/himanshu748/ContextFirewall/pull/50)). |
-| [@alanveloper-epam](https://github.com/alanveloper-epam) | Full UTC timestamps for remembered facts and staleness regression coverage ([#54](https://github.com/himanshu748/ContextFirewall/pull/54)). |
-| [@kushkrg](https://github.com/kushkrg) | Privacy-safe telemetry defaults ([#60](https://github.com/himanshu748/ContextFirewall/pull/60)) and namespace-safe memory deletion ([#61](https://github.com/himanshu748/ContextFirewall/pull/61)). |
-| [@jdotc1](https://github.com/jdotc1) | Prevented cross-namespace memory existence disclosure during deletion ([#64](https://github.com/himanshu748/ContextFirewall/pull/64)). |
-| [@lhjl-j](https://github.com/lhjl-j) | Safer empty-result recall ([#82](https://github.com/himanshu748/ContextFirewall/pull/82)), correct forget HTTP statuses ([#83](https://github.com/himanshu748/ContextFirewall/pull/83)), and accurate MCP docs ([#84](https://github.com/himanshu748/ContextFirewall/pull/84)). |
-| [@Kushagra481](https://github.com/Kushagra481) | Shared LLM model, API key, and endpoint configuration ([#85](https://github.com/himanshu748/ContextFirewall/pull/85)). |
+<p>
+  <a href="https://github.com/HarshRajSinghania" title="@HarshRajSinghania: merged PR #30"><img src="https://avatars.githubusercontent.com/u/40535627?v=4&amp;s=96" width="48" height="48" alt="HarshRajSinghania's GitHub avatar"></a>
+  <a href="https://github.com/mikemikimike" title="@mikemikimike: merged PR #33"><img src="https://avatars.githubusercontent.com/u/186855910?v=4&amp;s=96" width="48" height="48" alt="mikemikimike's GitHub avatar"></a>
+  <a href="https://github.com/unvisible789" title="@unvisible789: merged PR #34"><img src="https://avatars.githubusercontent.com/u/69988225?v=4&amp;s=96" width="48" height="48" alt="unvisible789's GitHub avatar"></a>
+  <a href="https://github.com/dannyward630" title="@dannyward630: merged PR #50"><img src="https://avatars.githubusercontent.com/u/71604164?v=4&amp;s=96" width="48" height="48" alt="dannyward630's GitHub avatar"></a>
+  <a href="https://github.com/alanveloper-epam" title="@alanveloper-epam: merged PR #54"><img src="https://avatars.githubusercontent.com/u/251251017?v=4&amp;s=96" width="48" height="48" alt="alanveloper-epam's GitHub avatar"></a>
+  <a href="https://github.com/kushkrg" title="@kushkrg: merged PRs #60, #61"><img src="https://avatars.githubusercontent.com/u/65346284?v=4&amp;s=96" width="48" height="48" alt="kushkrg's GitHub avatar"></a>
+  <a href="https://github.com/jdotc1" title="@jdotc1: merged PRs #64, #88, #89, #91, #92, #93"><img src="https://avatars.githubusercontent.com/u/138259519?v=4&amp;s=96" width="48" height="48" alt="jdotc1's GitHub avatar"></a>
+  <a href="https://github.com/lhjl-j" title="@lhjl-j: merged PRs #82, #83, #84"><img src="https://avatars.githubusercontent.com/u/252149781?v=4&amp;s=96" width="48" height="48" alt="lhjl-j's GitHub avatar"></a>
+  <a href="https://github.com/Kushagra481" title="@Kushagra481: merged PR #85"><img src="https://avatars.githubusercontent.com/u/176615642?v=4&amp;s=96" width="48" height="48" alt="Kushagra481's GitHub avatar"></a>
+  <a href="https://github.com/sudonishant" title="@sudonishant: merged PR #90"><img src="https://avatars.githubusercontent.com/u/302756519?v=4&amp;s=96" width="48" height="48" alt="sudonishant's GitHub avatar"></a>
+</p>
 
 See the [contributors graph](https://github.com/himanshu748/ContextFirewall/graphs/contributors)
-and [commit history](https://github.com/himanshu748/ContextFirewall/commits/main/) for the full record of contributions.
+and [commit history](https://github.com/himanshu748/ContextFirewall/commits/main/) for the full record of merged changes.
 
 ---
 
