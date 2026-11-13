@@ -15,6 +15,8 @@ Detection is two-layer:
 """
 from __future__ import annotations
 
+import base64
+import binascii
 import math
 import re
 from dataclasses import dataclass
@@ -32,6 +34,22 @@ class SecretFinding:
     end: int
 
 
+def _is_discord_bot_token(candidate: str) -> bool:
+    """Check that the first segment is a canonical encoded Discord snowflake."""
+    encoded_id = candidate.split(".", 1)[0]
+    try:
+        raw = base64.urlsafe_b64decode(encoded_id + "=" * (-len(encoded_id) % 4))
+        decoded_id = raw.decode("ascii")
+    except (binascii.Error, ValueError, UnicodeError):
+        return False
+    return (
+        17 <= len(decoded_id) <= 20
+        and decoded_id.isascii()
+        and decoded_id.isdecimal()
+        and base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=") == encoded_id
+    )
+
+
 # (kind, human label, regex). The optional last capture group, when present,
 # isolates the secret value to redact (vs. the whole match).
 _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
@@ -45,6 +63,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
         r"(?<![A-Za-z0-9_])(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{40,})(?![A-Za-z0-9_])"
     )),
     ("gitlab_token", "GitLab access token", re.compile(r"\bglpat-[A-Za-z0-9_-]{20,}\b")),
+    # The legacy three-segment bot format starts with a base64url snowflake.
+    # Validate the decoded ID to avoid redacting unrelated dotted identifiers.
+    ("discord_bot_token", "Discord bot token", re.compile(
+        r"(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{23,28}\.[A-Za-z0-9_-]{6,7}\.[A-Za-z0-9_-]{27,38}(?![A-Za-z0-9_-])"
+    )),
     # DigitalOcean personal, OAuth and refresh tokens share a 64-char hex body.
     ("digitalocean_token", "DigitalOcean API token", re.compile(
         r"(?<![A-Za-z0-9_])(?:dop|doo|dor)_v1_[0-9a-f]{64}(?![A-Za-z0-9_])"
@@ -127,6 +150,8 @@ def find_secrets(text: str, *, entropy_threshold: float = 4.2) -> List[SecretFin
 
     for kind, label, pat in _PATTERNS:
         for m in pat.finditer(text):
+            if kind == "discord_bot_token" and not _is_discord_bot_token(m.group(0)):
+                continue
             value = m.group(m.lastindex) if m.lastindex else m.group(0)
             findings.append(SecretFinding(kind, label, _redact(value), m.start(), m.end()))
             spans.append((m.start(), m.end()))
