@@ -90,6 +90,29 @@ def test_discord_token_shape_and_snowflake_false_positives():
         assert not has_secret(ordinary), ordinary
 
 
+def test_detects_and_redacts_sentry_org_auth_token():
+    token = "sntrys_" + "Ab12" * 6 + "_" + "Cd34" * 8  # Synthetic payload and secret.
+    raw = f"Sentry organization auth: {token}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "sentry_org_auth_token"
+    assert token not in findings[0].redacted
+    assert redact_text(raw) == "Sentry organization auth: «REDACTED:sentry_org_auth_token»"
+    assert redacted_kinds(redact_text(raw)) == ["sentry_org_auth_token"]
+    assert label_for_kind("sentry_org_auth_token") == "Sentry organization auth token"
+
+
+def test_sentry_org_auth_token_near_misses_are_not_secrets():
+    token = "sntrys_" + "Ab12" * 6 + "_" + "Cd34" * 8
+    for ordinary in (
+        "Sentry organization auth token", "sntrys_" + "A" * 9 + "_" + "B" * 32,
+        "sntrys_" + "A" * 24 + "_" + "B" * 9,
+        "sentry_" + "Ab12" * 6 + "_" + "Cd34" * 8,
+        "not" + token,
+    ):
+        assert not has_secret(ordinary), ordinary
+
+
 def test_detects_and_redacts_digitalocean_tokens():
     for prefix in ("dop", "doo", "dor"):
         token = prefix + "_v1_" + "a1b2c3d4" * 8

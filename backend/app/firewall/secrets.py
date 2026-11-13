@@ -68,6 +68,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("discord_bot_token", "Discord bot token", re.compile(
         r"(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{23,28}\.[A-Za-z0-9_-]{6,7}\.[A-Za-z0-9_-]{27,38}(?![A-Za-z0-9_-])"
     )),
+    # Sentry organization auth tokens have a base64url payload and a secret
+    # component, separated by underscores (sntrys_<payload>_<secret>).
+    ("sentry_org_auth_token", "Sentry organization auth token", re.compile(
+        r"(?<![A-Za-z0-9_])sntrys_[A-Za-z0-9_-]{10,}_[A-Za-z0-9_-]{10,}(?![A-Za-z0-9_-])"
+    )),
     # DigitalOcean personal, OAuth and refresh tokens share a 64-char hex body.
     ("digitalocean_token", "DigitalOcean API token", re.compile(
         r"(?<![A-Za-z0-9_])(?:dop|doo|dor)_v1_[0-9a-f]{64}(?![A-Za-z0-9_])"
