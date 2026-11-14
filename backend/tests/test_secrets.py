@@ -8,6 +8,8 @@ realistic string to match — the detector under test is what builds the full va
 from __future__ import annotations
 
 import base64
+import os
+from unittest.mock import patch
 
 from app.firewall.secrets import find_secrets, has_secret, redact_text, redacted_kinds, label_for_kind
 
@@ -311,6 +313,48 @@ def test_redaction_hides_value():
     assert "REDACTED" in red
     for f in find_secrets(raw):
         assert "0123456789" not in f.redacted
+
+
+def test_redaction_preview_modes_and_invalid_setting_fail_closed():
+    key = "hf_" + "Ab12" * 8  # synthetic; assembled to avoid scanner false alarms
+    raw = f"credential {key}"
+    expected = {
+        "prefix+suffix": f"{key[:4]}…{key[-3:]} ({len(key)} chars)",
+        "prefix": f"{key[:4]}… ({len(key)} chars)",
+        "none": "***",
+        "not-a-valid-mode": "***",
+    }
+    for mode, preview in expected.items():
+        with patch.dict(os.environ, {"CF_REDACTION_PREVIEW": mode}):
+            findings = find_secrets(raw)
+            assert len(findings) == 1
+            assert findings[0].redacted == preview
+            assert key not in findings[0].redacted
+            # Persistence/read-path redaction is independent of the preview mode.
+            assert redact_text(raw) == "credential «REDACTED:huggingface_token»"
+
+
+def test_redaction_preview_defaults_to_legacy_mode_for_long_tokens():
+    key = "hf_" + "Ab12" * 8
+    with patch.dict(os.environ, {}, clear=True):
+        assert find_secrets(key)[0].redacted == f"{key[:4]}…{key[-3:]} ({len(key)} chars)"
+
+
+def test_short_secrets_never_expose_prefix_suffix_or_length():
+    for length in (8, 9, 19):
+        value = "A" * length
+        raw = f"password={value}"
+        for mode in ("prefix+suffix", "prefix", "none"):
+            with patch.dict(os.environ, {"CF_REDACTION_PREVIEW": mode}):
+                findings = find_secrets(raw)
+                assert len(findings) == 1
+                assert findings[0].kind == "secret_assignment"
+                assert findings[0].redacted == "***"
+                assert redact_text(raw) == "«REDACTED:secret_assignment»"
+
+    # The legacy preview remains available at the documented 20-char boundary.
+    with patch.dict(os.environ, {"CF_REDACTION_PREVIEW": "prefix+suffix"}):
+        assert find_secrets("password=" + "A" * 20)[0].redacted == "AAAA…AAA (20 chars)"
 
 
 # --- negatives: should NOT be flagged ----------------------------------------

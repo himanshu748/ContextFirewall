@@ -18,6 +18,7 @@ from __future__ import annotations
 import base64
 import binascii
 import math
+import os
 import re
 from dataclasses import dataclass
 from typing import List
@@ -124,10 +125,17 @@ _TOKEN_RE = re.compile(r"[A-Za-z0-9+/_\-]{32,}")
 
 
 def _redact(secret: str) -> str:
-    """Redact a secret to a safe, non-recoverable preview."""
+    """Build a display-only preview; never expose fragments of short secrets.
+
+    Invalid preview settings fail closed to a fully masked value. The mode only
+    controls audit-reason previews, not the typed markers used by ``redact_text``.
+    """
     secret = secret.strip()
-    if len(secret) <= 8:
-        return (secret[:1] + "***") if secret else "***"
+    mode = os.getenv("CF_REDACTION_PREVIEW", "prefix+suffix").strip().lower()
+    if len(secret) < 20 or mode not in ("prefix", "prefix+suffix"):
+        return "***"
+    if mode == "prefix":
+        return f"{secret[:4]}… ({len(secret)} chars)"
     return f"{secret[:4]}…{secret[-3:]} ({len(secret)} chars)"
 
 
