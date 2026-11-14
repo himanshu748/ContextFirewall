@@ -236,6 +236,7 @@ Every environment variable read by `backend/app` and `frontend/`. The backend lo
 | `EMBEDDING_ENDPOINT` | none (derived from the model) | Override the `hf_router` embeddings URL. | Optional |
 | `EMBEDDING_BATCH_SIZE` | `16` | `hf_router` embedding batch size. | Optional |
 | `CF_DATA_DIR` | `backend/.cf_data` (code); `/home/user/app/.cf_data` (Docker image) | Root for Cognee's local system/data stores. The Docker image sets this variable explicitly. | Both |
+| `CF_REDACTION_PREVIEW` | `prefix+suffix` | Audit-reason preview: `prefix+suffix` shows the first 4 and last 3 characters and length; `prefix` shows only the first 4 and length; `none` shows `***` (recommended for privacy). Secrets under 20 characters are always fully masked, and invalid settings fall back to `none`. The setting never changes the typed redaction markers stored at ingest. | Both |
 | `ENABLE_BACKEND_ACCESS_CONTROL` | `false` (set via `setdefault`) | Cognee setting; ContextFirewall forces a single-tenant default. | Optional |
 | `CACHING` | `false` (set via `setdefault`) | Cognee session cache. | Optional |
 | `COGNEE_SKIP_CONNECTION_TEST` | `true` (set via `setdefault`) | Skips Cognee's embedding pre-flight. | Optional |
