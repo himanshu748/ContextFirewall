@@ -95,6 +95,49 @@ def test_staleness_passes_for_newest():
     assert staleness_check(new, [old, new]).passed
 
 
+def test_staleness_ignores_newer_secret_and_unsupported_memories():
+    old = {
+        "memory_id": "old", "subject": "deploy", "created_at": "2026-06-20",
+        "text": "validated deploy command", "trust_score": 0.85,
+        "evidence_event_ids": ["old-event"],
+    }
+    leaked = {
+        "memory_id": "leaked", "subject": "deploy", "created_at": "2026-06-29",
+        "text": "use " + "hf_" + "ABCdef0123456789ABCDEFGHIJ",
+        "trust_score": 0.99, "evidence_event_ids": ["new-event"],
+    }
+    unsupported = {
+        "memory_id": "unsupported", "subject": "deploy", "created_at": "2026-06-30",
+        "text": "unverified command", "trust_score": 0.10,
+        "evidence_event_ids": [],
+    }
+    assert staleness_check(old, [old, leaked, unsupported]).passed
+
+    valid = {
+        "memory_id": "valid", "subject": "deploy", "created_at": "2026-07-01",
+        "text": "reviewed replacement", "trust_score": 0.9,
+        "evidence_event_ids": ["reviewed-event"],
+    }
+    outcome = staleness_check(old, [old, leaked, unsupported, valid])
+    assert not outcome.passed
+    assert "reviewed replacement" in outcome.reason
+    assert "leaked" not in outcome.reason
+
+
+def test_staleness_requires_newer_memory_to_be_at_least_as_authoritative():
+    old = {
+        "memory_id": "old", "subject": "policy", "created_at": "2026-06-20",
+        "text": "approved policy", "trust_score": 0.95,
+        "evidence_event_ids": ["approved-event"],
+    }
+    weak_new = {
+        "memory_id": "weak", "subject": "policy", "created_at": "2026-06-21",
+        "text": "lower-confidence policy", "trust_score": 0.5,
+        "evidence_event_ids": [],
+    }
+    assert staleness_check(old, [old, weak_new]).passed
+
+
 def test_staleness_passes_without_subject():
     m = {"memory_id": "a", "subject": None, "created_at": "2026-06-20", "text": "x"}
     assert staleness_check(m, [m]).passed

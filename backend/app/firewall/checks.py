@@ -119,7 +119,14 @@ def secret_check(mem: Dict[str, Any]) -> CheckOutcome:
 # --- check 2: staleness -------------------------------------------------------
 def staleness_check(mem: Dict[str, Any], cluster: List[Dict[str, Any]]) -> CheckOutcome:
     peers = _same_subject_peers(mem, cluster)
-    newer = [p for p in peers if _is_newer(p.get("created_at"), mem.get("created_at"))]
+    newer = [
+        peer
+        for peer in peers
+        if _is_newer(peer.get("created_at"), mem.get("created_at"))
+        and secret_check(peer).passed
+        and evidence_check(peer).passed
+        and _authority(peer) >= _authority(mem)
+    ]
     if newer:
         latest = max(newer, key=lambda x: _date_key(x.get("created_at")))
         return CheckOutcome(
