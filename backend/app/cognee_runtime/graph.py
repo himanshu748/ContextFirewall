@@ -42,6 +42,11 @@ def _node_type(props: Dict[str, Any]) -> str:
     return str(props.get("type") or props.get("__type__") or "Node")
 
 
+def _redact_string(value: Any) -> Any:
+    """Redact legacy display strings while preserving non-string field types."""
+    return redact_text(value) if isinstance(value, str) else value
+
+
 def _node_label(props: Dict[str, Any]) -> str:
     for field in _LABEL_FIELDS:
         val = props.get(field)
@@ -163,7 +168,7 @@ async def graph_view(limit: int = 400, namespaces=None) -> Dict[str, Any]:
         except Exception:  # noqa: BLE001
             continue
         if src in selected_ids and tgt in selected_ids:
-            edges_out.append({"source": src, "target": tgt, "label": label})
+            edges_out.append({"source": src, "target": tgt, "label": redact_text(label)})
 
     return {"nodes": nodes_out, "edges": edges_out, "truncated": truncated}
 
@@ -207,8 +212,8 @@ async def list_sessions(namespaces=None, include_all: bool = False) -> List[Dict
     return [
         {
             "session_id": p.get("session_id", ""),
-            "task": p.get("task", ""),
-            "agent": p.get("agent"),
+            "task": _redact_string(p.get("task", "")),
+            "agent": _redact_string(p.get("agent")),
             "started_at": p.get("started_at"),
             "repo": {},
             "event_count": event_counts.get(p.get("session_id", ""), 0),
@@ -250,8 +255,8 @@ async def session_timeline(session_id: str, namespaces=None, include_all: bool =
             continue
         events.append(
             {
-                "event_id": props.get("event_id", ""),
-                "kind": props.get("kind", "event"),
+                "event_id": _redact_string(props.get("event_id", "")),
+                "kind": _redact_string(props.get("kind", "event")),
                 "content": redact_text(props.get("content", "")),
                 "timestamp": props.get("timestamp"),
                 "ordinal": int(props.get("ordinal", 0) or 0),
