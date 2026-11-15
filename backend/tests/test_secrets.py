@@ -260,6 +260,25 @@ def test_pypi_prose_and_short_values_are_not_flagged():
     assert not has_secret("notpypi-" + "A" * 90)
 
 
+def test_detects_and_redacts_supabase_secret_api_keys():
+    token = "sb_secret_" + "Ab3x" * 10  # Synthetic value, never a real API key.
+    raw = f"Backend key: {token}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "supabase_secret_key"
+    assert token not in findings[0].redacted
+    assert redact_text(raw) == "Backend key: «REDACTED:supabase_secret_key»"
+    assert redacted_kinds(redact_text(raw)) == ["supabase_secret_key"]
+    assert label_for_kind("supabase_secret_key") == "Supabase secret API key"
+
+
+def test_supabase_publishable_and_malformed_keys_are_not_flagged():
+    assert not has_secret("sb_publishable_" + "Ab3x" * 10)
+    assert not has_secret("sb_secret_" + "A" * 23)
+    assert not has_secret("notsb_secret_" + "A" * 30)
+    assert not has_secret("Supabase secret keys belong only on the server")
+
+
 def test_detects_stripe_live_secret_and_restricted_keys_without_leaking():
     for prefix in ("sk_live_", "rk_live_"):
         fake_value = prefix + "A" * 24  # Synthetic fixture, no live credentials.
