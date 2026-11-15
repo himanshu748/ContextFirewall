@@ -91,3 +91,19 @@ def test_graph_view_hides_exception_details_and_logs_exception(monkeypatch, capl
     assert result["truncated"] is False
     assert "credential=private" not in str(result)
     assert "neo4j.internal" in caplog.text
+
+
+def test_count_nodes_filters_by_namespace(monkeypatch):
+    nodes = [
+        ("demo-mem", {"type": "Memory", "namespace": "demo"}),
+        ("other-mem", {"type": "Memory", "namespace": "other"}),
+        ("demo-sess", {"type": "AgentSession", "namespace": "demo", "session_id": "onb-taskflow-2026-06-29"}),
+    ]
+    _patch_graph(monkeypatch, nodes)
+
+    all_counts = asyncio.run(graph.count_nodes())
+    demo_counts = asyncio.run(graph.count_nodes(namespaces={"demo"}))
+
+    assert all_counts.get("Memory") == 2
+    assert demo_counts.get("Memory") == 1
+    assert demo_counts.get("AgentSession") == 1
