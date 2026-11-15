@@ -44,6 +44,32 @@ def test_notion_prefix_and_embedded_identifiers_are_not_tokens():
         assert not has_secret(ordinary), ordinary
 
 
+def test_detects_and_redacts_docker_hub_access_tokens():
+    for token_type in ("pat", "oat"):
+        token = "dckr_" + token_type + "_" + "Ab3_" * 8
+        raw = f"Docker Hub credential: {token}"
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "docker_hub_token"
+        assert token not in findings[0].redacted
+        assert redact_text(raw) == "Docker Hub credential: «REDACTED:docker_hub_token»"
+        assert redacted_kinds(redact_text(raw)) == ["docker_hub_token"]
+    assert label_for_kind("docker_hub_token") == "Docker Hub access token"
+
+
+def test_docker_hub_token_lookalikes_are_not_redacted():
+    token = "dckr_pat_" + "Ab3_" * 8
+    for ordinary in (
+        "Docker Hub personal access token",
+        "dckr_pat_" + "A" * 19,
+        "dckr_oat_" + "A" * 129,
+        "dckr_bad_" + "Ab3_" * 8,
+        "not" + token,
+        "prefix_" + token,
+    ):
+        assert not has_secret(ordinary), ordinary
+
+
 def test_detects_huggingface_token():
     tok = "hf_" + "ABCdef0123456789ABCDEFGHIJ"
     assert any(x.kind == "huggingface_token" for x in find_secrets(f"set the key to {tok} first"))
