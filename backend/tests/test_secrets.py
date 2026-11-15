@@ -20,6 +20,35 @@ def _uri(scheme: str, user: str, pwd: str, host: str, tail: str = "") -> str:
 
 
 # --- positives: each should be detected (values assembled at runtime) ---------
+def test_detects_posthog_private_and_oauth_tokens():
+    # phc_ is deliberately absent: that is a public ingestion/project key.
+    for prefix in ("phx", "phs", "pha", "phr"):
+        token = prefix + "_" + "Ab3_" * 8
+        raw = f"PostHog private credential: {token}"
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "posthog_secret_token"
+        assert token not in findings[0].redacted
+        redacted = redact_text(raw)
+        assert redacted == "PostHog private credential: «REDACTED:posthog_secret_token»"
+        assert token not in redacted
+        assert redacted_kinds(redacted) == ["posthog_secret_token"]
+    assert label_for_kind("posthog_secret_token") == "PostHog private API token"
+
+
+def test_posthog_public_key_and_token_lookalikes_are_not_secret():
+    token = "phx_" + "Ab3_" * 8
+    for ordinary in (
+        "phc_" + "A" * 32,  # Public project ingestion key.
+        "phx_" + "A" * 19,
+        "phs_" + "A" * 129,
+        "prefix_" + token,
+        "phx_" + "A" * 128 + "_suffix",  # Entire identifier exceeds bound.
+        "PostHog API token setup",
+    ):
+        assert not has_secret(ordinary), ordinary
+
+
 def test_detects_and_redacts_current_notion_integration_token():
     token = "ntn_" + "Ab3_" * 8  # Entirely synthetic bearer-token example.
     raw = f"Notion credential: {token}"
