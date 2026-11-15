@@ -26,6 +26,7 @@ in the environment to enable them; without it, destructive paths are disabled.
 from __future__ import annotations
 
 import hmac
+import logging
 import json
 import os
 from contextlib import asynccontextmanager
@@ -65,6 +66,8 @@ from app.models import (
 
 # data/ lives under backend/, not backend/app/, so resolve from the backend dir.
 DEMO_SESSION = Path(__file__).resolve().parents[1] / "data" / "sessions" / "taskflow_onboarding.json"
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -178,8 +181,9 @@ async def remember(req: RememberRequest, authorization: Optional[str] = Header(d
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:  # noqa: BLE001
-        raise HTTPException(status_code=400, detail=f"Remember failed: {e}")
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Remember failed (%s)", type(exc).__name__)
+        raise HTTPException(status_code=500, detail="Unable to remember memory.") from None
     subj = f" on '{res['subject']}'" if res.get("subject") else ""
     response = RememberResponse(
         memory_id=res["memory_id"],
@@ -213,8 +217,9 @@ async def ingest(req: IngestRequest, authorization: Optional[str] = Header(defau
         raise HTTPException(status_code=401, detail=_WRITE_AUTH_DETAIL)
     try:
         res = await ingest_session(req.session.model_dump(), cognify=req.cognify, namespace=ident.namespace)
-    except Exception as e:  # noqa: BLE001 (surface a clean message to the console)
-        raise HTTPException(status_code=400, detail=f"Ingest failed: {e}")
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Ingest failed (%s)", type(exc).__name__)
+        raise HTTPException(status_code=500, detail="Unable to ingest session.") from None
     return IngestResponse(
         session_id=res["session_id"],
         nodes_added=res["nodes_added"],
@@ -337,15 +342,16 @@ async def timeline(session_id: str, authorization: Optional[str] = Header(defaul
 
 
 async def _reset_memory() -> None:
-    """Wipe all Cognee stores. Admin-gated; never reachable by an anonymous caller."""
-    configure_cognee()
-    import cognee
-
+    """Wipe all Cognee stores. Admin-gated; never report success on failure."""
     try:
+        configure_cognee()
+        import cognee
+
         await cognee.prune.prune_data()
         await cognee.prune.prune_system(graph=True, vector=True, metadata=True)
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Memory reset failed (%s)", type(exc).__name__)
+        raise HTTPException(status_code=500, detail="Unable to reset memory.") from None
 
 
 @app.post("/reset")
