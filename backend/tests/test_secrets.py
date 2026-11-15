@@ -20,6 +20,30 @@ def _uri(scheme: str, user: str, pwd: str, host: str, tail: str = "") -> str:
 
 
 # --- positives: each should be detected (values assembled at runtime) ---------
+def test_detects_and_redacts_current_notion_integration_token():
+    token = "ntn_" + "Ab3_" * 8  # Entirely synthetic bearer-token example.
+    raw = f"Notion credential: {token}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "notion_token"
+    assert token not in findings[0].redacted
+    assert redact_text(raw) == "Notion credential: «REDACTED:notion_token»"
+    assert redacted_kinds(redact_text(raw)) == ["notion_token"]
+    assert label_for_kind("notion_token") == "Notion integration token"
+
+
+def test_notion_prefix_and_embedded_identifiers_are_not_tokens():
+    token = "ntn_" + "Ab3_" * 8
+    for ordinary in (
+        "Configure your Notion integration token in the environment",
+        "ntn_" + "A" * 19,
+        "not" + token,
+        "prefix_" + token,
+        "ntn_example_key",
+    ):
+        assert not has_secret(ordinary), ordinary
+
+
 def test_detects_huggingface_token():
     tok = "hf_" + "ABCdef0123456789ABCDEFGHIJ"
     assert any(x.kind == "huggingface_token" for x in find_secrets(f"set the key to {tok} first"))
