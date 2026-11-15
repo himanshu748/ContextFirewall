@@ -64,6 +64,10 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
         r"(?<![A-Za-z0-9_])(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{40,})(?![A-Za-z0-9_])"
     )),
     ("gitlab_token", "GitLab access token", re.compile(r"\bglpat-[A-Za-z0-9_-]{20,}\b")),
+    # Telegram bot credentials combine a numeric bot ID with a 35-character secret.
+    ("telegram_bot_token", "Telegram bot token", re.compile(
+        r"(?:(?<![A-Za-z0-9_])|(?<=bot))\d{8,10}:[A-Za-z0-9_-]{35}(?![A-Za-z0-9_-])"
+    )),
     # Shopify Admin API online and offline access tokens use the shpat_ prefix.
     # Exclude adjacent identifier characters to avoid redacting partial values.
     ("shopify_access_token", "Shopify Admin API access token", re.compile(
