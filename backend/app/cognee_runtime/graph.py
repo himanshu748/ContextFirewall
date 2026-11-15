@@ -261,14 +261,49 @@ async def session_timeline(session_id: str, namespaces=None, include_all: bool =
     return events
 
 
-async def count_nodes() -> Dict[str, int]:
+async def count_nodes(namespaces=None, source_session_id: str | None = None) -> Dict[str, int]:
+    """Count admitted nodes and their edges; optionally count one session's memories."""
     try:
         _engine, raw_nodes, raw_edges = await _get_graph()
     except Exception:
         return {}
-    counts: Dict[str, int] = {"_edges": len(raw_edges)}
+
+    if namespaces is None and source_session_id is None:
+        counts: Dict[str, int] = {"_edges": len(raw_edges)}
+        for entry in raw_nodes:
+            _nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)
+            t = _node_type(props or {})
+            counts[t] = counts.get(t, 0) + 1
+        return counts
+
+    sessions = {}
     for entry in raw_nodes:
         _nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)
-        t = _node_type(props or {})
-        counts[t] = counts.get(t, 0) + 1
+        props = props or {}
+        if _node_type(props) == "AgentSession" and props.get("session_id"):
+            sessions[str(props["session_id"])] = props
+
+    counts: Dict[str, int] = {"_edges": 0}
+    admitted_ids: set[str] = set()
+    for entry in raw_nodes:
+        nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)
+        props = props or {}
+        node_type = _node_type(props)
+        scope = sessions.get(_event_session_id(props), props) if node_type == "SessionEvent" else props
+        if namespaces is not None and not in_namespace(scope, namespaces):
+            continue
+        if source_session_id is not None and (
+            node_type != "Memory" or str(props.get("source_session_id", "")) != source_session_id
+        ):
+            continue
+        admitted_ids.add(str(nid))
+        counts[node_type] = counts.get(node_type, 0) + 1
+
+    for edge in raw_edges:
+        try:
+            src, tgt = (edge[0], edge[1]) if isinstance(edge, tuple) else (edge["source"], edge["target"])
+            if str(src) in admitted_ids and str(tgt) in admitted_ids:
+                counts["_edges"] += 1
+        except (KeyError, IndexError, TypeError):
+            continue
     return counts
