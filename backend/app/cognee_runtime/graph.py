@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from app.firewall.secrets import redact_text
 
@@ -261,7 +261,7 @@ async def session_timeline(session_id: str, namespaces=None, include_all: bool =
     return events
 
 
-async def count_nodes() -> Dict[str, int]:
+async def count_nodes(namespaces: Optional[Set[str]] = None) -> Dict[str, int]:
     try:
         _engine, raw_nodes, raw_edges = await _get_graph()
     except Exception:
@@ -269,6 +269,9 @@ async def count_nodes() -> Dict[str, int]:
     counts: Dict[str, int] = {"_edges": len(raw_edges)}
     for entry in raw_nodes:
         _nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)
-        t = _node_type(props or {})
+        props = props or {}
+        if namespaces is not None and not in_namespace(props, namespaces):
+            continue
+        t = _node_type(props)
         counts[t] = counts.get(t, 0) + 1
     return counts
