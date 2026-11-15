@@ -90,6 +90,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("notion_token", "Notion integration token", re.compile(
         r"(?<![A-Za-z0-9_-])ntn_[A-Za-z0-9_-]{20,}(?![A-Za-z0-9_-])"
     )),
+    # Linear prefixes distinguish personal API keys and OAuth access tokens.
+    # Treat the opaque payload conservatively; this is not a token validator.
+    ("linear_token", "Linear API or OAuth token", re.compile(
+        r"(?<![A-Za-z0-9_-])lin_(?:api|oauth)_[A-Za-z0-9_-]{20,}(?![A-Za-z0-9_-])"
+    )),
     # PyPI's secret-reporting API documents at least 85 base64url characters after pypi-.
     ("pypi_token", "PyPI API token", re.compile(r"(?<![A-Za-z0-9_-])pypi-[A-Za-z0-9_-]{85,}(?![A-Za-z0-9_-])")),
     # Public pk_live_ keys are intentionally excluded; only live secret or
