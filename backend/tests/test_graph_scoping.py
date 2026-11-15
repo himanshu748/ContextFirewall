@@ -144,3 +144,40 @@ def test_ingest_tags_cognified_nodes_with_namespace(monkeypatch):
     other = dict(session, session_id="globex-1", memories=[{"text": "a fact", "subject": "s"}])
     asyncio.run(ingest.ingest_session(other, cognify=True, namespace="globex"))
     assert calls["add"]["node_set"] == ["cf_ns_globex"]
+
+
+def test_count_nodes_filters_tenant_counts_and_cross_namespace_edges(monkeypatch):
+    nodes = NODES + [
+        ("demo-memory", {"type": "Memory", "namespace": "demo", "source_session_id": "demo-1"}),
+        ("other-demo-memory", {"type": "Memory", "namespace": "demo", "source_session_id": "other-demo"}),
+        ("tenant-memory", {"type": "Memory", "namespace": "acme", "source_session_id": "acme-1"}),
+    ]
+    edges = EDGES + [
+        ("demo-memory", "demo-sess", "belongs"),
+        ("tenant-memory", "acme-sess", "belongs"),
+        ("demo-memory", "tenant-memory", "cross-tenant"),
+    ]
+
+    async def fake_get_graph():
+        return None, nodes, edges
+
+    monkeypatch.setattr(graph, "_get_graph", fake_get_graph)
+    public = asyncio.run(graph.count_nodes(namespaces={"demo"}))
+    assert public["Memory"] == 2
+    assert public["AgentSession"] == 1
+    assert public["SessionEvent"] == 1
+    assert public["_edges"] == 2
+    assert public.get("Rule", 0) == 0
+
+    sample = asyncio.run(graph.count_nodes(namespaces={"demo"}, source_session_id="demo-1"))
+    assert sample["Memory"] == 1
+    assert sample["_edges"] == 0
+
+    tenant = asyncio.run(graph.count_nodes(namespaces={"acme"}))
+    assert tenant["Memory"] == 1
+    assert tenant["Rule"] == 1
+    assert tenant["_edges"] == 2
+
+    global_counts = asyncio.run(graph.count_nodes())
+    assert global_counts["Memory"] == 3
+    assert global_counts["_edges"] == len(edges)
