@@ -78,6 +78,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("digitalocean_token", "DigitalOcean API token", re.compile(
         r"(?<![A-Za-z0-9_])(?:dop|doo|dor)_v1_[0-9a-f]{64}(?![A-Za-z0-9_])"
     )),
+    # PostHog's private/personal, secret, OAuth access, and refresh token
+    # prefixes are sensitive. The phc_ project ingestion key is public.
+    ("posthog_secret_token", "PostHog private API token", re.compile(
+        r"(?<![A-Za-z0-9_-])(?:phx|phs|pha|phr)_[A-Za-z0-9_-]{20,128}(?![A-Za-z0-9_-])"
+    )),
     # Azure Storage account keys are 512-bit values (86 base64 chars plus ==).
     # Require the connection-string field name to avoid flagging unrelated data.
     ("azure_storage_account_key", "Azure Storage account key", re.compile(
