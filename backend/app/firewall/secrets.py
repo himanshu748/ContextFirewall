@@ -90,6 +90,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("notion_token", "Notion integration token", re.compile(
         r"(?<![A-Za-z0-9_-])ntn_[A-Za-z0-9_-]{20,}(?![A-Za-z0-9_-])"
     )),
+    # Supabase's new secret keys are backend credentials; publishable keys are
+    # designed for client-side use and must not be classified as secrets.
+    ("supabase_secret_key", "Supabase secret API key", re.compile(
+        r"(?<![A-Za-z0-9_-])sb_secret_[A-Za-z0-9_-]{24,}(?![A-Za-z0-9_-])"
+    )),
     # PyPI's secret-reporting API documents at least 85 base64url characters after pypi-.
     ("pypi_token", "PyPI API token", re.compile(r"(?<![A-Za-z0-9_-])pypi-[A-Za-z0-9_-]{85,}(?![A-Za-z0-9_-])")),
     # Public pk_live_ keys are intentionally excluded; only live secret or
