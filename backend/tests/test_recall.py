@@ -4,7 +4,9 @@ import asyncio
 import logging
 from types import SimpleNamespace
 
+import cognee.infrastructure.databases.graph as graph_module
 import cognee.infrastructure.databases.vector as vector_module
+import pytest
 
 import app.cognee_runtime.recall as recall_module
 
@@ -76,3 +78,54 @@ def test_unknown_vector_ids_do_not_dump_the_graph(monkeypatch):
     _install(monkeypatch, _ForeignIdsVectorEngine())
     result = asyncio.run(recall_module.recall_memory_candidates("deploy to production"))
     assert result == []
+
+
+@pytest.mark.parametrize(
+    ("field", "invalid"),
+    [
+        ("trust_score", "not-a-number"),
+        ("trust_score", ""),
+        ("trust_score", "NaN"),
+        ("trust_score", float("inf")),
+        ("trust_score", -0.1),
+        ("trust_score", 1.1),
+        ("trust_score", True),
+        ("trust_score", None),
+        ("reinforcement_count", "oops"),
+        ("reinforcement_count", ""),
+        ("reinforcement_count", "NaN"),
+        ("reinforcement_count", float("inf")),
+        ("reinforcement_count", -1),
+        ("reinforcement_count", 1.5),
+        ("reinforcement_count", True),
+        ("reinforcement_count", None),
+    ],
+)
+def test_load_graph_memories_skips_invalid_legacy_metadata(monkeypatch, caplog, field, invalid):
+    class FakeGraphEngine:
+        async def get_graph_data(self):
+            bad = {
+                "type": "Memory", "namespace": "demo", "text": "private-bad-memory",
+                "trust_score": 0.75, "reinforcement_count": 2,
+            }
+            bad[field] = invalid
+            valid = {
+                "type": "Memory", "namespace": "demo", "text": "permitted",
+                "trust_score": 0.75, "reinforcement_count": 0,
+            }
+            foreign = {"type": "Memory", "namespace": "other", "text": "foreign"}
+            return [("bad-id", bad), ("good-id", valid), ("foreign-id", foreign)], []
+
+    async def get_graph_engine():
+        return FakeGraphEngine()
+
+    monkeypatch.setattr(graph_module, "get_graph_engine", get_graph_engine)
+    with caplog.at_level(logging.WARNING, logger=recall_module.__name__):
+        records = asyncio.run(recall_module._load_graph_memories({"demo"}))
+
+    assert list(records) == ["good-id"]
+    assert records["good-id"]["trust_score"] == 0.75
+    assert records["good-id"]["reinforcement_count"] == 0
+    assert "bad-id" in caplog.text
+    assert "private-bad-memory" not in caplog.text
+    assert "foreign" not in caplog.text
