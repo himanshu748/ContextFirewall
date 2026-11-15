@@ -62,6 +62,32 @@ def test_gitlab_prefix_without_a_full_token_is_not_a_secret():
     assert not has_secret("glpat-" + "a" * 19)
 
 
+def test_detects_and_redacts_shopify_admin_access_token():
+    token = "shpat_" + "a1B2" * 8  # Synthetic 32-character body.
+    raw = f"Shopify credential: {token}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "shopify_access_token"
+    assert token not in findings[0].redacted
+    assert redact_text(raw) == "Shopify credential: «REDACTED:shopify_access_token»"
+    assert redacted_kinds(redact_text(raw)) == ["shopify_access_token"]
+    assert label_for_kind("shopify_access_token") == "Shopify Admin API access token"
+
+
+def test_shopify_token_near_misses_are_not_secrets():
+    token = "shpat_" + "a1B2" * 8
+    for ordinary in (
+        "Shopify Admin API access token",
+        "shpat_" + "A" * 31,
+        "shppa_" + "a1B2" * 8,
+        "not" + token,
+        "prefix_" + token,
+        token + "suffix",
+        token + "_suffix",
+    ):
+        assert not has_secret(ordinary), ordinary
+
+
 def test_detects_and_redacts_discord_bot_token():
     # All three parts are synthetic and constructed at runtime.
     snowflake = base64.urlsafe_b64encode(b"123456789012345678").decode("ascii").rstrip("=")

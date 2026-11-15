@@ -63,6 +63,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
         r"(?<![A-Za-z0-9_])(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{40,})(?![A-Za-z0-9_])"
     )),
     ("gitlab_token", "GitLab access token", re.compile(r"\bglpat-[A-Za-z0-9_-]{20,}\b")),
+    # Shopify Admin API online and offline access tokens use the shpat_ prefix.
+    # Exclude adjacent identifier characters to avoid redacting partial values.
+    ("shopify_access_token", "Shopify Admin API access token", re.compile(
+        r"(?<![A-Za-z0-9_])shpat_[A-Za-z0-9]{32}(?![A-Za-z0-9_])"
+    )),
     # The legacy three-segment bot format starts with a base64url snowflake.
     # Validate the decoded ID to avoid redacting unrelated dotted identifiers.
     ("discord_bot_token", "Discord bot token", re.compile(
