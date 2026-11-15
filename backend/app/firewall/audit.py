@@ -39,7 +39,7 @@ async def audit_cluster(
                 "memory_id": mem.get("memory_id"),
                 "text": redact_text(mem.get("text", "")),
                 "kind": mem.get("kind", "fact"),
-                "subject": mem.get("subject"),
+                "subject": redact_text(mem.get("subject") or "") or None,
                 "created_at": mem.get("created_at"),
                 "trust_score": float(mem.get("trust_score", 0.0) or 0.0),
                 "status": mem.get("status", "candidate"),

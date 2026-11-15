@@ -52,13 +52,17 @@ def _node_label(props: Dict[str, Any]) -> str:
 
 
 def _safe_props(props: Dict[str, Any]) -> Dict[str, Any]:
-    """Copy node props for the UI, dropping embeddings and redacting secret-bearing text."""
-    out: Dict[str, Any] = {}
-    for k, v in props.items():
-        if k == "embedding":
-            continue
-        out[k] = redact_text(v) if k in ("text", "content") and isinstance(v, str) else v
-    return out
+    """Redact every string in graph properties, including legacy nested metadata."""
+    def safe_value(value: Any) -> Any:
+        if isinstance(value, str):
+            return redact_text(value)
+        if isinstance(value, dict):
+            return {key: safe_value(item) for key, item in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [safe_value(item) for item in value]
+        return value
+
+    return {key: safe_value(value) for key, value in props.items() if key != "embedding"}
 
 
 def _node_recency(props: Dict[str, Any]) -> float:

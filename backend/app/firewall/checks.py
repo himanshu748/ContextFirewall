@@ -92,8 +92,9 @@ def _same_subject_peers(mem: Dict[str, Any], cluster: List[Dict[str, Any]]) -> L
 
 # --- check 1: secret ----------------------------------------------------------
 def secret_check(mem: Dict[str, Any]) -> CheckOutcome:
-    text = mem.get("text", "")
-    findings = find_secrets(text)
+    # A redacted subject is still a secret-bearing memory, even if its text is clean.
+    fields = [mem.get("text") or "", mem.get("subject") or ""]
+    findings = [finding for field in fields for finding in find_secrets(field)]
     if findings:
         preview = "; ".join(f"{f.label} ({f.redacted})" for f in findings[:3])
         return CheckOutcome(
@@ -104,7 +105,7 @@ def secret_check(mem: Dict[str, Any]) -> CheckOutcome:
         )
     # A memory whose secret was already stripped at ingest still must not reach the
     # pack: the redaction markers are the durable signal that it carried a credential.
-    kinds = redacted_kinds(text)
+    kinds = [kind for field in fields for kind in redacted_kinds(field)]
     if kinds:
         labels = ", ".join(dict.fromkeys(label_for_kind(k) for k in kinds))
         return CheckOutcome(

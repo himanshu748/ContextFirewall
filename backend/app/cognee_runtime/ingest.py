@@ -167,18 +167,23 @@ def build_nodes(session: dict, namespace: str) -> Tuple[List[Any], List[Memory]]
 
 
 def _redact_session_secrets(session: dict) -> None:
-    """Strip secrets from memory text and event content BEFORE anything is stored.
+    """Redact every session string before writing graph nodes or cognified text.
 
-    Privacy-first: redaction happens at ingest, not just when a pack is assembled, so a
-    leaked credential never persists in the graph, the vector store, or the cognified
-    transcript. The firewall still blocks the memory (the redaction marker is the signal).
+    Update nested containers in place so callers retaining a memory reference
+    also receive its redacted subject and other metadata.
     """
-    for m in session.get("memories") or []:
-        if isinstance(m.get("text"), str):
-            m["text"] = redact_text(m["text"])
-    for e in session.get("events") or []:
-        if isinstance(e.get("content"), str):
-            e["content"] = redact_text(e["content"])
+    def redact_value(value: Any) -> Any:
+        if isinstance(value, str):
+            return redact_text(value)
+        if isinstance(value, dict):
+            for key, item in value.items():
+                value[key] = redact_value(item)
+        elif isinstance(value, list):
+            for index, item in enumerate(value):
+                value[index] = redact_value(item)
+        return value
+
+    redact_value(session)
 
 
 async def ingest_session(session: dict, *, cognify: bool = True, namespace: str = "public") -> dict:
@@ -264,7 +269,7 @@ async def remember_fact(
     return {
         "memory_id": mid,
         "subject": mem["subject"],
-        "kind": kind,
+        "kind": mem["kind"],
         "session_id": sid,
         "cognified": res["cognified"],
         "nodes_added": res["nodes_added"],
