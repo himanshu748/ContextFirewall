@@ -14,7 +14,7 @@ def test_health_reads_only_demo_counts(monkeypatch):
         requests.append(kwargs)
         return {"Memory": 2, "_edges": 1}
 
-    monkeypatch.setattr(api, "configure_cognee", lambda: "test")
+    monkeypatch.setattr(api, "configure_cognee", lambda: {"store": "test"})
     monkeypatch.setattr(api, "count_nodes", fake_counts)
 
     response = asyncio.run(api.health())
