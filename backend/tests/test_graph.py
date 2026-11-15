@@ -91,3 +91,50 @@ def test_graph_view_hides_exception_details_and_logs_exception(monkeypatch, capl
     assert result["truncated"] is False
     assert "credential=private" not in str(result)
     assert "neo4j.internal" in caplog.text
+
+
+def test_legacy_session_list_redacts_display_fields_without_changing_ids(monkeypatch):
+    credential = "ghp_" + "A1b2" * 9
+    _patch_graph(monkeypatch, [
+        ("n1", {"type": "AgentSession", "namespace": "tenant", "session_id": "s1",
+                "task": "Review " + credential, "agent": credential}),
+        ("n2", {"type": "SessionEvent", "session_id": "s1", "event_id": "s1:e1"}),
+        ("n3", {"type": "AgentSession", "namespace": "foreign", "session_id": "s2",
+                "task": credential}),
+    ])
+    sessions = asyncio.run(graph.list_sessions(namespaces={"tenant"}))
+    assert len(sessions) == 1
+    assert sessions[0]["session_id"] == "s1"
+    assert sessions[0]["event_count"] == 1
+    assert credential not in sessions[0]["task"]
+    assert credential not in sessions[0]["agent"]
+
+
+def test_legacy_timeline_redacts_ids_and_kinds_after_scoped_matching(monkeypatch):
+    credential = "ghp_" + "A1b2" * 9
+    _patch_graph(monkeypatch, [
+        ("s", {"type": "AgentSession", "namespace": "tenant", "session_id": "s1"}),
+        ("e2", {"type": "SessionEvent", "session_id": "s1", "ordinal": 2,
+                "event_id": "s1:" + credential, "kind": "tool " + credential, "content": "ok"}),
+        ("e1", {"type": "SessionEvent", "session_id": "s1", "ordinal": 1,
+                "event_id": "s1:e1", "kind": "command", "content": "fine"}),
+    ])
+    events = asyncio.run(graph.session_timeline("s1", namespaces={"tenant"}))
+    assert [e["ordinal"] for e in events] == [1, 2]
+    assert events[1]["event_id"].startswith("s1:")
+    assert credential not in events[1]["event_id"]
+    assert credential not in events[1]["kind"]
+    assert asyncio.run(graph.session_timeline("s1", namespaces={"foreign"})) == []
+
+
+def test_graph_edges_redact_legacy_labels_but_keep_endpoints(monkeypatch):
+    credential = "ghp_" + "A1b2" * 9
+    _patch_graph(monkeypatch, [
+        ("a", {"type": "Memory", "namespace": "tenant", "text": "a"}),
+        ("b", {"type": "Memory", "namespace": "tenant", "text": "b"}),
+    ], [("a", "b", "link " + credential)])
+    result = asyncio.run(graph.graph_view(namespaces={"tenant"}))
+    assert len(result["edges"]) == 1
+    assert result["edges"][0]["source"] == "a"
+    assert result["edges"][0]["target"] == "b"
+    assert credential not in result["edges"][0]["label"]
