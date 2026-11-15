@@ -84,6 +84,33 @@ def test_detects_and_redacts_gitlab_access_token():
     assert label_for_kind("gitlab_token") == "GitLab access token"
 
 
+def test_detects_and_redacts_telegram_bot_token():
+    token = "1234567890:" + "Ab3_" * 8 + "xyz"  # Synthetic 10-digit ID and 35-character secret.
+    raw = f"Telegram bot credential {token}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "telegram_bot_token"
+    assert token not in findings[0].redacted
+    assert redact_text(raw) == "Telegram bot credential «REDACTED:telegram_bot_token»"
+    assert label_for_kind("telegram_bot_token") == "Telegram bot token"
+    url = "https://api.telegram.org/bot" + token + "/getMe"
+    assert redact_text(url) == "https://api.telegram.org/bot«REDACTED:telegram_bot_token»/getMe"
+
+
+def test_telegram_bot_token_near_misses_are_not_secrets():
+    secret = "Ab3_" * 8 + "xyz"
+    token = "1234567890:" + secret
+    for ordinary in (
+        "Use a Telegram bot token in the API URL",
+        "1234567:" + secret,
+        "12345678901:" + secret,
+        "1234567890:" + secret[:-1],
+        "not" + token,
+        token + "_suffix",
+    ):
+        assert not has_secret(ordinary), ordinary
+
+
 def test_gitlab_prefix_without_a_full_token_is_not_a_secret():
     assert not has_secret("glpat-" + "a" * 19)
 
