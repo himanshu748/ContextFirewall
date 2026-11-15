@@ -95,6 +95,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     # Public pk_live_ keys are intentionally excluded; only live secret or
     # restricted keys should block a memory.
     ("stripe_live_key", "Stripe live secret or restricted key", re.compile(r"\b(?:sk|rk)_live_[A-Za-z0-9]{16,}\b")),
+    # Webhook signing secrets authenticate inbound Stripe events and are
+    # sensitive even in test mode; unlike pk_ keys they are not publishable.
+    ("stripe_webhook_secret", "Stripe webhook signing secret", re.compile(
+        r"(?<![A-Za-z0-9_-])whsec_[A-Za-z0-9]{24,128}(?![A-Za-z0-9_-])"
+    )),
     ("slack_token", "Slack token", re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b")),
     # Incoming webhook URLs are bearer credentials: their final path segment
     # permits posting to a channel without a separate API token.
