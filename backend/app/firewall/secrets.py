@@ -74,6 +74,12 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("discord_bot_token", "Discord bot token", re.compile(
         r"(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{23,28}\.[A-Za-z0-9_-]{6,7}\.[A-Za-z0-9_-]{27,38}(?![A-Za-z0-9_-])"
     )),
+    # Incoming webhook URLs authenticate by webhook id and secret URL token;
+    # leaking the URL permits posting messages without a separate bot key.
+    ("discord_webhook_url", "Discord incoming webhook URL", re.compile(
+        r"(?i)(?<![A-Za-z0-9._-])https://(?:discord\.com|discordapp\.com)/api(?:/v\d+)?/webhooks/"
+        r"\d{17,20}/[A-Za-z0-9_-]{50,128}(?![A-Za-z0-9_-])"
+    )),
     # DigitalOcean personal, OAuth and refresh tokens share a 64-char hex body.
     ("digitalocean_token", "DigitalOcean API token", re.compile(
         r"(?<![A-Za-z0-9_])(?:dop|doo|dor)_v1_[0-9a-f]{64}(?![A-Za-z0-9_])"

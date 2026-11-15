@@ -142,6 +142,33 @@ def test_discord_token_shape_and_snowflake_false_positives():
         assert not has_secret(ordinary), ordinary
 
 
+def test_detects_and_redacts_discord_incoming_webhooks():
+    # Synthetic URL assembled from fragments, not a real webhook credential.
+    for host in ("discord.com", "discordapp.com"):
+        url = "https://" + host + "/api/webhooks/" + "123456789012345678" + "/" + "Ab3_" * 16
+        raw = "Discord webhook: " + url + "?wait=true"
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "discord_webhook_url"
+        assert redact_text(raw) == "Discord webhook: «REDACTED:discord_webhook_url»?wait=true"
+        assert url not in redact_text(raw)
+        assert redacted_kinds(redact_text(raw)) == ["discord_webhook_url"]
+    assert label_for_kind("discord_webhook_url") == "Discord incoming webhook URL"
+
+
+def test_discord_webhook_url_near_misses_are_not_secrets():
+    path = "/api/webhooks/123456789012345678/"
+    for ordinary in (
+        "https://discord.com" + path + "A" * 49,
+        "https://discord.com" + path + "A" * 129,
+        "https://discord.com/api/webhooks/1234/" + "A" * 64,
+        "https://discord.com.evil.example" + path + "A" * 64,
+        "https://example.org" + path + "A" * 64,
+        "https://discord.com" + path + "A" * 64 + "_suffix" * 11,
+    ):
+        assert not has_secret(ordinary), ordinary[:100]
+
+
 def test_detects_and_redacts_digitalocean_tokens():
     for prefix in ("dop", "doo", "dor"):
         token = prefix + "_v1_" + "a1b2c3d4" * 8
