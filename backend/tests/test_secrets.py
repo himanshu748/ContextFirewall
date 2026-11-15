@@ -20,6 +20,36 @@ def _uri(scheme: str, user: str, pwd: str, host: str, tail: str = "") -> str:
 
 
 # --- positives: each should be detected (values assembled at runtime) ---------
+def test_detects_and_redacts_cloudflare_api_credentials():
+    # All three current Cloudflare prefixes use an alphanumeric body and a
+    # hexadecimal checksum. These examples are synthetic and not usable keys.
+    for prefix in ("cfk", "cfut", "cfat"):
+        token = prefix + "_" + "Ab3x" * 10 + "a1b2c3d4"
+        raw = f"Cloudflare credential: {token}"
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "cloudflare_api_credential"
+        assert token not in findings[0].redacted
+        redacted = redact_text(raw)
+        assert redacted == "Cloudflare credential: «REDACTED:cloudflare_api_credential»"
+        assert token not in redacted
+        assert redacted_kinds(redacted) == ["cloudflare_api_credential"]
+    assert label_for_kind("cloudflare_api_credential") == "Cloudflare API credential"
+
+
+def test_cloudflare_api_credential_shape_and_identifier_boundaries():
+    token = "cfk_" + "Ab3x" * 10 + "a1b2c3d4"
+    for ordinary in (
+        "Cloudflare API credentials are secrets",
+        "cfk_" + "A" * 39 + "a1b2c3d4",  # Too-short body.
+        "cfut_" + "A" * 40 + "zzzzzzzz",  # Non-hex checksum.
+        "cfat_" + "A" * 40 + "a1b2c3d",  # Too-short checksum.
+        "prefix_" + token,
+        token + "_suffix",
+    ):
+        assert not has_secret(ordinary), ordinary
+
+
 def test_detects_and_redacts_current_notion_integration_token():
     token = "ntn_" + "Ab3_" * 8  # Entirely synthetic bearer-token example.
     raw = f"Notion credential: {token}"
