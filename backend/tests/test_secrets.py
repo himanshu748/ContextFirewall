@@ -44,6 +44,33 @@ def test_notion_prefix_and_embedded_identifiers_are_not_tokens():
         assert not has_secret(ordinary), ordinary
 
 
+def test_detects_and_redacts_linear_api_and_oauth_tokens():
+    # Linear documents these prefixes; payloads are synthetic and opaque.
+    for prefix in ("lin_api_", "lin_oauth_"):
+        token = prefix + "Ab3_" * 8
+        raw = f"Linear credential: {token}"
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "linear_token"
+        assert token not in findings[0].redacted
+        assert redact_text(raw) == "Linear credential: «REDACTED:linear_token»"
+        assert redacted_kinds(redact_text(raw)) == ["linear_token"]
+    assert label_for_kind("linear_token") == "Linear API or OAuth token"
+
+
+def test_linear_token_near_misses_are_not_secrets():
+    token = "lin_api_" + "Ab3_" * 8
+    for ordinary in (
+        "Configure Linear API authentication",
+        "lin_api_" + "A" * 19,
+        "lin_oauth_" + "A" * 19,
+        "lin_api_placeholder",
+        "not" + token,
+        "prefix_" + token,
+    ):
+        assert not has_secret(ordinary), ordinary
+
+
 def test_detects_huggingface_token():
     tok = "hf_" + "ABCdef0123456789ABCDEFGHIJ"
     assert any(x.kind == "huggingface_token" for x in find_secrets(f"set the key to {tok} first"))
