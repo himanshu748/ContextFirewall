@@ -67,6 +67,16 @@ def test_secret_blocks_leaked_key():
     assert not out.passed and out.check == "secret"
 
 
+def test_secret_reason_respects_private_preview_mode():
+    key = "hf_" + "Ab12" * 8
+    with patch.dict("os.environ", {"CF_REDACTION_PREVIEW": "none"}):
+        outcome = secret_check({"text": f"credential {key}"})
+    assert not outcome.passed
+    assert "Hugging Face token (***)" in outcome.reason
+    assert key not in outcome.reason
+    assert key[:4] not in outcome.reason
+
+
 def test_secret_passes_clean_text():
     assert secret_check({"text": "deploy with make release"}).passed
 
