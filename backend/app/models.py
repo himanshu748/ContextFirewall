@@ -6,11 +6,12 @@ before it leaves the firewall.
 """
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import Any, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
 CheckName = str  # "staleness" | "contradiction" | "secret" | "evidence"
+MemoryKind = Literal["command", "config", "fact", "lesson", "decision", "credential"]
 
 
 # --- health -------------------------------------------------------------------
@@ -35,9 +36,9 @@ class RecordedSession(BaseModel):
     agent: Optional[str] = None
     started_at: Optional[str] = None
     repo: dict[str, Any] = Field(default_factory=dict)
-    events: List[RecordedEvent] = Field(default_factory=list)
+    events: List[RecordedEvent] = Field(default_factory=list, max_length=1000)
     # Optional pre-distilled candidate memories (else they are derived at ingest).
-    memories: Optional[List[dict[str, Any]]] = None
+    memories: Optional[List[dict[str, Any]]] = Field(default=None, max_length=500)
 
 
 class IngestRequest(BaseModel):
@@ -78,8 +79,8 @@ class MemoryVerdict(BaseModel):
 
 
 class AuditRequest(BaseModel):
-    query: str = Field(..., description="Task/context the next agent needs memory for")
-    top_k: int = 12
+    query: str = Field(..., min_length=1, max_length=4096, description="Task/context the next agent needs memory for")
+    top_k: int = Field(12, ge=1, le=50)
 
 
 class AuditResponse(BaseModel):
@@ -97,8 +98,8 @@ class ExcludedMemory(BaseModel):
 
 
 class PackRequest(BaseModel):
-    query: str
-    top_k: int = 12
+    query: str = Field(..., min_length=1, max_length=4096)
+    top_k: int = Field(12, ge=1, le=50)
 
 
 class PackResponse(BaseModel):
@@ -112,9 +113,9 @@ class PackResponse(BaseModel):
 
 # --- remember (single durable fact) -------------------------------------------
 class RememberRequest(BaseModel):
-    text: str = Field(..., description="The fact/decision/lesson/command to remember")
-    subject: Optional[str] = Field(None, description="What the memory is about (enables staleness/contradiction checks)")
-    kind: str = Field("fact", description="fact | decision | lesson | command | config | credential")
+    text: str = Field(..., min_length=1, max_length=16384, description="The fact/decision/lesson/command to remember")
+    subject: Optional[str] = Field(None, max_length=512, description="What the memory is about (enables staleness/contradiction checks)")
+    kind: MemoryKind = Field("fact", description="fact | decision | lesson | command | config | credential")
     trust_score: Optional[float] = Field(None, ge=0.0, le=1.0)
     cognify: bool = Field(False, description="Also grow the entity graph (slower; off for a quick remember)")
 

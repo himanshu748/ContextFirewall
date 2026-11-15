@@ -32,7 +32,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -202,7 +202,7 @@ async def health() -> HealthResponse:
 
 
 @app.get("/activity")
-async def activity(limit: int = 40) -> dict:
+async def activity(limit: int = Query(40, ge=1, le=2000)) -> dict:
     return {"events": get_activity(limit)}
 
 
@@ -311,7 +311,7 @@ async def rules_endpoint(
 
 
 @app.get("/graph", response_model=GraphResponse)
-async def graph(limit: int = 400, authorization: Optional[str] = Header(default=None)) -> GraphResponse:
+async def graph(limit: int = Query(400, ge=1, le=2000), authorization: Optional[str] = Header(default=None)) -> GraphResponse:
     ident = await resolve_identity(authorization)
     data = await graph_view(limit=limit, namespaces=ident.read_namespaces)
     return GraphResponse(

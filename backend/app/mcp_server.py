@@ -34,6 +34,7 @@ from app.cognee_runtime.ingest import remember_fact as _remember_fact
 from app.firewall.audit import audit_memories as _audit_memories
 from app.firewall.pack import build_pack as _build_pack
 from app.identity import Identity, resolve_identity
+from app.models import AuditRequest, PackRequest, RememberRequest
 
 INSTRUCTIONS = (
     "ContextFirewall is a trust firewall for an AI coding agent's long-term memory, "
@@ -109,8 +110,9 @@ async def get_trusted_context(task: str, top_k: int = 12) -> str:
     memories are withheld. Call this BEFORE acting on a task to get governed context
     instead of raw, ungoverned recall.
     """
+    validated = PackRequest(query=task, top_k=top_k)
     ident = await _ctx_identity()
-    result = await _build_pack(task, top_k=int(top_k), namespaces=ident.read_namespaces)
+    result = await _build_pack(validated.query, top_k=validated.top_k, namespaces=ident.read_namespaces)
     audit = result.get("audit") or {}
     pack = (result.get("pack_markdown") or "").strip()
     header = _pack_header(audit)
@@ -133,8 +135,9 @@ async def audit_context(task: str, top_k: int = 12) -> str:
     can pass to forget_memory. Use this to explain to a human *why* a memory was
     withheld, or to decide what to retract.
     """
+    validated = AuditRequest(query=task, top_k=top_k)
     ident = await _ctx_identity()
-    audit = await _audit_memories(task, top_k=int(top_k), namespaces=ident.read_namespaces)
+    audit = await _audit_memories(validated.query, top_k=validated.top_k, namespaces=ident.read_namespaces)
     cands: List[Dict[str, Any]] = audit.get("candidates", [])
     approved = [c for c in cands if c.get("passed")]
     blocked = [c for c in cands if not c.get("passed")]
@@ -181,10 +184,11 @@ async def remember(text: str, subject: str = "", kind: str = "fact") -> str:
     Secrets are redacted at ingest, so a credential is never stored and will be
     blocked on the next audit. Returns the new memory_id.
     """
+    validated = RememberRequest(text=text, subject=subject or None, kind=kind)
     ident = await _ctx_identity()
     if not ident.can_write:
         return _WRITE_HINT
-    res = await _remember_fact(text, subject=subject or None, kind=kind, namespace=ident.namespace)
+    res = await _remember_fact(validated.text, subject=validated.subject, kind=validated.kind, namespace=ident.namespace)
     subj = f" on '{res['subject']}'" if res.get("subject") else ""
     log_activity("mcp", "remember", f"stored a {_remember_kind_label(kind)}")
     return (
