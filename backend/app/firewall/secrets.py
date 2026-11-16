@@ -57,6 +57,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("huggingface_token", "Hugging Face token", re.compile(r"\bhf_[A-Za-z0-9]{16,}\b")),
     ("openai_key", "OpenAI API key", re.compile(r"\bsk-(?:proj-)?[A-Za-z0-9_\-]{20,}\b")),
     ("anthropic_key", "Anthropic API key", re.compile(r"\bsk-ant-[A-Za-z0-9_\-]{20,}\b")),
+    # Resend documents the re_ key prefix. Use a conservative payload length
+    # because it does not document a fixed full-key length.
+    ("resend_api_key", "Resend API key", re.compile(
+        r"(?<![A-Za-z0-9_-])re_[A-Za-z0-9_-]{24,128}(?![A-Za-z0-9_-])"
+    )),
     ("aws_access_key", "AWS access key id", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),
     ("google_api_key", "Google API key", re.compile(r"\bAIza[0-9A-Za-z_\-]{35}\b")),
     # Includes classic/OAuth/App credentials and fine-grained personal access tokens.

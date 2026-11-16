@@ -20,6 +20,33 @@ def _uri(scheme: str, user: str, pwd: str, host: str, tail: str = "") -> str:
 
 
 # --- positives: each should be detected (values assembled at runtime) ---------
+def test_detects_and_redacts_resend_api_key():
+    # Resend documents the re_ prefix; use an entirely synthetic opaque payload.
+    token = "re_" + "Ab3x" * 8
+    content = f"Resend credential: {token}"
+    findings = find_secrets(content)
+    assert len(findings) == 1
+    assert findings[0].kind == "resend_api_key"
+    assert token not in findings[0].redacted
+    redacted = redact_text(content)
+    assert redacted == "Resend credential: «REDACTED:resend_api_key»"
+    assert token not in redacted
+    assert redacted_kinds(redacted) == ["resend_api_key"]
+    assert label_for_kind("resend_api_key") == "Resend API key"
+
+
+def test_resend_api_key_does_not_match_short_or_embedded_identifiers():
+    token = "re_" + "Ab3x" * 8
+    for ordinary in (
+        "Resend API keys start with re_",
+        "re_" + "A" * 23,
+        "prefix_" + token,
+        "pre_" + "Ab3x" * 8,
+        "key_" + token,
+    ):
+        assert not has_secret(ordinary), ordinary
+
+
 def test_detects_and_redacts_cloudflare_api_credentials():
     # All three current Cloudflare prefixes use an alphanumeric body and a
     # hexadecimal checksum. These examples are synthetic and not usable keys.
