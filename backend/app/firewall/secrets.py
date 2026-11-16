@@ -93,6 +93,12 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("grafana_service_account_token", "Grafana service account token", re.compile(
         r"(?<![A-Za-z0-9_-])glsa_[A-Za-z0-9]{32}_[0-9a-fA-F]{8}(?![A-Za-z0-9_-])"
     )),
+    # Tailscale documents these five typed key prefixes. Match the modern
+    # two-component key format to avoid mistaking prose for a credential.
+    ("tailscale_token", "Tailscale API, auth, or integration key", re.compile(
+        r"(?<![A-Za-z0-9_-])tskey-(?:api|auth|client|scim|webhook)-"
+        r"[A-Za-z0-9]{8,32}-[A-Za-z0-9]{12,128}(?![A-Za-z0-9_-])"
+    )),
     # Azure Storage account keys are 512-bit values (86 base64 chars plus ==).
     # Require the connection-string field name to avoid flagging unrelated data.
     ("azure_storage_account_key", "Azure Storage account key", re.compile(

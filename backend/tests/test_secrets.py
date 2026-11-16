@@ -46,6 +46,34 @@ def test_grafana_service_account_token_shape_and_boundaries():
         assert not has_secret(ordinary), ordinary[:80]
 
 
+def test_tailscale_key_types_are_detected_and_redacted():
+    # Synthetic two-component keys modeled on the documented tskey-* format.
+    # No live credential string is stored in the test suite.
+    for key_type in ("api", "auth", "client", "scim", "webhook"):
+        token = "tskey-" + key_type + "-" + "aB3D" * 3 + "-" + "C4dE" * 5
+        raw = "Tailscale credential: " + token
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "tailscale_token"
+        assert token not in findings[0].redacted
+        assert redact_text(raw) == "Tailscale credential: «REDACTED:tailscale_token»"
+        assert redacted_kinds(redact_text(raw)) == ["tailscale_token"]
+    assert label_for_kind("tailscale_token") == "Tailscale API, auth, or integration key"
+
+
+def test_tailscale_prefixes_and_near_misses_are_not_secrets():
+    token = "tskey-api-" + "A" * 12 + "-" + "B" * 20
+    for ordinary in (
+        "Configure your Tailscale tskey-api access token",
+        "tskey-api-" + "A" * 7 + "-" + "B" * 20,
+        "tskey-api-" + "A" * 12 + "-" + "B" * 11,
+        "tskey-unknown-" + "A" * 12 + "-" + "B" * 20,
+        "prefix_" + token,
+        token + "_suffix",
+    ):
+        assert not has_secret(ordinary), ordinary
+
+
 def test_detects_and_redacts_cloudflare_api_credentials():
     # All three current Cloudflare prefixes use an alphanumeric body and a
     # hexadecimal checksum. These examples are synthetic and not usable keys.
