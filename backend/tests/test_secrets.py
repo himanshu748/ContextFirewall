@@ -20,6 +20,113 @@ def _uri(scheme: str, user: str, pwd: str, host: str, tail: str = "") -> str:
 
 
 # --- positives: each should be detected (values assembled at runtime) ---------
+def test_grafana_service_account_tokens_are_detected_and_redacted():
+    token = "glsa_" + "Ab3D" * 8 + "_a1b2c3d4"
+    for raw in (token, f"Grafana credential: {token}"):
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "grafana_service_account_token"
+        assert token not in findings[0].redacted
+        assert redact_text(raw) == raw.replace(token, "«REDACTED:grafana_service_account_token»")
+        assert redacted_kinds(redact_text(raw)) == ["grafana_service_account_token"]
+    assert label_for_kind("grafana_service_account_token") == "Grafana service account token"
+
+
+def test_grafana_service_account_token_shape_and_boundaries():
+    token = "glsa_" + "Ab3D" * 8 + "_a1b2c3d4"
+    for ordinary in (
+        "Configure the Grafana service account token",
+        "glsa_" + "A" * 31 + "_a1b2c3d4",
+        "glsa_" + "A" * 33 + "_a1b2c3d4",
+        "glsa_" + "A" * 32 + "_nothexzz",
+        "prefix_" + token,
+        token + "_extra",
+        "glsa_" + "A" * 100_000 + "_a1b2c3d4",
+    ):
+        assert not has_secret(ordinary), ordinary[:80]
+
+
+def test_detects_and_redacts_cloudflare_api_credentials():
+    # All three current Cloudflare prefixes use an alphanumeric body and a
+    # hexadecimal checksum. These examples are synthetic and not usable keys.
+    for prefix in ("cfk", "cfut", "cfat"):
+        token = prefix + "_" + "Ab3x" * 10 + "a1b2c3d4"
+        raw = f"Cloudflare credential: {token}"
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "cloudflare_api_credential"
+        assert token not in findings[0].redacted
+        redacted = redact_text(raw)
+        assert redacted == "Cloudflare credential: «REDACTED:cloudflare_api_credential»"
+        assert token not in redacted
+        assert redacted_kinds(redacted) == ["cloudflare_api_credential"]
+    assert label_for_kind("cloudflare_api_credential") == "Cloudflare API credential"
+
+
+def test_cloudflare_api_credential_shape_and_identifier_boundaries():
+    token = "cfk_" + "Ab3x" * 10 + "a1b2c3d4"
+    for ordinary in (
+        "Cloudflare API credentials are secrets",
+        "cfk_" + "A" * 39 + "a1b2c3d4",  # Too-short body.
+        "cfut_" + "A" * 40 + "zzzzzzzz",  # Non-hex checksum.
+        "cfat_" + "A" * 40 + "a1b2c3d",  # Too-short checksum.
+        "prefix_" + token,
+        token + "_suffix",
+    ):
+        assert not has_secret(ordinary), ordinary
+
+
+def test_detects_and_redacts_current_notion_integration_token():
+    token = "ntn_" + "Ab3_" * 8  # Entirely synthetic bearer-token example.
+    raw = f"Notion credential: {token}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "notion_token"
+    assert token not in findings[0].redacted
+    assert redact_text(raw) == "Notion credential: «REDACTED:notion_token»"
+    assert redacted_kinds(redact_text(raw)) == ["notion_token"]
+    assert label_for_kind("notion_token") == "Notion integration token"
+
+
+def test_notion_prefix_and_embedded_identifiers_are_not_tokens():
+    token = "ntn_" + "Ab3_" * 8
+    for ordinary in (
+        "Configure your Notion integration token in the environment",
+        "ntn_" + "A" * 19,
+        "not" + token,
+        "prefix_" + token,
+        "ntn_example_key",
+    ):
+        assert not has_secret(ordinary), ordinary
+
+
+def test_detects_and_redacts_linear_api_and_oauth_tokens():
+    # Linear documents these prefixes; payloads are synthetic and opaque.
+    for prefix in ("lin_api_", "lin_oauth_"):
+        token = prefix + "Ab3_" * 8
+        raw = f"Linear credential: {token}"
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "linear_token"
+        assert token not in findings[0].redacted
+        assert redact_text(raw) == "Linear credential: «REDACTED:linear_token»"
+        assert redacted_kinds(redact_text(raw)) == ["linear_token"]
+    assert label_for_kind("linear_token") == "Linear API or OAuth token"
+
+
+def test_linear_token_near_misses_are_not_secrets():
+    token = "lin_api_" + "Ab3_" * 8
+    for ordinary in (
+        "Configure Linear API authentication",
+        "lin_api_" + "A" * 19,
+        "lin_oauth_" + "A" * 19,
+        "lin_api_placeholder",
+        "not" + token,
+        "prefix_" + token,
+    ):
+        assert not has_secret(ordinary), ordinary
+
+
 def test_detects_huggingface_token():
     tok = "hf_" + "ABCdef0123456789ABCDEFGHIJ"
     assert any(x.kind == "huggingface_token" for x in find_secrets(f"set the key to {tok} first"))
@@ -116,6 +223,33 @@ def test_discord_token_shape_and_snowflake_false_positives():
         token + "_suffix",
     ):
         assert not has_secret(ordinary), ordinary
+
+
+def test_detects_and_redacts_discord_incoming_webhooks():
+    # Synthetic URL assembled from fragments, not a real webhook credential.
+    for host in ("discord.com", "discordapp.com"):
+        url = "https://" + host + "/api/webhooks/" + "123456789012345678" + "/" + "Ab3_" * 16
+        raw = "Discord webhook: " + url + "?wait=true"
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "discord_webhook_url"
+        assert redact_text(raw) == "Discord webhook: «REDACTED:discord_webhook_url»?wait=true"
+        assert url not in redact_text(raw)
+        assert redacted_kinds(redact_text(raw)) == ["discord_webhook_url"]
+    assert label_for_kind("discord_webhook_url") == "Discord incoming webhook URL"
+
+
+def test_discord_webhook_url_near_misses_are_not_secrets():
+    path = "/api/webhooks/123456789012345678/"
+    for ordinary in (
+        "https://discord.com" + path + "A" * 49,
+        "https://discord.com" + path + "A" * 129,
+        "https://discord.com/api/webhooks/1234/" + "A" * 64,
+        "https://discord.com.evil.example" + path + "A" * 64,
+        "https://example.org" + path + "A" * 64,
+        "https://discord.com" + path + "A" * 64 + "_suffix" * 11,
+    ):
+        assert not has_secret(ordinary), ordinary[:100]
 
 
 def test_detects_and_redacts_digitalocean_tokens():
@@ -253,6 +387,32 @@ def test_stripe_public_and_short_keys_are_not_flagged():
     assert not has_secret("pk_live_" + "A" * 24)  # Publishable, not a secret.
     assert not has_secret("sk_live_" + "A" * 15)  # Too short to be a key.
     assert not has_secret("rk_test_" + "A" * 24)  # Only live keys in this scope.
+
+
+def test_detects_and_redacts_stripe_webhook_signing_secrets():
+    # Fake signing secret assembled from fragments to avoid scanner fixtures.
+    secret = "wh" + "sec_" + "Ab3x" * 8
+    raw = "Stripe webhook signing value: " + secret
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "stripe_webhook_secret"
+    assert secret not in findings[0].redacted
+    assert redact_text(raw) == "Stripe webhook signing value: «REDACTED:stripe_webhook_secret»"
+    assert redacted_kinds(redact_text(raw)) == ["stripe_webhook_secret"]
+    assert label_for_kind("stripe_webhook_secret") == "Stripe webhook signing secret"
+
+
+def test_stripe_webhook_secret_prefix_and_boundary_lookalikes():
+    token = "wh" + "sec_" + "Ab3x" * 8
+    for ordinary in (
+        "Configure Stripe webhook signing secrets",
+        "wh" + "sec_" + "A" * 23,
+        "wh" + "sec_" + "A" * 129,
+        "prefix_" + token,
+        token + "_suffix",
+        "pk_live_" + "A" * 24,
+    ):
+        assert not has_secret(ordinary), ordinary[:80]
 
 
 def test_detects_and_redacts_slack_incoming_webhook_url():
