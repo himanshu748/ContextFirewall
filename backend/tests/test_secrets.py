@@ -49,6 +49,29 @@ def test_posthog_public_key_and_token_lookalikes_are_not_secret():
         assert not has_secret(ordinary), ordinary
 
 
+def test_high_entropy_posthog_public_tokens_are_not_redacted():
+    # Varied synthetic bodies would trigger the generic entropy detector without
+    # the public-token exemption; repeated "A" characters would not.
+    for body in (
+        "uJ9pE3yL6dA8qX4kB1mY7vR2nC5tS0wH3fZ9gP6",
+        "F8w-2Nq_V5cM9rT1kY4zB7aE3pD6hJ0sL2xQ8",
+    ):
+        # Verify these fixtures actually exercise the default entropy fallback.
+        assert [f.kind for f in find_secrets("rnd_" + body)] == ["high_entropy_token"]
+
+        public = "phc_" + body
+        for raw in (public, f"posthog.init('{public}')", f"project token: {public}."):
+            assert find_secrets(raw) == []
+            assert not has_secret(raw)
+            assert redact_text(raw) == raw
+
+        # Exempting the public key must not hide private credentials nearby.
+        private = "pha_" + "Ab3_" * 8
+        mixed = f"Public: {public}; OAuth: {private}"
+        assert [f.kind for f in find_secrets(mixed)] == ["posthog_secret_token"]
+        assert redact_text(mixed) == f"Public: {public}; OAuth: «REDACTED:posthog_secret_token»"
+
+
 def test_detects_and_redacts_current_notion_integration_token():
     token = "ntn_" + "Ab3_" * 8  # Entirely synthetic bearer-token example.
     raw = f"Notion credential: {token}"

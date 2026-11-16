@@ -136,6 +136,9 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
 
 # Long mixed-class token for the entropy fallback.
 _TOKEN_RE = re.compile(r"[A-Za-z0-9+/_\-]{32,}")
+# PostHog phc_ project ingestion keys are public. Only exempt the complete
+# token shape from entropy fallback; named secret patterns still take priority.
+_PUBLIC_POSTHOG_TOKEN_RE = re.compile(r"phc_[A-Za-z0-9_-]+")
 
 
 def _redact(secret: str) -> str:
@@ -189,6 +192,8 @@ def find_secrets(text: str, *, entropy_threshold: float = 4.2) -> List[SecretFin
         if _overlaps(m.start(), m.end(), spans):
             continue
         tok = m.group(0)
+        if _PUBLIC_POSTHOG_TOKEN_RE.fullmatch(tok):
+            continue
         has_upper = any(c.isupper() for c in tok)
         has_lower = any(c.islower() for c in tok)
         has_digit = any(c.isdigit() for c in tok)
