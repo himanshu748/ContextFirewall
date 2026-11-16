@@ -252,6 +252,64 @@ def test_discord_webhook_url_near_misses_are_not_secrets():
         assert not has_secret(ordinary), ordinary[:100]
 
 
+def test_detects_and_redacts_sentry_org_auth_token():
+    token = "sntrys_" + "Ab12" * 6 + "_" + "Cd34" * 8  # Synthetic payload and secret.
+    raw = f"Sentry organization auth: {token}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "sentry_org_auth_token"
+    assert token not in findings[0].redacted
+    assert redact_text(raw) == "Sentry organization auth: «REDACTED:sentry_org_auth_token»"
+    assert redacted_kinds(redact_text(raw)) == ["sentry_org_auth_token"]
+    assert label_for_kind("sentry_org_auth_token") == "Sentry organization auth token"
+
+
+def test_sentry_org_auth_token_near_misses_are_not_secrets():
+    token = "sntrys_" + "Ab12" * 6 + "_" + "Cd34" * 8
+    for ordinary in (
+        "Sentry organization auth token", "sntrys_" + "A" * 9 + "_" + "B" * 32,
+        "sntrys_" + "A" * 24 + "_" + "B" * 9,
+        "sentry_" + "Ab12" * 6 + "_" + "Cd34" * 8,
+        "not" + token,
+        token + "_suffix",
+    ):
+        assert not has_secret(ordinary), ordinary
+
+
+def test_sentry_org_auth_token_standard_base64_and_full_redaction():
+    # Sentry encodes the JSON payload with standard Base64, retaining padding,
+    # and the 32-byte secret with standard Base64, removing its final '='.
+    # All credentials are synthetic and assembled at runtime.
+    payloads = (
+        base64.b64encode(b'{"iat": 1234567890.123456, "org": "sample"}').decode("ascii"),
+        base64.b64encode(b'{"iat": 1234567890.123456, "org": "example"}').decode("ascii"),
+        base64.b64encode(b'{"iat": 123, "org": "~~~~~~~"}').decode("ascii"),
+        base64.b64encode(b'{"iat": 123, "org": "???????"}').decode("ascii"),
+    )
+    assert any(payload.endswith("==") for payload in payloads)
+    assert any(payload.endswith("=") and not payload.endswith("==") for payload in payloads)
+    assert any("+" in payload for payload in payloads)
+    assert any("/" in payload for payload in payloads)
+
+    secrets = (
+        base64.b64encode(bytes([251, 255]) * 16).decode("ascii").rstrip("="),
+        "A" * 42 + "+",  # Regression: do not leave a terminal '+' exposed.
+        "B" * 42 + "/",  # Regression: do not leave a terminal '/' exposed.
+    )
+    assert all(len(secret) == 43 for secret in secrets)
+    for payload in payloads:
+        for secret in secrets:
+            token = "sntrys_" + payload + "_" + secret
+            raw = "before " + token + " after"
+            findings = find_secrets(raw)
+            assert len(findings) == 1, (payload, secret)
+            assert findings[0].kind == "sentry_org_auth_token"
+            assert (findings[0].start, findings[0].end) == (7, 7 + len(token))
+            assert token not in findings[0].redacted
+            assert redact_text(raw) == "before «REDACTED:sentry_org_auth_token» after"
+            assert redacted_kinds(redact_text(raw)) == ["sentry_org_auth_token"]
+
+
 def test_detects_and_redacts_digitalocean_tokens():
     for prefix in ("dop", "doo", "dor"):
         token = prefix + "_v1_" + "a1b2c3d4" * 8

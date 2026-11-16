@@ -80,6 +80,12 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
         r"(?i)(?<![A-Za-z0-9._-])https://(?:discord\.com|discordapp\.com)/api(?:/v\d+)?/webhooks/"
         r"\d{17,20}/[A-Za-z0-9_-]{50,128}(?![A-Za-z0-9_-])"
     )),
+    # Sentry org auth tokens contain a standard-Base64 payload (which may end
+    # in = or ==) and an unpadded standard-Base64 secret, delimited by _.
+    # Both segments can contain + and /; the boundary must consume them too.
+    ("sentry_org_auth_token", "Sentry organization auth token", re.compile(
+        r"(?<![A-Za-z0-9_])sntrys_[A-Za-z0-9+/]{10,}={0,2}_[A-Za-z0-9+/]{10,}(?![A-Za-z0-9+/=_-])"
+    )),
     # DigitalOcean personal, OAuth and refresh tokens share a 64-char hex body.
     ("digitalocean_token", "DigitalOcean API token", re.compile(
         r"(?<![A-Za-z0-9_])(?:dop|doo|dor)_v1_[0-9a-f]{64}(?![A-Za-z0-9_])"
