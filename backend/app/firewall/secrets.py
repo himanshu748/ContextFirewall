@@ -89,6 +89,10 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("cloudflare_api_credential", "Cloudflare API credential", re.compile(
         r"(?<![A-Za-z0-9_-])(?:cfk|cfut|cfat)_[A-Za-z0-9]{40}[0-9a-fA-F]{8}(?![A-Za-z0-9_-])"
     )),
+    # Grafana service-account credentials carry 32 alphanumerics and 8 hex checksum digits.
+    ("grafana_service_account_token", "Grafana service account token", re.compile(
+        r"(?<![A-Za-z0-9_-])glsa_[A-Za-z0-9]{32}_[0-9a-fA-F]{8}(?![A-Za-z0-9_-])"
+    )),
     # Azure Storage account keys are 512-bit values (86 base64 chars plus ==).
     # Require the connection-string field name to avoid flagging unrelated data.
     ("azure_storage_account_key", "Azure Storage account key", re.compile(
