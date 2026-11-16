@@ -25,6 +25,7 @@ from .bootstrap import configure_cognee
 
 MEMORY_COLLECTION = "Memory_text"
 _MAX_CLUSTER = 200
+_MAX_VECTOR_RANK = 400  # Hard ceiling for multi-tenant overfetch; no payloads are fetched.
 
 logger = logging.getLogger(__name__)
 
@@ -195,14 +196,35 @@ async def recall_memory_candidates(
     if not graph_mems:
         return []
 
-    ranked_ids = await _vector_rank(query, top_k=top_k)
+    # The vector collection is global. Overfetch ID-only rankings until we
+    # collect enough authorized records, exhaust the index, or hit a hard cap.
+    # Each search requests at most 400 IDs. Across repeated searches the total
+    # returned ID count is bounded below 3 * 400 (assuming limit is honored).
+    requested = max(0, min(int(top_k), _MAX_VECTOR_RANK))
+    if not requested:
+        return []
+    ceiling = min(_MAX_VECTOR_RANK, max(16, requested * 8))
+    limit = requested
     ordered: List[Dict[str, Any]] = []
     seen: set[str] = set()
-    for nid in ranked_ids:
-        rec = graph_mems.get(nid)
-        if rec and nid not in seen:
-            ordered.append(rec)
-            seen.add(nid)
+    while True:
+        ranked_ids = await _vector_rank(query, top_k=limit)
+        for nid in ranked_ids:
+            rec = graph_mems.get(nid)
+            if rec and nid not in seen:
+                ordered.append(rec)
+                seen.add(nid)
+                if len(ordered) >= requested:
+                    break
+        if len(ordered) >= requested or len(ranked_ids) < limit:
+            break
+        if limit >= ceiling:
+            logger.warning(
+                "Scoped vector recall exhausted rank cap %d with %d authorized hits",
+                ceiling, len(ordered),
+            )
+            break
+        limit = min(ceiling, limit * 2)
     if not ordered:
         # No vector hit means we have no relevance signal at all. Returning the
         # whole graph here handed the caller (and the LLM contradiction check)

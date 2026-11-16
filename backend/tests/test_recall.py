@@ -80,6 +80,57 @@ def test_unknown_vector_ids_do_not_dump_the_graph(monkeypatch):
     assert result == []
 
 
+class _PagedVectorEngine:
+    def __init__(self, ids):
+        self.ids = ids
+        self.limits = []
+
+    def search(self, *, limit, **_kwargs):
+        self.limits.append(limit)
+        return [SimpleNamespace(id=nid) for nid in self.ids[:limit]]
+
+
+def test_overfetch_finds_authorized_record_below_foreign_hits(monkeypatch):
+    engine = _PagedVectorEngine([f"foreign-{i}" for i in range(12)] + ["n1"])
+    _install(monkeypatch, engine)
+
+    result = asyncio.run(
+        recall_module.recall_memory_candidates("deploy", top_k=1, namespaces={"demo"})
+    )
+    assert [record["node_id"] for record in result] == ["n1", "n3"]
+    assert engine.limits == [1, 2, 4, 8, 16]
+
+
+def test_overfetch_caps_search_without_leaking_foreign_ids(monkeypatch, caplog):
+    engine = _PagedVectorEngine([f"foreign-{i}" for i in range(200)] + ["n1"])
+    _install(monkeypatch, engine)
+
+    with caplog.at_level(logging.WARNING, logger=recall_module.__name__):
+        result = asyncio.run(recall_module.recall_memory_candidates("deploy", top_k=1))
+    assert result == []
+    assert engine.limits == [1, 2, 4, 8, 16]
+    assert "rank cap 16" in caplog.text
+    assert "foreign-" not in caplog.text
+
+
+def test_overfetch_stops_when_index_is_exhausted(monkeypatch):
+    engine = _PagedVectorEngine(["foreign-a", "foreign-b"])
+    _install(monkeypatch, engine)
+
+    result = asyncio.run(recall_module.recall_memory_candidates("deploy", top_k=1))
+    assert result == []
+    assert engine.limits == [1, 2, 4]
+
+
+def test_zero_top_k_never_queries_global_index(monkeypatch):
+    engine = _PagedVectorEngine(["n1"])
+    _install(monkeypatch, engine)
+
+    result = asyncio.run(recall_module.recall_memory_candidates("deploy", top_k=0))
+    assert result == []
+    assert engine.limits == []
+
+
 @pytest.mark.parametrize(
     ("field", "invalid"),
     [
