@@ -20,6 +20,32 @@ def _uri(scheme: str, user: str, pwd: str, host: str, tail: str = "") -> str:
 
 
 # --- positives: each should be detected (values assembled at runtime) ---------
+def test_grafana_service_account_tokens_are_detected_and_redacted():
+    token = "glsa_" + "Ab3D" * 8 + "_a1b2c3d4"
+    for raw in (token, f"Grafana credential: {token}"):
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "grafana_service_account_token"
+        assert token not in findings[0].redacted
+        assert redact_text(raw) == raw.replace(token, "«REDACTED:grafana_service_account_token»")
+        assert redacted_kinds(redact_text(raw)) == ["grafana_service_account_token"]
+    assert label_for_kind("grafana_service_account_token") == "Grafana service account token"
+
+
+def test_grafana_service_account_token_shape_and_boundaries():
+    token = "glsa_" + "Ab3D" * 8 + "_a1b2c3d4"
+    for ordinary in (
+        "Configure the Grafana service account token",
+        "glsa_" + "A" * 31 + "_a1b2c3d4",
+        "glsa_" + "A" * 33 + "_a1b2c3d4",
+        "glsa_" + "A" * 32 + "_nothexzz",
+        "prefix_" + token,
+        token + "_extra",
+        "glsa_" + "A" * 100_000 + "_a1b2c3d4",
+    ):
+        assert not has_secret(ordinary), ordinary[:80]
+
+
 def test_detects_and_redacts_cloudflare_api_credentials():
     # All three current Cloudflare prefixes use an alphanumeric body and a
     # hexadecimal checksum. These examples are synthetic and not usable keys.
