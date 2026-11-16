@@ -85,16 +85,24 @@ def test_detects_and_redacts_gitlab_access_token():
 
 
 def test_detects_and_redacts_telegram_bot_token():
-    token = "1234567890:" + "Ab3_" * 8 + "xyz"  # Synthetic 10-digit ID and 35-character secret.
-    raw = f"Telegram bot credential {token}"
-    findings = find_secrets(raw)
-    assert len(findings) == 1
-    assert findings[0].kind == "telegram_bot_token"
-    assert token not in findings[0].redacted
-    assert redact_text(raw) == "Telegram bot credential «REDACTED:telegram_bot_token»"
-    assert label_for_kind("telegram_bot_token") == "Telegram bot token"
-    url = "https://api.telegram.org/bot" + token + "/getMe"
-    assert redact_text(url) == "https://api.telegram.org/bot«REDACTED:telegram_bot_token»/getMe"
+    secret = "Ab3_" * 8 + "xyz"  # Synthetic 35-character secret.
+    # Include 11- and 12-digit IDs and the maximum Telegram 52-bit ID.
+    for bot_id in ("12345678", "123456789", "1234567890", "12345678901", "123456789012", str((1 << 52) - 1)):
+        token = bot_id + ":" + secret
+        raw = f"Telegram bot credential {token}"
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "telegram_bot_token"
+        assert token not in findings[0].redacted
+        assert findings[0].start == raw.index(token)
+        assert findings[0].end == len(raw)
+        assert redact_text(raw) == "Telegram bot credential «REDACTED:telegram_bot_token»"
+        assert label_for_kind("telegram_bot_token") == "Telegram bot token"
+
+        url = "https://api.telegram.org/bot" + token + "/getMe"
+        assert redact_text(url) == "https://api.telegram.org/bot«REDACTED:telegram_bot_token»/getMe"
+        file_url = "https://api.telegram.org/file/bot" + token + "/image.jpg"
+        assert redact_text(file_url) == "https://api.telegram.org/file/bot«REDACTED:telegram_bot_token»/image.jpg"
 
 
 def test_telegram_bot_token_near_misses_are_not_secrets():
@@ -103,12 +111,25 @@ def test_telegram_bot_token_near_misses_are_not_secrets():
     for ordinary in (
         "Use a Telegram bot token in the API URL",
         "1234567:" + secret,
-        "12345678901:" + secret,
         "1234567890:" + secret[:-1],
         "not" + token,
+        "prefix_" + token,
+        "prefixbot" + token,
         token + "_suffix",
+        token + "X",
+        "１２３４５６７８:" + secret,  # Non-ASCII numeral lookalike.
     ):
         assert not has_secret(ordinary), ordinary
+
+
+def test_telegram_bot_token_oversized_id_is_not_partially_redacted():
+    secret = "Ab3_" * 8 + "xyz"
+    # A 16-digit ID can exceed 52 bits; a 17+-digit ID must never match its suffix.
+    for oversized_id in (str(1 << 52), "12345678901234567", "9" * 24):
+        token = oversized_id + ":" + secret
+        for raw in (token, "https://api.telegram.org/bot" + token + "/getMe"):
+            assert not has_secret(raw), raw
+            assert redact_text(raw) == raw
 
 
 def test_gitlab_prefix_without_a_full_token_is_not_a_secret():

@@ -64,9 +64,10 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
         r"(?<![A-Za-z0-9_])(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{40,})(?![A-Za-z0-9_])"
     )),
     ("gitlab_token", "GitLab access token", re.compile(r"\bglpat-[A-Za-z0-9_-]{20,}\b")),
-    # Telegram bot credentials combine a numeric bot ID with a 35-character secret.
+    # Telegram bot IDs can require up to 52 bits (16 decimal digits).
+    # Keep the /bot API path prefix outside the redacted credential.
     ("telegram_bot_token", "Telegram bot token", re.compile(
-        r"(?:(?<![A-Za-z0-9_])|(?<=bot))\d{8,10}:[A-Za-z0-9_-]{35}(?![A-Za-z0-9_-])"
+        r"(?:(?<![A-Za-z0-9_])|(?<=/bot))[0-9]{8,16}:[A-Za-z0-9_-]{35}(?![A-Za-z0-9_-])"
     )),
     # Shopify Admin API online and offline access tokens use the shpat_ prefix.
     # Exclude adjacent identifier characters to avoid redacting partial values.
@@ -177,6 +178,8 @@ def find_secrets(text: str, *, entropy_threshold: float = 4.2) -> List[SecretFin
     for kind, label, pat in _PATTERNS:
         for m in pat.finditer(text):
             if kind == "discord_bot_token" and not _is_discord_bot_token(m.group(0)):
+                continue
+            if kind == "telegram_bot_token" and int(m.group(0).split(":", 1)[0]) >= (1 << 52):
                 continue
             value = m.group(m.lastindex) if m.lastindex else m.group(0)
             findings.append(SecretFinding(kind, label, _redact(value), m.start(), m.end()))
