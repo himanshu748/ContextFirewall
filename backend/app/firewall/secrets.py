@@ -64,6 +64,10 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
         r"(?<![A-Za-z0-9_])(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{40,})(?![A-Za-z0-9_])"
     )),
     ("gitlab_token", "GitLab access token", re.compile(r"\bglpat-[A-Za-z0-9_-]{20,}\b")),
+    # GitLab runner authentication tokens use glrt- (or glrtr- via legacy registration).
+    ("gitlab_runner_token", "GitLab runner authentication token", re.compile(
+        r"(?<![A-Za-z0-9_-])glrtr?-[A-Za-z0-9]{20,128}(?![A-Za-z0-9_-])"
+    )),
     # Shopify Admin API online and offline access tokens use the shpat_ prefix.
     # Exclude adjacent identifier characters to avoid redacting partial values.
     ("shopify_access_token", "Shopify Admin API access token", re.compile(

@@ -171,6 +171,34 @@ def test_gitlab_prefix_without_a_full_token_is_not_a_secret():
     assert not has_secret("glpat-" + "a" * 19)
 
 
+def test_detects_gitlab_runner_authentication_tokens():
+    # GitLab documents glrt- and legacy-registration glrtr- prefixes.
+    for prefix in ("glrt-", "glrtr-"):
+        token = prefix + "a1b2c3d4" * 4
+        raw = f"Runner credential: {token}"
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "gitlab_runner_token"
+        assert token not in findings[0].redacted
+        assert redact_text(raw) == "Runner credential: «REDACTED:gitlab_runner_token»"
+        assert redacted_kinds(redact_text(raw)) == ["gitlab_runner_token"]
+    assert label_for_kind("gitlab_runner_token") == "GitLab runner authentication token"
+
+
+def test_gitlab_runner_token_near_misses_are_not_secrets():
+    token = "glrt-" + "a1b2c3d4" * 4
+    for ordinary in (
+        "Set your glrt- token in CI",
+        "glrt-" + "a" * 19,
+        "glrtr-" + "a" * 129,
+        "not" + token,
+        "prefix_" + token,
+        token + "_suffix",
+        "glrt-" + "A" * 100_000,
+    ):
+        assert not has_secret(ordinary), ordinary[:80]
+
+
 def test_detects_and_redacts_shopify_admin_access_token():
     token = "shpat_" + "a1B2" * 8  # Synthetic 32-character body.
     raw = f"Shopify credential: {token}"
