@@ -363,6 +363,32 @@ def test_stripe_public_and_short_keys_are_not_flagged():
     assert not has_secret("rk_test_" + "A" * 24)  # Only live keys in this scope.
 
 
+def test_detects_and_redacts_stripe_webhook_signing_secrets():
+    # Fake signing secret assembled from fragments to avoid scanner fixtures.
+    secret = "wh" + "sec_" + "Ab3x" * 8
+    raw = "Stripe webhook signing value: " + secret
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "stripe_webhook_secret"
+    assert secret not in findings[0].redacted
+    assert redact_text(raw) == "Stripe webhook signing value: «REDACTED:stripe_webhook_secret»"
+    assert redacted_kinds(redact_text(raw)) == ["stripe_webhook_secret"]
+    assert label_for_kind("stripe_webhook_secret") == "Stripe webhook signing secret"
+
+
+def test_stripe_webhook_secret_prefix_and_boundary_lookalikes():
+    token = "wh" + "sec_" + "Ab3x" * 8
+    for ordinary in (
+        "Configure Stripe webhook signing secrets",
+        "wh" + "sec_" + "A" * 23,
+        "wh" + "sec_" + "A" * 129,
+        "prefix_" + token,
+        token + "_suffix",
+        "pk_live_" + "A" * 24,
+    ):
+        assert not has_secret(ordinary), ordinary[:80]
+
+
 def test_detects_and_redacts_slack_incoming_webhook_url():
     # Assemble a synthetic Slack-style webhook without storing a complete URL.
     webhook = (
