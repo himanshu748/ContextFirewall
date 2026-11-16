@@ -89,6 +89,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("cloudflare_api_credential", "Cloudflare API credential", re.compile(
         r"(?<![A-Za-z0-9_-])(?:cfk|cfut|cfat)_[A-Za-z0-9]{40}[0-9a-fA-F]{8}(?![A-Za-z0-9_-])"
     )),
+    # 1Password service-account tokens are long, base64-encoded credentials;
+    # the ops_eyJ prefix and 250-char minimum avoid broad false positives.
+    ("onepassword_service_account_token", "1Password service account token", re.compile(
+        r"(?<![A-Za-z0-9_])ops_eyJ[A-Za-z0-9+/]{250,}={0,3}(?![A-Za-z0-9_+/=])"
+    )),
     # Grafana service-account credentials carry 32 alphanumerics and 8 hex checksum digits.
     ("grafana_service_account_token", "Grafana service account token", re.compile(
         r"(?<![A-Za-z0-9_-])glsa_[A-Za-z0-9]{32}_[0-9a-fA-F]{8}(?![A-Za-z0-9_-])"

@@ -88,6 +88,30 @@ def test_detects_and_redacts_current_notion_integration_token():
     assert label_for_kind("notion_token") == "Notion integration token"
 
 
+def test_detects_and_redacts_1password_service_account_token():
+    # Prefix and payload shape match the published detector; fake bytes only.
+    token = "ops_eyJ" + "Ab3/" * 63
+    raw = f"vault credential: {token}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "onepassword_service_account_token"
+    assert token not in findings[0].redacted
+    assert redact_text(raw) == "vault credential: «REDACTED:onepassword_service_account_token»"
+    assert label_for_kind("onepassword_service_account_token") == "1Password service account token"
+
+
+def test_1password_prefix_without_long_canonical_payload_is_not_a_secret():
+    token = "ops_eyJ" + "Ab3/" * 63
+    for ordinary in (
+        "OP_SERVICE_ACCOUNT_TOKEN is configured by the operator",
+        "ops_eyJ" + "a" * 249,
+        "before_" + token,
+        token + "_suffix",
+        "ops_sample-placeholder",
+    ):
+        assert not has_secret(ordinary), ordinary[:60]
+
+
 def test_notion_prefix_and_embedded_identifiers_are_not_tokens():
     token = "ntn_" + "Ab3_" * 8
     for ordinary in (
