@@ -20,6 +20,31 @@ def _uri(scheme: str, user: str, pwd: str, host: str, tail: str = "") -> str:
 
 
 # --- positives: each should be detected (values assembled at runtime) ---------
+def test_detects_and_redacts_groq_api_keys():
+    token = "gsk_" + "Ab3x" * 10  # Synthetic; not a live credential.
+    for content in (token, f"Groq API credential: {token}"):
+        findings = find_secrets(content)
+        assert len(findings) == 1
+        assert findings[0].kind == "groq_api_key"
+        assert token not in findings[0].redacted
+        assert redact_text(content) == content.replace(token, "«REDACTED:groq_api_key»")
+        assert redacted_kinds(redact_text(content)) == ["groq_api_key"]
+        assert not has_secret(redact_text(content))
+    assert label_for_kind("groq_api_key") == "Groq API key"
+
+
+def test_groq_key_boundaries_and_near_misses():
+    token = "gsk_" + "Ab3x" * 10
+    for ordinary in (
+        "Groq API keys should stay private",
+        "gsk_" + "A" * 29,
+        "not" + token,
+        "prefix_" + token,
+        token + "_suffix",
+    ):
+        assert not has_secret(ordinary), ordinary
+
+
 def test_detects_and_redacts_cloudflare_api_credentials():
     # All three current Cloudflare prefixes use an alphanumeric body and a
     # hexadecimal checksum. These examples are synthetic and not usable keys.
