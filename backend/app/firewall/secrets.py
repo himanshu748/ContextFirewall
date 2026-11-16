@@ -110,6 +110,10 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("notion_token", "Notion integration token", re.compile(
         r"(?<![A-Za-z0-9_-])ntn_[A-Za-z0-9_-]{20,}(?![A-Za-z0-9_-])"
     )),
+    # Docker Hub's personal and organization credentials have distinct prefixes.
+    ("docker_hub_token", "Docker Hub access token", re.compile(
+        r"(?<![A-Za-z0-9_-])dckr_(?:pat|oat)_[A-Za-z0-9_-]{20,128}(?![A-Za-z0-9_-])"
+    )),
     # Linear prefixes distinguish personal API keys and OAuth access tokens.
     # Treat the opaque payload conservatively; this is not a token validator.
     ("linear_token", "Linear API or OAuth token", re.compile(
