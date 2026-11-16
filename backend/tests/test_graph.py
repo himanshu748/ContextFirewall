@@ -98,12 +98,47 @@ def test_count_nodes_filters_by_namespace(monkeypatch):
         ("demo-mem", {"type": "Memory", "namespace": "demo"}),
         ("other-mem", {"type": "Memory", "namespace": "other"}),
         ("demo-sess", {"type": "AgentSession", "namespace": "demo", "session_id": "onb-taskflow-2026-06-29"}),
+        ("demo-mem-2", {"type": "Memory", "namespace": "demo"}),
     ]
-    _patch_graph(monkeypatch, nodes)
+    edges = [
+        ("demo-mem", "demo-sess", "belongs"),
+        ("demo-mem", "demo-mem-2", "related"),
+        ("other-mem", "demo-mem", "cross"),  # cross-namespace: must not count when scoped
+        ("other-mem", "other-mem", "self"),
+    ]
+    _patch_graph(monkeypatch, nodes, edges)
 
     all_counts = asyncio.run(graph.count_nodes())
     demo_counts = asyncio.run(graph.count_nodes(namespaces={"demo"}))
 
-    assert all_counts.get("Memory") == 2
-    assert demo_counts.get("Memory") == 1
+    assert all_counts.get("Memory") == 3
+    assert all_counts.get("_edges") == 4
+    assert demo_counts.get("Memory") == 2
     assert demo_counts.get("AgentSession") == 1
+    # Only edges whose both endpoints are in the demo namespace
+    assert demo_counts.get("_edges") == 2
+
+
+def test_count_nodes_scoped_edges_ignore_foreign(monkeypatch):
+    """Public health must not change when foreign nodes/edges are added."""
+    demo_nodes = [
+        ("d1", {"type": "Memory", "namespace": "demo"}),
+        ("d2", {"type": "Memory", "namespace": "demo"}),
+    ]
+    demo_edges = [("d1", "d2", "link")]
+    _patch_graph(monkeypatch, demo_nodes, demo_edges)
+    baseline = asyncio.run(graph.count_nodes(namespaces={"demo"}))
+
+    foreign_nodes = demo_nodes + [
+        ("f1", {"type": "Memory", "namespace": "tenant-a"}),
+        ("f2", {"type": "Memory", "namespace": "tenant-b"}),
+    ]
+    foreign_edges = demo_edges + [
+        ("f1", "f2", "private"),
+        ("f1", "d1", "cross"),
+    ]
+    _patch_graph(monkeypatch, foreign_nodes, foreign_edges)
+    after = asyncio.run(graph.count_nodes(namespaces={"demo"}))
+
+    assert after == baseline
+    assert after.get("_edges") == 1

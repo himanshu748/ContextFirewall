@@ -262,16 +262,43 @@ async def session_timeline(session_id: str, namespaces=None, include_all: bool =
 
 
 async def count_nodes(namespaces: Optional[Set[str]] = None) -> Dict[str, int]:
+    """Count nodes (and edges) optionally restricted to a set of namespaces.
+
+    When ``namespaces`` is provided, only nodes that pass ``in_namespace`` are
+    counted, and ``_edges`` counts only edges whose *both* endpoints are among
+    those scoped nodes. Unscoped calls (namespaces=None) keep the previous
+    global behaviour for internal callers.
+    """
     try:
         _engine, raw_nodes, raw_edges = await _get_graph()
     except Exception:
         return {}
-    counts: Dict[str, int] = {"_edges": len(raw_edges)}
+
+    scoped_ids: set[str] = set()
+    counts: Dict[str, int] = {}
     for entry in raw_nodes:
-        _nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)
+        nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)
         props = props or {}
         if namespaces is not None and not in_namespace(props, namespaces):
             continue
+        nid = str(nid)
+        scoped_ids.add(nid)
         t = _node_type(props)
         counts[t] = counts.get(t, 0) + 1
+
+    if namespaces is None:
+        counts["_edges"] = len(raw_edges)
+    else:
+        edge_count = 0
+        for entry in raw_edges:
+            try:
+                if isinstance(entry, tuple):
+                    src, tgt = str(entry[0]), str(entry[1])
+                else:
+                    src, tgt = str(entry.get("source")), str(entry.get("target"))
+            except Exception:  # noqa: BLE001
+                continue
+            if src in scoped_ids and tgt in scoped_ids:
+                edge_count += 1
+        counts["_edges"] = edge_count
     return counts
