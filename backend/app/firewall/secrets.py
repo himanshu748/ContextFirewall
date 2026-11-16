@@ -74,9 +74,24 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("discord_bot_token", "Discord bot token", re.compile(
         r"(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{23,28}\.[A-Za-z0-9_-]{6,7}\.[A-Za-z0-9_-]{27,38}(?![A-Za-z0-9_-])"
     )),
+    # Incoming webhook URLs authenticate by webhook id and secret URL token;
+    # leaking the URL permits posting messages without a separate bot key.
+    ("discord_webhook_url", "Discord incoming webhook URL", re.compile(
+        r"(?i)(?<![A-Za-z0-9._-])https://(?:discord\.com|discordapp\.com)/api(?:/v\d+)?/webhooks/"
+        r"\d{17,20}/[A-Za-z0-9_-]{50,128}(?![A-Za-z0-9_-])"
+    )),
     # DigitalOcean personal, OAuth and refresh tokens share a 64-char hex body.
     ("digitalocean_token", "DigitalOcean API token", re.compile(
         r"(?<![A-Za-z0-9_])(?:dop|doo|dor)_v1_[0-9a-f]{64}(?![A-Za-z0-9_])"
+    )),
+    # Cloudflare's newer API key, user-token, and account-token formats use
+    # 40 alphanumeric characters followed by an eight-character hex checksum.
+    ("cloudflare_api_credential", "Cloudflare API credential", re.compile(
+        r"(?<![A-Za-z0-9_-])(?:cfk|cfut|cfat)_[A-Za-z0-9]{40}[0-9a-fA-F]{8}(?![A-Za-z0-9_-])"
+    )),
+    # Grafana service-account credentials carry 32 alphanumerics and 8 hex checksum digits.
+    ("grafana_service_account_token", "Grafana service account token", re.compile(
+        r"(?<![A-Za-z0-9_-])glsa_[A-Za-z0-9]{32}_[0-9a-fA-F]{8}(?![A-Za-z0-9_-])"
     )),
     # Azure Storage account keys are 512-bit values (86 base64 chars plus ==).
     # Require the connection-string field name to avoid flagging unrelated data.
@@ -90,11 +105,21 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("notion_token", "Notion integration token", re.compile(
         r"(?<![A-Za-z0-9_-])ntn_[A-Za-z0-9_-]{20,}(?![A-Za-z0-9_-])"
     )),
+    # Linear prefixes distinguish personal API keys and OAuth access tokens.
+    # Treat the opaque payload conservatively; this is not a token validator.
+    ("linear_token", "Linear API or OAuth token", re.compile(
+        r"(?<![A-Za-z0-9_-])lin_(?:api|oauth)_[A-Za-z0-9_-]{20,}(?![A-Za-z0-9_-])"
+    )),
     # PyPI's secret-reporting API documents at least 85 base64url characters after pypi-.
     ("pypi_token", "PyPI API token", re.compile(r"(?<![A-Za-z0-9_-])pypi-[A-Za-z0-9_-]{85,}(?![A-Za-z0-9_-])")),
     # Public pk_live_ keys are intentionally excluded; only live secret or
     # restricted keys should block a memory.
     ("stripe_live_key", "Stripe live secret or restricted key", re.compile(r"\b(?:sk|rk)_live_[A-Za-z0-9]{16,}\b")),
+    # Webhook signing secrets authenticate inbound Stripe events and are
+    # sensitive even in test mode; unlike pk_ keys they are not publishable.
+    ("stripe_webhook_secret", "Stripe webhook signing secret", re.compile(
+        r"(?<![A-Za-z0-9_-])whsec_[A-Za-z0-9]{24,128}(?![A-Za-z0-9_-])"
+    )),
     ("slack_token", "Slack token", re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b")),
     # Incoming webhook URLs are bearer credentials: their final path segment
     # permits posting to a channel without a separate API token.

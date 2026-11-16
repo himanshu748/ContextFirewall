@@ -16,6 +16,7 @@ from __future__ import annotations
 import inspect
 import json
 import logging
+import math
 from typing import Any, Dict, List, Optional, Set
 
 from app.firewall.secrets import redact_text
@@ -30,6 +31,23 @@ logger = logging.getLogger(__name__)
 
 
 def _coerce_record(node_id: str, props: Dict[str, Any]) -> Dict[str, Any]:
+    trust_value = props.get("trust_score", 0.5)
+    reinforcement_value = props.get("reinforcement_count", 1)
+    if isinstance(trust_value, bool) or isinstance(reinforcement_value, bool):
+        raise ValueError("invalid numeric memory metadata")
+    try:
+        trust = float(trust_value)
+        reinforcement = int(reinforcement_value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError("invalid numeric memory metadata") from exc
+    if (
+        not math.isfinite(trust)
+        or not 0.0 <= trust <= 1.0
+        or not 0 <= reinforcement <= 1_000_000
+        or (isinstance(reinforcement_value, float) and not reinforcement_value.is_integer())
+    ):
+        raise ValueError("out-of-range numeric memory metadata")
+
     return {
         "node_id": str(node_id),
         "memory_id": props.get("memory_id") or str(node_id),
@@ -37,9 +55,9 @@ def _coerce_record(node_id: str, props: Dict[str, Any]) -> Dict[str, Any]:
         "kind": props.get("kind", "fact"),
         "subject": props.get("subject"),
         "created_at": props.get("created_at"),
-        "trust_score": float(props.get("trust_score", 0.5) or 0.0),
+        "trust_score": trust,
         "status": props.get("status", "candidate"),
-        "reinforcement_count": int(props.get("reinforcement_count", 1) or 1),
+        "reinforcement_count": reinforcement,
         "evidence_event_ids": props.get("evidence_event_ids") or [],
         "source_session_id": props.get("source_session_id"),
         "namespace": props.get("namespace"),
@@ -131,9 +149,15 @@ async def _load_graph_memories(namespaces: Optional[Set[str]] = None) -> Dict[st
     for entry in nodes:
         nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)
         props = props or {}
-        if props.get("type") == "Memory":
-            if in_namespace(props, namespaces):
-                out[str(nid)] = _coerce_record(nid, props)
+        if not isinstance(props, dict) or props.get("type") != "Memory":
+            continue
+        if not in_namespace(props, namespaces):
+            continue
+        try:
+            out[str(nid)] = _coerce_record(nid, props)
+        except (TypeError, ValueError, OverflowError) as exc:
+            # Log only the node identifier and error type, never memory content.
+            logger.warning("Skipping malformed Memory node %s (%s)", nid, type(exc).__name__)
     return out
 
 
