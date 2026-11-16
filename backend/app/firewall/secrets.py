@@ -78,6 +78,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("digitalocean_token", "DigitalOcean API token", re.compile(
         r"(?<![A-Za-z0-9_])(?:dop|doo|dor)_v1_[0-9a-f]{64}(?![A-Za-z0-9_])"
     )),
+    # Cloudflare's newer API key, user-token, and account-token formats use
+    # 40 alphanumeric characters followed by an eight-character hex checksum.
+    ("cloudflare_api_credential", "Cloudflare API credential", re.compile(
+        r"(?<![A-Za-z0-9_-])(?:cfk|cfut|cfat)_[A-Za-z0-9]{40}[0-9a-fA-F]{8}(?![A-Za-z0-9_-])"
+    )),
     # Azure Storage account keys are 512-bit values (86 base64 chars plus ==).
     # Require the connection-string field name to avoid flagging unrelated data.
     ("azure_storage_account_key", "Azure Storage account key", re.compile(
