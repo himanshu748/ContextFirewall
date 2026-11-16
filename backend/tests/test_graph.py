@@ -78,6 +78,66 @@ def test_graph_view_truncates_to_typed_recent_nodes(monkeypatch):
     ]
 
 
+def test_graph_view_redacts_legacy_edge_label_without_changing_endpoints(monkeypatch):
+    token = "hf_" + "Ab3x" * 5  # Synthetic token, assembled at runtime.
+    nodes = [
+        ("source", {"type": "Memory", "namespace": "tenant"}),
+        ("target", {"type": "Memory", "namespace": "tenant"}),
+        ("other", {"type": "Memory", "namespace": "other"}),
+    ]
+    _patch_graph(monkeypatch, nodes, [
+        ("source", "target", f"uses {token}"),
+        ("source", "other", f"uses {token}"),
+    ])
+
+    result = asyncio.run(graph.graph_view(namespaces={"tenant"}))
+
+    assert result["edges"] == [
+        {"source": "source", "target": "target", "label": "uses «REDACTED:huggingface_token»"}
+    ]
+
+
+def test_list_sessions_redacts_legacy_summary_and_preserves_event_count(monkeypatch):
+    token = "hf_" + "Ab3x" * 5
+    nodes = [
+        ("session", {"type": "AgentSession", "namespace": "tenant", "session_id": "s-1",
+                     "task": f"debug {token}", "agent": f"runner {token}"}),
+        ("event", {"type": "SessionEvent", "session_id": "s-1", "event_id": "s-1:1"}),
+        ("other", {"type": "AgentSession", "namespace": "other", "session_id": "s-2",
+                   "task": f"private {token}"}),
+    ]
+    _patch_graph(monkeypatch, nodes)
+
+    result = asyncio.run(graph.list_sessions(namespaces={"tenant"}))
+
+    assert len(result) == 1
+    assert result[0]["session_id"] == "s-1"
+    assert result[0]["event_count"] == 1
+    assert result[0]["task"] == "debug «REDACTED:huggingface_token»"
+    assert result[0]["agent"] == "runner «REDACTED:huggingface_token»"
+
+
+def test_session_timeline_redacts_legacy_metadata_without_changing_order(monkeypatch):
+    token = "hf_" + "Ab3x" * 5
+    nodes = [
+        ("session", {"type": "AgentSession", "namespace": "tenant", "session_id": "s-1"}),
+        ("later", {"type": "SessionEvent", "session_id": "s-1", "event_id": f"s-1:{token}",
+                   "kind": f"note {token}", "content": f"contains {token}", "ordinal": 2}),
+        ("earlier", {"type": "SessionEvent", "session_id": "s-1", "event_id": "s-1:1",
+                     "kind": "normal", "content": "safe", "ordinal": 1}),
+    ]
+    _patch_graph(monkeypatch, nodes)
+
+    assert asyncio.run(graph.session_timeline("s-1", namespaces={"other"})) == []
+    result = asyncio.run(graph.session_timeline("s-1", namespaces={"tenant"}))
+
+    assert [event["ordinal"] for event in result] == [1, 2]
+    assert result[0]["event_id"] == "s-1:1"
+    assert result[1]["event_id"] == "s-1:«REDACTED:huggingface_token»"
+    assert result[1]["kind"] == "note «REDACTED:huggingface_token»"
+    assert result[1]["content"] == "contains «REDACTED:huggingface_token»"
+
+
 def test_graph_view_hides_exception_details_and_logs_exception(monkeypatch, caplog):
     async def failing_get_graph():
         raise RuntimeError("neo4j.internal: credential=private")

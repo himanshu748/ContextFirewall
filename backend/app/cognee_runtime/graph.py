@@ -65,6 +65,11 @@ def _safe_props(props: Dict[str, Any]) -> Dict[str, Any]:
     return {key: safe_value(value) for key, value in props.items() if key != "embedding"}
 
 
+def _safe_display_text(value: Any) -> Any:
+    """Redact legacy display fields without changing their non-string types."""
+    return redact_text(value) if isinstance(value, str) else value
+
+
 def _node_recency(props: Dict[str, Any]) -> float:
     """Return a sortable timestamp for a node, or negative infinity if absent."""
     for field in _RECENCY_FIELDS:
@@ -163,7 +168,7 @@ async def graph_view(limit: int = 400, namespaces=None) -> Dict[str, Any]:
         except Exception:  # noqa: BLE001
             continue
         if src in selected_ids and tgt in selected_ids:
-            edges_out.append({"source": src, "target": tgt, "label": label})
+            edges_out.append({"source": src, "target": tgt, "label": redact_text(label)})
 
     return {"nodes": nodes_out, "edges": edges_out, "truncated": truncated}
 
@@ -207,8 +212,8 @@ async def list_sessions(namespaces=None, include_all: bool = False) -> List[Dict
     return [
         {
             "session_id": p.get("session_id", ""),
-            "task": p.get("task", ""),
-            "agent": p.get("agent"),
+            "task": _safe_display_text(p.get("task", "")),
+            "agent": _safe_display_text(p.get("agent")),
             "started_at": p.get("started_at"),
             "repo": {},
             "event_count": event_counts.get(p.get("session_id", ""), 0),
@@ -250,8 +255,8 @@ async def session_timeline(session_id: str, namespaces=None, include_all: bool =
             continue
         events.append(
             {
-                "event_id": props.get("event_id", ""),
-                "kind": props.get("kind", "event"),
+                "event_id": _safe_display_text(props.get("event_id", "")),
+                "kind": _safe_display_text(props.get("kind", "event")),
                 "content": redact_text(props.get("content", "")),
                 "timestamp": props.get("timestamp"),
                 "ordinal": int(props.get("ordinal", 0) or 0),
