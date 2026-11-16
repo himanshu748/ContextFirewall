@@ -20,6 +20,32 @@ def _uri(scheme: str, user: str, pwd: str, host: str, tail: str = "") -> str:
 
 
 # --- positives: each should be detected (values assembled at runtime) ---------
+def test_detects_and_redacts_slack_app_level_tokens():
+    for prefix in ("xapp-", "xoxe.xapp-"):
+        token = prefix + "1-" + "Ab3x-" * 7
+        raw = f"Slack app credential: {token}"
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "slack_app_level_token"
+        assert redact_text(raw) == "Slack app credential: «REDACTED:slack_app_level_token»"
+        assert token not in redact_text(raw)
+        assert redacted_kinds(redact_text(raw)) == ["slack_app_level_token"]
+    assert label_for_kind("slack_app_level_token") == "Slack app-level token"
+
+
+def test_slack_app_level_tokens_exclude_public_text_and_identifier_lookalikes():
+    token = "xapp-1-" + "Ab3x-" * 7
+    for ordinary in (
+        "xapp- app-level tokens must be kept private",
+        "xapp-" + "A" * 19,
+        "xapp-" + "A" * 257,
+        "xoxe.xapp-" + "A" * 19,
+        "prefix_" + token,
+        token + "_suffix",
+    ):
+        assert not has_secret(ordinary), ordinary[:80]
+
+
 def test_grafana_service_account_tokens_are_detected_and_redacted():
     token = "glsa_" + "Ab3D" * 8 + "_a1b2c3d4"
     for raw in (token, f"Grafana credential: {token}"):

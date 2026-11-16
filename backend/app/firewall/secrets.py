@@ -130,6 +130,10 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
         r"(?<![A-Za-z0-9_-])whsec_[A-Za-z0-9]{24,128}(?![A-Za-z0-9_-])"
     )),
     ("slack_token", "Slack token", re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b")),
+    # Slack app-level tokens, including their rotating xoxe.xapp- form.
+    ("slack_app_level_token", "Slack app-level token", re.compile(
+        r"(?<![A-Za-z0-9_-])(?:xoxe\.)?xapp-[A-Za-z0-9-]{20,256}(?![A-Za-z0-9_-])"
+    )),
     # Incoming webhook URLs are bearer credentials: their final path segment
     # permits posting to a channel without a separate API token.
     ("slack_webhook_url", "Slack incoming webhook URL", re.compile(
