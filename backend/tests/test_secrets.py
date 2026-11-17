@@ -19,6 +19,34 @@ def _uri(scheme: str, user: str, pwd: str, host: str, tail: str = "") -> str:
     return scheme + "://" + user + ":" + pwd + "@" + host + tail
 
 
+def test_hashicorp_vault_tokens_are_classified_and_redacted():
+    for prefix in ("hvs", "hvb", "hvr"):
+        token = prefix + "." + "Ab3_" * 8
+        raw = f"Vault credential: {token}"
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "hashicorp_vault_token"
+        assert token not in findings[0].redacted
+        assert redact_text(raw) == "Vault credential: «REDACTED:hashicorp_vault_token»"
+        assert redacted_kinds(redact_text(raw)) == ["hashicorp_vault_token"]
+    assert label_for_kind("hashicorp_vault_token") == "HashiCorp Vault token"
+
+
+def test_hashicorp_vault_token_near_misses_are_not_secret_matches():
+    token = "hvs." + "Ab3_" * 8
+    for ordinary in (
+        "Use Vault service tokens in development",
+        "hvs." + "A" * 23,
+        "hvb." + "A" * 129,
+        "hva." + "Ab3_" * 8,
+        "prefix_" + token,
+        "hvs-" + "Ab3_" * 8,
+        "hvs." + "A" * 100_000,
+    ):
+        assert not has_secret(ordinary), ordinary[:80]
+
+
+
 # --- positives: each should be detected (values assembled at runtime) ---------
 def test_detects_and_redacts_slack_app_level_tokens():
     for prefix in ("xapp-", "xoxe.xapp-"):
