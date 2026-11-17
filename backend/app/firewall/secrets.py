@@ -57,6 +57,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("huggingface_token", "Hugging Face token", re.compile(r"\bhf_[A-Za-z0-9]{16,}\b")),
     ("openai_key", "OpenAI API key", re.compile(r"\bsk-(?:proj-)?[A-Za-z0-9_\-]{20,}\b")),
     ("anthropic_key", "Anthropic API key", re.compile(r"\bsk-ant-[A-Za-z0-9_\-]{20,}\b")),
+    # The encoded JSON service-account payload begins with eyJ. Keep the
+    # base64 span bounded to avoid scanning arbitrarily long text.
+    ("onepassword_service_account_token", "1Password service account token", re.compile(
+        r"(?<![A-Za-z0-9_])ops_eyJ[A-Za-z0-9+/]{250,4096}={0,3}(?![A-Za-z0-9_+/=])"
+    )),
     # Groq API keys have their own prefix; a bare key should not depend on
     # being labelled GROQ_API_KEY or passing the entropy fallback.
     ("groq_api_key", "Groq API key", re.compile(
