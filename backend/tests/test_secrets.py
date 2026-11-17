@@ -20,6 +20,31 @@ def _uri(scheme: str, user: str, pwd: str, host: str, tail: str = "") -> str:
 
 
 # --- positives: each should be detected (values assembled at runtime) ---------
+def test_groq_api_keys_are_detected_and_redacted():
+    token = "gsk_" + "Ab3x" * 12
+    raw = f"Groq credential: {token}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "groq_api_key"
+    assert token not in findings[0].redacted
+    assert redact_text(raw) == "Groq credential: «REDACTED:groq_api_key»"
+    assert redacted_kinds(redact_text(raw)) == ["groq_api_key"]
+    assert label_for_kind("groq_api_key") == "Groq API key"
+
+
+def test_groq_api_keys_do_not_match_partial_or_embedded_identifiers():
+    token = "gsk_" + "Ab3x" * 12
+    for ordinary in (
+        "Create a GROQ_API_KEY environment variable",
+        "gsk_" + "A" * 23,
+        "gsk_" + "A" * 129,
+        "prefix_" + token,
+        token + "_suffix",
+        "gsk_example_key",
+    ):
+        assert not has_secret(ordinary), ordinary[:80]
+
+
 def test_detects_and_redacts_slack_app_level_tokens():
     for prefix in ("xapp-", "xoxe.xapp-"):
         token = prefix + "1-" + "Ab3x-" * 7
