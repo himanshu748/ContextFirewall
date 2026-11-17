@@ -62,6 +62,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("groq_api_key", "Groq API key", re.compile(
         r"(?<![A-Za-z0-9_])gsk_[A-Za-z0-9]{30,}(?![A-Za-z0-9_])"
     )),
+    # NVIDIA NGC API keys have a distinct nvapi- prefix. Bound the opaque
+    # payload to prevent matching prose identifiers or oversized partial keys.
+    ("nvidia_ngc_api_key", "NVIDIA NGC API key", re.compile(
+        r"(?<![A-Za-z0-9_-])nvapi-[A-Za-z0-9_-]{24,256}(?![A-Za-z0-9_-])"
+    )),
     # Resend documents the re_ key prefix. Use a conservative payload length
     # because it does not document a fixed full-key length.
     ("resend_api_key", "Resend API key", re.compile(
