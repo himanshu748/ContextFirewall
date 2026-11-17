@@ -739,6 +739,56 @@ def test_ignores_uuid():
     assert not has_secret("session id 9f8b7c6d-5e4f-3a2b-1c0d-abcdef012345 recorded")
 
 
+
+def test_detects_and_redacts_twilio_account_sid():
+    # Synthetic Account SID: AC + 32 hex. Assembled to avoid scanner flags.
+    sid = "AC" + "a1b2c3d4" * 4
+    raw = f"Twilio Account SID: {sid}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "twilio_account_sid"
+    assert sid not in findings[0].redacted
+    redacted = redact_text(raw)
+    assert redacted == "Twilio Account SID: «REDACTED:twilio_account_sid»"
+    assert sid not in redacted
+    assert redacted_kinds(redacted) == ["twilio_account_sid"]
+    assert label_for_kind("twilio_account_sid") == "Twilio Account SID"
+
+
+def test_detects_and_redacts_twilio_api_key_sid():
+    # Synthetic API Key SID: SK + 32 hex.
+    sid = "SK" + "e5f6a7b8" * 4
+    raw = f"Twilio API Key: {sid}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "twilio_api_key_sid"
+    assert sid not in findings[0].redacted
+    redacted = redact_text(raw)
+    assert redacted == "Twilio API Key: «REDACTED:twilio_api_key_sid»"
+    assert sid not in redacted
+    assert redacted_kinds(redacted) == ["twilio_api_key_sid"]
+    assert label_for_kind("twilio_api_key_sid") == "Twilio API Key SID"
+
+
+def test_twilio_sid_shape_and_boundaries():
+    # Realistic negatives: wrong prefix, wrong length, adjacent identifiers.
+    good_ac = "AC" + "a1b2c3d4" * 4
+    good_sk = "SK" + "e5f6a7b8" * 4
+    for ordinary in (
+        "AC" + "a1b2c3d4" * 3 + "a1b2c3d",  # too short
+        "AC" + "a1b2c3d4" * 4 + "a",        # too long
+        "XX" + "a1b2c3d4" * 4,              # wrong prefix
+        "prefix_" + good_ac,
+        good_ac + "_suffix",
+        "sk" + "e5f6a7b8" * 4,              # lowercase wrong
+        "plain text with no secrets",
+    ):
+        assert not has_secret(ordinary), ordinary
+    # Positive still works when embedded.
+    assert has_secret(f"account={good_ac}")
+    assert has_secret(f"key={good_sk}")
+
+
 if __name__ == "__main__":  # allow running without pytest
     import sys
 

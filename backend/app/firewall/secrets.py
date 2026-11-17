@@ -144,6 +144,16 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("stripe_webhook_secret", "Stripe webhook signing secret", re.compile(
         r"(?<![A-Za-z0-9_-])whsec_[A-Za-z0-9]{24,128}(?![A-Za-z0-9_-])"
     )),
+    # Twilio Account SIDs (AC...) and API Key SIDs (SK...) identify
+    # accounts and keys that pair with secret Auth Tokens / API secrets.
+    # Detecting them surfaces likely credential material; bare 32-hex
+    # Auth Tokens fall through to the high-entropy fallback.
+    ("twilio_account_sid", "Twilio Account SID", re.compile(
+        r"(?<![A-Za-z0-9_])AC[0-9a-fA-F]{32}(?![A-Za-z0-9_])"
+    )),
+    ("twilio_api_key_sid", "Twilio API Key SID", re.compile(
+        r"(?<![A-Za-z0-9_])SK[0-9a-fA-F]{32}(?![A-Za-z0-9_])"
+    )),
     ("slack_token", "Slack token", re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b")),
     # Slack app-level tokens, including their rotating xoxe.xapp- form.
     ("slack_app_level_token", "Slack app-level token", re.compile(
