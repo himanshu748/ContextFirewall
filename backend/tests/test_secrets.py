@@ -219,6 +219,42 @@ def test_detects_and_redacts_gitlab_access_token():
     assert label_for_kind("gitlab_token") == "GitLab access token"
 
 
+def test_gitlab_ci_job_token_is_detected_and_redacted():
+    # GitLab's glcbt- prefix identifies CI/CD job credentials; fixture is synthetic.
+    token = "glcbt-" + "Ab3_" * 8
+    for raw in (token, f"CI job credential: {token}"):
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "gitlab_ci_job_token"
+        assert token not in findings[0].redacted
+        assert redact_text(raw) == raw.replace(token, "«REDACTED:gitlab_ci_job_token»")
+        assert redacted_kinds(redact_text(raw)) == ["gitlab_ci_job_token"]
+    assert label_for_kind("gitlab_ci_job_token") == "GitLab CI/CD job token"
+
+
+def test_gitlab_ci_job_token_lookalikes_are_kept():
+    token = "glcbt-" + "Ab3_" * 8
+    for ordinary in (
+        "glcbt- is GitLab's CI job token prefix",
+        "glcbt-" + "A" * 19,
+        "glcbt-" + "A" * 129,
+        "glcbt-" + "A" * 25 + ".unfinished-jwt",
+        "prefix_" + token,
+        "not" + token,
+    ):
+        assert not has_secret(ordinary), ordinary[:75]
+
+
+def test_gitlab_jwt_job_token_is_redacted_as_one_jwt_not_a_partial_legacy_token():
+    jwt = "eyJ" + "A" * 20 + "." + "eyJ" + "B" * 24 + "." + "Cd3_" * 12
+    token = "glcbt-" + jwt
+    findings = find_secrets(token)
+    assert len(findings) == 1
+    assert findings[0].kind == "jwt"
+    assert redact_text(token) == "glcbt-«REDACTED:jwt»"
+    assert jwt not in redact_text(token)
+
+
 def test_detects_and_redacts_telegram_bot_token():
     secret = "Ab3_" * 8 + "xyz"  # Synthetic 35-character secret.
     # Include 11- and 12-digit IDs and the maximum Telegram 52-bit ID.
