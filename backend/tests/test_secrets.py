@@ -19,6 +19,33 @@ def _uri(scheme: str, user: str, pwd: str, host: str, tail: str = "") -> str:
     return scheme + "://" + user + ":" + pwd + "@" + host + tail
 
 
+def test_1password_service_account_token_redaction():
+    # Synthetic base64-like body; not a real 1Password service account token.
+    token = "ops_" + "eyJ" + "Ab3/" * 70
+    message = f"Service account: {token}"
+    findings = find_secrets(message)
+    assert len(findings) == 1
+    assert findings[0].kind == "onepassword_service_account_token"
+    assert token not in findings[0].redacted
+    assert redact_text(message) == "Service account: «REDACTED:onepassword_service_account_token»"
+    assert redacted_kinds(redact_text(message)) == ["onepassword_service_account_token"]
+    assert label_for_kind("onepassword_service_account_token") == "1Password service account token"
+    assert not has_secret(redact_text(message))
+
+
+def test_1password_service_account_token_boundaries():
+    token = "ops_" + "eyJ" + "Ab3/" * 70
+    for ordinary in (
+        "ops_eyJ" + "A" * 249,
+        "ops_eyJ" + "A" * 4097,
+        "prefix_" + token,
+        token + "_suffix",
+        "ops_example_service_account_token",
+        "ops_eyJ" + "A" * 100_000,
+    ):
+        assert not has_secret(ordinary), ordinary[:80]
+
+
 def test_hashicorp_vault_tokens_are_classified_and_redacted():
     for prefix in ("hvs", "hvb", "hvr"):
         token = prefix + "." + "Ab3_" * 8
