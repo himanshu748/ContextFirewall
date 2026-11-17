@@ -19,6 +19,33 @@ def _uri(scheme: str, user: str, pwd: str, host: str, tail: str = "") -> str:
     return scheme + "://" + user + ":" + pwd + "@" + host + tail
 
 
+def test_databricks_personal_access_token_is_classified_and_redacted():
+    # Databricks documents legacy PATs with a dapi prefix and 32 hex digits.
+    token = "dapi" + "a1B2" * 8
+    raw = f"Databricks credential: {token}"
+    matches = find_secrets(raw)
+    assert len(matches) == 1
+    assert matches[0].kind == "databricks_pat"
+    assert matches[0].label == "Databricks personal access token"
+    assert redact_text(raw) == "Databricks credential: «REDACTED:databricks_pat»"
+    assert redacted_kinds(redact_text(raw)) == ["databricks_pat"]
+    assert label_for_kind("databricks_pat") == "Databricks personal access token"
+
+
+def test_databricks_pat_near_misses_are_ignored():
+    token = "dapi" + "a1B2" * 8
+    for ordinary in (
+        "Databricks PATs may begin with dapi",
+        "dapi" + "a" * 31,
+        "dapi" + "a" * 33,
+        "dapi" + "g" * 32,
+        "pre" + token,
+        token + "_suffix",
+        "dapi" + "a" * 100_000,
+    ):
+        assert not has_secret(ordinary), ordinary[:80]
+
+
 def test_hashicorp_vault_tokens_are_classified_and_redacted():
     for prefix in ("hvs", "hvb", "hvr"):
         token = prefix + "." + "Ab3_" * 8
