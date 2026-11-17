@@ -62,11 +62,6 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("groq_api_key", "Groq API key", re.compile(
         r"(?<![A-Za-z0-9_])gsk_[A-Za-z0-9]{30,}(?![A-Za-z0-9_])"
     )),
-    # NVIDIA NGC API keys have a distinct nvapi- prefix. Bound the opaque
-    # payload to prevent matching prose identifiers or oversized partial keys.
-    ("nvidia_ngc_api_key", "NVIDIA NGC API key", re.compile(
-        r"(?<![A-Za-z0-9_-])nvapi-[A-Za-z0-9_-]{24,256}(?![A-Za-z0-9_-])"
-    )),
     # Resend documents the re_ key prefix. Use a conservative payload length
     # because it does not document a fixed full-key length.
     ("resend_api_key", "Resend API key", re.compile(
@@ -112,6 +107,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     # Grafana service-account credentials carry 32 alphanumerics and 8 hex checksum digits.
     ("grafana_service_account_token", "Grafana service account token", re.compile(
         r"(?<![A-Za-z0-9_-])glsa_[A-Za-z0-9]{32}_[0-9a-fA-F]{8}(?![A-Za-z0-9_-])"
+    )),
+    # NVIDIA NGC API keys have a distinct nvapi- prefix. Bound the opaque
+    # payload to prevent matching prose identifiers or oversized partial keys.
+    ("nvidia_ngc_api_key", "NVIDIA NGC API key", re.compile(
+        r"(?<![A-Za-z0-9_-])nvapi-[A-Za-z0-9_-]{24,256}(?![A-Za-z0-9_-])"
     )),
     # Vault 1.10+ service, batch and recovery tokens use typed prefixes and
     # at least 24 random characters; legacy one-letter prefixes are ambiguous.
