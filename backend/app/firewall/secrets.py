@@ -64,6 +64,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
         r"(?<![A-Za-z0-9_])(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{40,})(?![A-Za-z0-9_])"
     )),
     ("gitlab_token", "GitLab access token", re.compile(r"\bglpat-[A-Za-z0-9_-]{20,}\b")),
+    # Legacy GitLab CI job tokens use glcbt- without dots. JWT-format job
+    # tokens are handled by the JWT rule below; do not mask just their prefix.
+    ("gitlab_ci_job_token", "GitLab CI/CD job token", re.compile(
+        r"(?<![A-Za-z0-9_-])glcbt-[A-Za-z0-9_-]{20,128}(?![A-Za-z0-9_.-])"
+    )),
     # Telegram bot IDs can require up to 52 bits (16 decimal digits).
     # Keep the /bot API path prefix outside the redacted credential.
     ("telegram_bot_token", "Telegram bot token", re.compile(
