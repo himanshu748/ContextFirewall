@@ -47,6 +47,32 @@ def test_hashicorp_vault_token_near_misses_are_not_secret_matches():
 
 
 
+def test_detects_and_redacts_groq_api_keys():
+    token = "gsk_" + "Ab3x" * 10  # Synthetic; not a live credential.
+    for content in (token, f"Groq API credential: {token}"):
+        findings = find_secrets(content)
+        assert len(findings) == 1
+        assert findings[0].kind == "groq_api_key"
+        assert token not in findings[0].redacted
+        assert redact_text(content) == content.replace(token, "«REDACTED:groq_api_key»")
+        assert redacted_kinds(redact_text(content)) == ["groq_api_key"]
+        assert not has_secret(redact_text(content))
+    assert label_for_kind("groq_api_key") == "Groq API key"
+
+
+def test_groq_key_boundaries_and_near_misses():
+    token = "gsk_" + "Ab3x" * 10
+    for ordinary in (
+        "Groq API keys should stay private",
+        "gsk_" + "A" * 29,
+        "not" + token,
+        "prefix_" + token,
+        token + "_suffix",
+    ):
+        assert not has_secret(ordinary), ordinary
+
+
+
 # --- positives: each should be detected (values assembled at runtime) ---------
 def test_detects_and_redacts_slack_app_level_tokens():
     for prefix in ("xapp-", "xoxe.xapp-"):
