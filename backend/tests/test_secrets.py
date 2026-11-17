@@ -657,6 +657,32 @@ def test_ignores_uuid():
     assert not has_secret("session id 9f8b7c6d-5e4f-3a2b-1c0d-abcdef012345 recorded")
 
 
+def test_replicate_api_tokens_are_detected_and_redacted():
+    token = "r8_" + "aB3x" * 9 + "Q"
+    raw = f"Replicate credential: {token}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "replicate_api_token"
+    assert token not in findings[0].redacted
+    assert redact_text(raw) == "Replicate credential: «REDACTED:replicate_api_token»"
+    assert redacted_kinds(redact_text(raw)) == ["replicate_api_token"]
+    assert label_for_kind("replicate_api_token") == "Replicate API token"
+
+
+def test_replicate_tokens_require_exact_length_and_boundaries():
+    token = "r8_" + "aB3x" * 9 + "Q"
+    for ordinary in (
+        "r8_ tokens authenticate Replicate API requests",
+        "r8_" + "A" * 36,
+        "r8_" + "A" * 38,
+        "r9_" + "A" * 37,
+        "prefix_" + token,
+        token + "_suffix",
+        "r8_" + "A" * 100_000,
+    ):
+        assert not has_secret(ordinary), ordinary[:80]
+
+
 if __name__ == "__main__":  # allow running without pytest
     import sys
 
