@@ -625,6 +625,35 @@ def test_slack_webhook_lookalikes_do_not_trigger():
         assert not has_secret(ordinary), ordinary
 
 
+def test_slack_gov_incoming_webhooks_are_redacted_with_public_slack_webhooks():
+    # Slack Gov webhook URLs are bearer credentials just like commercial URLs.
+    for host in ("hooks.slack.com", "hooks.slack-gov.com"):
+        webhook = (
+            "https://" + host + "/services/"
+            + "T" + "0" * 8 + "/B" + "1" * 8 + "/" + "Ab3x" * 6
+        )
+        for raw in (webhook, f"Notify via {webhook}?thread_ts=1"):
+            findings = find_secrets(raw)
+            assert len(findings) == 1
+            assert findings[0].kind == "slack_webhook_url"
+            assert redact_text(raw) == raw.replace(webhook, "«REDACTED:slack_webhook_url»")
+            assert redacted_kinds(redact_text(raw)) == ["slack_webhook_url"]
+            assert not has_secret(redact_text(raw))
+
+
+def test_slack_gov_webhook_host_and_path_lookalikes_do_not_trigger():
+    path = "/services/T" + "0" * 8 + "/B" + "1" * 8 + "/" + "A" * 24
+    for ordinary in (
+        "https://hooks.slack-gov.com/help",
+        "https://hooks.slack-gov.com.evil.example" + path,
+        "https://not-hooks.slack-gov.com" + path,
+        "https://hooks.slack-gov.com/services/T0000000/B11111111/" + "A" * 24,
+        "https://hooks.slack-gov.com" + path[:-5],
+        "prefix_https://hooks.slack-gov.com" + path,
+    ):
+        assert not has_secret(ordinary), ordinary
+
+
 def test_detects_postgres_uri_password():
     uri = _uri("postgre" + "sql", "appuser", "Pg" + "x7QwZ9", "db.example.supabase.co", ":5432/appdb")
     assert any(x.kind == "connection_uri_password" for x in find_secrets(f"DATABASE_URL={uri}"))
