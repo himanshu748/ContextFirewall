@@ -11,6 +11,7 @@ never re-exposed.
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, List
 
 from app.firewall.audit import audit_memories
@@ -25,9 +26,19 @@ _KIND_TITLES = {
 }
 _KIND_ORDER = ["command", "config", "decision", "lesson", "fact", "credential"]
 
+# Recalled text is untrusted even when the firewall approves its factual
+# content. Keep it inside its designated Markdown line rather than allowing
+# embedded headings, lists or links to masquerade as pack instructions.
+_MARKDOWN_INLINE = re.compile(r"([\\`*_{}\[\]()#+!>|<])")
+
+
+def _safe_inline(value: Any) -> str:
+    flattened = " ".join(str(value or "").split())
+    return _MARKDOWN_INLINE.sub(r"\\\1", flattened)
+
 
 def build_pack_markdown(query: str, included: List[Dict[str, Any]], excluded_count: int) -> str:
-    lines: List[str] = ["# Trusted context pack", f"_Task: {query}_", ""]
+    lines: List[str] = ["# Trusted context pack", f"_Task: {_safe_inline(query)}_", ""]
     if not included:
         lines.append("_No memories passed the firewall for this task._")
     else:
@@ -38,11 +49,15 @@ def build_pack_markdown(query: str, included: List[Dict[str, Any]], excluded_cou
             items = grouped.get(kind)
             if not items:
                 continue
-            lines.append(f"## {_KIND_TITLES.get(kind, kind.title())}")
+            lines.append(f"## {_safe_inline(_KIND_TITLES.get(kind, kind.title()))}")
             for mem in sorted(items, key=lambda m: -float(m.get("trust_score", 0))):
                 trust = float(mem.get("trust_score", 0))
-                stamp = f" _(as of {mem['created_at']})_" if mem.get("created_at") else ""
-                lines.append(f"- {mem.get('text', '').strip()}{stamp}  ·  trust {trust:.2f}")
+                stamp = (
+                    f" _(as of {_safe_inline(mem['created_at'])})_"
+                    if mem.get("created_at") else ""
+                )
+                safe_text = _safe_inline(mem.get("text", ""))
+                lines.append(f"- {safe_text}{stamp}  ·  trust {trust:.2f}")
             lines.append("")
     lines.append("---")
     passed = len(included)
@@ -61,15 +76,17 @@ def build_raw_recall(candidates: List[Dict[str, Any]]) -> str:
     """
     if not candidates:
         return "Raw recall returned no memories for this task."
-    lines = ["Raw recall returns every memory it finds for this task, with no trust judgment:", ""]
+    lines = [
+        "Raw recall presents up to 12 memories for this task, with no trust judgment:",
+        "",
+    ]
     for c in candidates[:12]:
-        text = (c.get("text") or "").strip()
+        text = _safe_inline(c.get("text"))
         if text:
             lines.append(f"• {text}")
     lines += [
         "",
-        "A flat vector store hands all of these to the next agent, including the stale deploy "
-        "command, the contradicted claim, the leaked credential, and the unsupported number.",
+        "Raw recall presents these memories without a firewall trust judgment.",
     ]
     return "\n".join(lines)
 
