@@ -73,6 +73,33 @@ def test_groq_key_boundaries_and_near_misses():
 
 
 
+def test_xai_api_keys_are_classified_and_redacted():
+    token = "xai-" + "Ab3x" * 9  # Synthetic credential-shaped fixture.
+    for raw in (token, f"xAI credential: {token}"):
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "xai_api_key"
+        assert token not in findings[0].redacted
+        assert redact_text(raw) == raw.replace(token, "«REDACTED:xai_api_key»")
+        assert redacted_kinds(redact_text(raw)) == ["xai_api_key"]
+        assert not has_secret(redact_text(raw))
+    assert label_for_kind("xai_api_key") == "xAI API key"
+
+
+def test_xai_api_key_boundaries_and_long_values():
+    token = "xai-" + "Ab3x" * 9
+    for ordinary in (
+        "xAI API credentials use the xai- prefix",
+        "xai-" + "A" * 23,
+        "xai-" + "A" * 129,
+        "prefix_" + token,
+        "not" + token,
+        "xai_" + "A" * 36,
+        "xai-" + "A" * 100_000,
+    ):
+        assert not has_secret(ordinary), ordinary[:80]
+
+
 def test_detects_and_redacts_resend_api_key():
     # Resend documents the re_ prefix; use an entirely synthetic opaque payload.
     token = "re_" + "Ab3x" * 8
