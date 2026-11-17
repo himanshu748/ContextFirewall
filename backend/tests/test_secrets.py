@@ -72,6 +72,32 @@ def test_groq_key_boundaries_and_near_misses():
         assert not has_secret(ordinary), ordinary
 
 
+def test_databricks_pat_detected_even_with_low_entropy_body():
+    token = "dapi" + "1" * 32  # Synthetic credential, assembled for test.
+    raw = f"Databricks credential: {token}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "databricks_pat"
+    assert token not in findings[0].redacted
+    assert redact_text(raw) == "Databricks credential: «REDACTED:databricks_pat»"
+    assert redacted_kinds(redact_text(raw)) == ["databricks_pat"]
+    assert not has_secret(redact_text(raw))
+    assert label_for_kind("databricks_pat") == "Databricks personal access token"
+
+
+def test_databricks_pat_rejects_prefixes_and_embedded_identifiers():
+    token = "dapi" + "1" * 32
+    for ordinary in (
+        "Databricks PATs start with dapi",
+        "dapi" + "1" * 31,
+        "not" + token,
+        "prefix_" + token,
+        token + "_suffix",
+        "dapi" + "1" * 33,
+    ):
+        assert not has_secret(ordinary), ordinary
+
+
 
 def test_detects_and_redacts_resend_api_key():
     # Resend documents the re_ prefix; use an entirely synthetic opaque payload.

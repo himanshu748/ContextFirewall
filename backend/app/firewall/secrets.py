@@ -62,6 +62,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("groq_api_key", "Groq API key", re.compile(
         r"(?<![A-Za-z0-9_])gsk_[A-Za-z0-9]{30,}(?![A-Za-z0-9_])"
     )),
+    # Databricks PATs use the distinctive dapi prefix and 32-character body.
+    # Named detection covers even all-numeric tokens, which entropy cannot catch.
+    ("databricks_pat", "Databricks personal access token", re.compile(
+        r"(?<![A-Za-z0-9_])dapi[A-Za-z0-9]{32}(?![A-Za-z0-9_])"
+    )),
     # Resend documents the re_ key prefix. Use a conservative payload length
     # because it does not document a fixed full-key length.
     ("resend_api_key", "Resend API key", re.compile(
