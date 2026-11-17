@@ -98,6 +98,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("grafana_service_account_token", "Grafana service account token", re.compile(
         r"(?<![A-Za-z0-9_-])glsa_[A-Za-z0-9]{32}_[0-9a-fA-F]{8}(?![A-Za-z0-9_-])"
     )),
+    # Vault 1.10+ service, batch and recovery tokens use typed prefixes and
+    # at least 24 random characters; legacy one-letter prefixes are ambiguous.
+    ("hashicorp_vault_token", "HashiCorp Vault token", re.compile(
+        r"(?<![A-Za-z0-9._-])hv[sbr]\.[A-Za-z0-9_-]{24,128}(?![A-Za-z0-9_-])"
+    )),
     # Azure Storage account keys are 512-bit values (86 base64 chars plus ==).
     # Require the connection-string field name to avoid flagging unrelated data.
     ("azure_storage_account_key", "Azure Storage account key", re.compile(
