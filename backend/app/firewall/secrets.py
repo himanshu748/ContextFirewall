@@ -89,6 +89,10 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("digitalocean_token", "DigitalOcean API token", re.compile(
         r"(?<![A-Za-z0-9_])(?:dop|doo|dor)_v1_[0-9a-f]{64}(?![A-Za-z0-9_])"
     )),
+    # Replicate documents a fixed 40-character token: r8_ plus 37 opaque characters.
+    ("replicate_api_token", "Replicate API token", re.compile(
+        r"(?<![A-Za-z0-9_-])r8_[A-Za-z0-9_-]{37}(?![A-Za-z0-9_-])"
+    )),
     # Cloudflare's newer API key, user-token, and account-token formats use
     # 40 alphanumeric characters followed by an eight-character hex checksum.
     ("cloudflare_api_credential", "Cloudflare API credential", re.compile(
