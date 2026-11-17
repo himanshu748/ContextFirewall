@@ -201,7 +201,7 @@ async def remember(req: RememberRequest, authorization: Optional[str] = Header(d
 @app.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
     profile = configure_cognee()
-    counts = await count_nodes()
+    counts = await count_nodes(namespaces={"demo"})
     return HealthResponse(status="ok", profile=profile, counts=counts)
 
 
@@ -364,7 +364,9 @@ async def reset(x_admin_token: Optional[str] = Header(default=None, alias="X-Adm
 
 async def _demo_already_seeded() -> bool:
     try:
-        counts = await count_nodes()
+        sample = json.loads(DEMO_SESSION.read_text())
+        sid = sample.get("session_id") or sample.get("id") or "demo-session"
+        counts = await count_nodes(namespaces={"demo"}, source_session_id=sid)
         return int(counts.get("Memory", 0)) > 0
     except Exception:  # noqa: BLE001
         return False
@@ -410,7 +412,7 @@ async def demo_seed(
         await _reset_memory()
     elif await _demo_already_seeded():
         await _ensure_demo_rules()
-        counts = await count_nodes()
+        counts = await count_nodes(namespaces={"demo"})
         session = hydrate_demo_secrets(json.loads(DEMO_SESSION.read_text()))
         sid = session.get("session_id") or session.get("id") or "demo-session"
         response = IngestResponse(

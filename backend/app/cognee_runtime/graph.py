@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Tuple
 from app.firewall.secrets import redact_text
 
 from .bootstrap import configure_cognee
-from .recall import effective_namespace, in_namespace
+from .recall import effective_namespace, in_namespace, node_namespaces
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +99,57 @@ def _node_priority(props: Dict[str, Any]) -> Tuple[bool, float]:
     return bool(props.get("type") or props.get("__type__")), _node_recency(props)
 
 
+def _event_scopes(raw_nodes, raw_edges) -> Dict[str, Tuple[Dict[str, Any], str | None]]:
+    """Resolve events by graph-node relationships, never by client-supplied session_id.
+
+    New events have an explicit namespace. For older events, the typed session
+    edge identifies their owner. Missing, conflicting, or ambiguous ownership
+    is excluded, including when two tenants reuse the same session_id.
+    """
+    nodes_by_id: Dict[str, Tuple[str, Dict[str, Any]]] = {}
+    for entry in raw_nodes:
+        try:
+            nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)
+        except (AttributeError, IndexError, TypeError, ValueError):
+            continue
+        if nid is not None:
+            props = props or {}
+            nodes_by_id[str(nid)] = (_node_type(props), props)
+
+    session_links: Dict[str, set[str]] = {}
+    for edge in raw_edges:
+        try:
+            src, tgt = (edge[0], edge[1]) if isinstance(edge, tuple) else (edge["source"], edge["target"])
+        except (KeyError, IndexError, TypeError):
+            continue
+        src, tgt = str(src), str(tgt)
+        source_node, target_node = nodes_by_id.get(src), nodes_by_id.get(tgt)
+        if (source_node is not None and source_node[0] == "SessionEvent"
+                and target_node is not None and target_node[0] == "AgentSession"):
+            session_links.setdefault(src, set()).add(tgt)
+
+    scopes: Dict[str, Tuple[Dict[str, Any], str | None]] = {}
+    for nid, (node_type, props) in nodes_by_id.items():
+        if node_type != "SessionEvent":
+            continue
+        event_namespaces = node_namespaces(props)
+        if len(event_namespaces) > 1:
+            continue
+        owners = session_links.get(nid, set())
+        if len(owners) > 1:
+            continue
+        if owners:
+            owner_id = next(iter(owners))
+            owner_props = nodes_by_id[owner_id][1]
+            owner_namespaces = node_namespaces(owner_props)
+            if len(owner_namespaces) != 1 or (event_namespaces and event_namespaces != owner_namespaces):
+                continue
+            scopes[nid] = (owner_props, owner_id)
+        elif len(event_namespaces) == 1:
+            scopes[nid] = (props, None)
+    return scopes
+
+
 async def graph_view(limit: int = 400, namespaces=None) -> Dict[str, Any]:
     """Return {nodes, edges} for visualization."""
     try:
@@ -107,15 +158,7 @@ async def graph_view(limit: int = 400, namespaces=None) -> Dict[str, Any]:
         logger.exception("Failed to load graph data")
         return {"nodes": [], "edges": [], "truncated": False, "error": _GRAPH_ERROR}
 
-    session_namespaces: Dict[str, Dict[str, Any]] = {}
-    for entry in raw_nodes:
-        try:
-            _nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)
-        except Exception:  # noqa: BLE001
-            continue
-        props = props or {}
-        if _node_type(props) == "AgentSession" and props.get("session_id"):
-            session_namespaces[str(props["session_id"])] = props
+    event_scopes = _event_scopes(raw_nodes, raw_edges)
 
     visible_nodes: List[Tuple[str, Dict[str, Any], str]] = []
     seen: set[str] = set()
@@ -131,9 +174,10 @@ async def graph_view(limit: int = 400, namespaces=None) -> Dict[str, Any]:
         node_type = _node_type(props)
         node_ns_props = props
         if node_type == "SessionEvent":
-            session_props = session_namespaces.get(_event_session_id(props))
-            if session_props is not None:
-                node_ns_props = session_props
+            resolved = event_scopes.get(nid)
+            if resolved is None:
+                continue
+            node_ns_props = resolved[0]
         if not in_namespace(node_ns_props, namespaces):
             continue
         seen.add(nid)
@@ -173,15 +217,6 @@ async def graph_view(limit: int = 400, namespaces=None) -> Dict[str, Any]:
     return {"nodes": nodes_out, "edges": edges_out, "truncated": truncated}
 
 
-def _event_session_id(props: Dict[str, Any]) -> str:
-    """A SessionEvent's owning session id, explicit property, with id-prefix fallback."""
-    sid = props.get("session_id")
-    if sid:
-        return str(sid)
-    eid = str(props.get("event_id", ""))
-    return eid.split(":", 1)[0] if ":" in eid else ""
-
-
 async def list_sessions(namespaces=None, include_all: bool = False) -> List[Dict[str, Any]]:
     """All AgentSession nodes with an event count.
 
@@ -189,26 +224,25 @@ async def list_sessions(namespaces=None, include_all: bool = False) -> List[Dict
     span every namespace; public endpoints always leave it False.
     """
     try:
-        _engine, raw_nodes, _edges = await _get_graph()
+        _engine, raw_nodes, raw_edges = await _get_graph()
     except Exception:
         return []
     event_counts: Dict[str, int] = {}
-    agent_sessions: List[Dict[str, Any]] = []
+    for _scope, owner_id in _event_scopes(raw_nodes, raw_edges).values():
+        if owner_id is not None:
+            event_counts[owner_id] = event_counts.get(owner_id, 0) + 1
+    agent_sessions: List[Tuple[str, Dict[str, Any]]] = []
     for entry in raw_nodes:
-        _nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)
+        nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)
         props = props or {}
         t = _node_type(props)
-        if t == "SessionEvent":
-            sid = _event_session_id(props)
-            if sid:
-                event_counts[sid] = event_counts.get(sid, 0) + 1
-        elif t == "AgentSession":
+        if t == "AgentSession":
             if not include_all:
                 if not in_namespace(props, namespaces):
                     continue
                 if effective_namespace(props) == "demo" and str(props.get("session_id", "")).startswith("mcp-"):
                     continue
-            agent_sessions.append(props)
+            agent_sessions.append((str(nid), props))
     return [
         {
             "session_id": p.get("session_id", ""),
@@ -216,9 +250,9 @@ async def list_sessions(namespaces=None, include_all: bool = False) -> List[Dict
             "agent": _safe_display_text(p.get("agent")),
             "started_at": p.get("started_at"),
             "repo": {},
-            "event_count": event_counts.get(p.get("session_id", ""), 0),
+            "event_count": event_counts.get(nid, 0),
         }
-        for p in agent_sessions
+        for nid, p in agent_sessions
     ]
 
 
@@ -228,30 +262,33 @@ async def session_timeline(session_id: str, namespaces=None, include_all: bool =
     ``include_all`` bypasses namespace scoping for internal pipelines only.
     """
     try:
-        _engine, raw_nodes, _edges = await _get_graph()
+        _engine, raw_nodes, raw_edges = await _get_graph()
     except Exception:
         return []
-    session_props = None
+    candidate_session_ids = []
     for entry in raw_nodes:
-        _nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)
+        nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)
         props = props or {}
-        if _node_type(props) == "AgentSession" and props.get("session_id") == session_id:
-            session_props = props
-            break
-    if session_props is None:
+        if _node_type(props) != "AgentSession" or props.get("session_id") != session_id:
+            continue
+        if not include_all and (not in_namespace(props, namespaces)
+                                or (effective_namespace(props) == "demo" and str(session_id).startswith("mcp-"))):
+            continue
+        candidate_session_ids.append(str(nid))
+    # The URL has only a session_id, so multiple matching accessible sessions
+    # cannot be distinguished safely, even if their graph IDs are different.
+    if len(candidate_session_ids) != 1:
         return []
-    if not include_all:
-        if not in_namespace(session_props, namespaces):
-            return []
-        if effective_namespace(session_props) == "demo" and str(session_id).startswith("mcp-"):
-            return []
+    owner_id = candidate_session_ids[0]
+    event_scopes = _event_scopes(raw_nodes, raw_edges)
     events: List[Dict[str, Any]] = []
     for entry in raw_nodes:
-        _nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)
+        nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)
         props = props or {}
         if _node_type(props) != "SessionEvent":
             continue
-        if session_id and _event_session_id(props) != session_id:
+        resolved = event_scopes.get(str(nid))
+        if resolved is None or resolved[1] != owner_id:
             continue
         events.append(
             {
@@ -266,14 +303,48 @@ async def session_timeline(session_id: str, namespaces=None, include_all: bool =
     return events
 
 
-async def count_nodes() -> Dict[str, int]:
+async def count_nodes(namespaces=None, source_session_id: str | None = None) -> Dict[str, int]:
+    """Count admitted nodes and their edges; optionally count one session's memories."""
     try:
         _engine, raw_nodes, raw_edges = await _get_graph()
     except Exception:
         return {}
-    counts: Dict[str, int] = {"_edges": len(raw_edges)}
+
+    if namespaces is None and source_session_id is None:
+        counts: Dict[str, int] = {"_edges": len(raw_edges)}
+        for entry in raw_nodes:
+            _nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)
+            t = _node_type(props or {})
+            counts[t] = counts.get(t, 0) + 1
+        return counts
+
+    event_scopes = _event_scopes(raw_nodes, raw_edges)
+    counts: Dict[str, int] = {"_edges": 0}
+    admitted_ids: set[str] = set()
     for entry in raw_nodes:
-        _nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)
-        t = _node_type(props or {})
-        counts[t] = counts.get(t, 0) + 1
+        nid, props = entry if isinstance(entry, tuple) else (entry.get("id"), entry)
+        props = props or {}
+        node_type = _node_type(props)
+        scope = props
+        if node_type == "SessionEvent":
+            resolved = event_scopes.get(str(nid))
+            if resolved is None:
+                continue
+            scope = resolved[0]
+        if namespaces is not None and not in_namespace(scope, namespaces):
+            continue
+        if source_session_id is not None and (
+            node_type != "Memory" or str(props.get("source_session_id", "")) != source_session_id
+        ):
+            continue
+        admitted_ids.add(str(nid))
+        counts[node_type] = counts.get(node_type, 0) + 1
+
+    for edge in raw_edges:
+        try:
+            src, tgt = (edge[0], edge[1]) if isinstance(edge, tuple) else (edge["source"], edge["target"])
+            if str(src) in admitted_ids and str(tgt) in admitted_ids:
+                counts["_edges"] += 1
+        except (KeyError, IndexError, TypeError):
+            continue
     return counts

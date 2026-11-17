@@ -73,6 +73,7 @@ class SessionEvent(DataPoint):
     timestamp: Optional[str] = None
     ordinal: int = 0
     session: SkipValidation[Any] = None  # -> AgentSession (typed edge)
+    namespace: Optional[str] = None
     metadata: dict = {"index_fields": ["content"]}
 
 

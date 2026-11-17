@@ -24,6 +24,7 @@ NODES = [
 ]
 EDGES = [
     ("demo-evt", "demo-sess", "session"),
+    ("acme-evt", "acme-sess", "session"),
     ("acme-chunk", "acme-entity", "contains"),
     ("demo-chunk", "acme-entity", "contains"),
     ("demo-chunk", "shared-entity", "contains"),
@@ -55,7 +56,7 @@ def test_demo_reader_never_sees_other_tenants_or_untagged_nodes(monkeypatch):
 def test_tenant_sees_only_its_own_nodes(monkeypatch):
     ids, edges = _view(monkeypatch, {"acme"})
     assert ids == {"acme-sess", "acme-evt", "acme-chunk", "acme-entity", "acme-rule"}
-    assert edges == {("acme-chunk", "acme-entity")}
+    assert edges == {("acme-evt", "acme-sess"), ("acme-chunk", "acme-entity")}
 
 
 def test_entity_shared_by_two_namespaces_needs_access_to_both(monkeypatch):
@@ -144,3 +145,110 @@ def test_ingest_tags_cognified_nodes_with_namespace(monkeypatch):
     other = dict(session, session_id="globex-1", memories=[{"text": "a fact", "subject": "s"}])
     asyncio.run(ingest.ingest_session(other, cognify=True, namespace="globex"))
     assert calls["add"]["node_set"] == ["cf_ns_globex"]
+
+
+def test_count_nodes_filters_tenant_counts_and_cross_namespace_edges(monkeypatch):
+    nodes = NODES + [
+        ("demo-memory", {"type": "Memory", "namespace": "demo", "source_session_id": "demo-1"}),
+        ("other-demo-memory", {"type": "Memory", "namespace": "demo", "source_session_id": "other-demo"}),
+        ("tenant-memory", {"type": "Memory", "namespace": "acme", "source_session_id": "acme-1"}),
+    ]
+    edges = EDGES + [
+        ("demo-memory", "demo-sess", "belongs"),
+        ("tenant-memory", "acme-sess", "belongs"),
+        ("demo-memory", "tenant-memory", "cross-tenant"),
+    ]
+
+    async def fake_get_graph():
+        return None, nodes, edges
+
+    monkeypatch.setattr(graph, "_get_graph", fake_get_graph)
+    public = asyncio.run(graph.count_nodes(namespaces={"demo"}))
+    assert public["Memory"] == 2
+    assert public["AgentSession"] == 1
+    assert public["SessionEvent"] == 1
+    assert public["_edges"] == 2
+    assert public.get("Rule", 0) == 0
+
+    sample = asyncio.run(graph.count_nodes(namespaces={"demo"}, source_session_id="demo-1"))
+    assert sample["Memory"] == 1
+    assert sample["_edges"] == 0
+
+    tenant = asyncio.run(graph.count_nodes(namespaces={"acme"}))
+    assert tenant["Memory"] == 1
+    assert tenant["Rule"] == 1
+    assert tenant["_edges"] == 3
+
+    global_counts = asyncio.run(graph.count_nodes())
+    assert global_counts["Memory"] == 3
+    assert global_counts["_edges"] == len(edges)
+
+
+def test_identical_client_session_ids_never_misattribute_events(monkeypatch):
+    """Both node orders must isolate event counts, graph views and replay data."""
+    nodes = [
+        ("demo-sess", {"type": "AgentSession", "session_id": "shared", "namespace": "demo"}),
+        ("acme-sess", {"type": "AgentSession", "session_id": "shared", "namespace": "acme"}),
+        ("demo-evt", {"type": "SessionEvent", "session_id": "shared", "event_id": "shared:e0",
+                      "namespace": "demo", "content": "public event", "ordinal": 0}),
+        ("acme-evt", {"type": "SessionEvent", "session_id": "shared", "event_id": "shared:e0",
+                      "namespace": "acme", "content": "private event", "ordinal": 0}),
+        ("demo-legacy", {"type": "SessionEvent", "session_id": "shared", "content": "old demo event"}),
+        ("acme-legacy", {"type": "SessionEvent", "session_id": "shared", "content": "old private event"}),
+        ("ambiguous", {"type": "SessionEvent", "session_id": "shared", "content": "ambiguous"}),
+        ("orphan", {"type": "SessionEvent", "session_id": "shared", "content": "orphan"}),
+        ("mismatched", {"type": "SessionEvent", "session_id": "shared",
+                        "namespace": "demo", "content": "wrong owner"}),
+    ]
+    edges = [
+        ("demo-evt", "demo-sess", "session"),
+        ("acme-evt", "acme-sess", "session"),
+        ("demo-legacy", "demo-sess", "session"),
+        ("acme-legacy", "acme-sess", "session"),
+        ("ambiguous", "demo-sess", "session"),
+        ("ambiguous", "acme-sess", "session"),
+        ("mismatched", "acme-sess", "session"),
+    ]
+
+    for reverse in (False, True):
+        async def fake_get_graph():
+            return None, list(reversed(nodes)) if reverse else nodes, list(reversed(edges)) if reverse else edges
+
+        monkeypatch.setattr(graph, "_get_graph", fake_get_graph)
+        for namespace, expected_events in (
+            ("demo", {"demo-evt", "demo-legacy"}),
+            ("acme", {"acme-evt", "acme-legacy"}),
+        ):
+            counts = asyncio.run(graph.count_nodes(namespaces={namespace}))
+            assert counts["SessionEvent"] == 2
+            assert counts["AgentSession"] == 1
+            assert counts["_edges"] == 2
+
+            view = asyncio.run(graph.graph_view(namespaces={namespace}))
+            visible_events = {n["id"] for n in view["nodes"] if n["type"] == "SessionEvent"}
+            assert visible_events == expected_events
+
+            sessions = asyncio.run(graph.list_sessions(namespaces={namespace}))
+            assert len(sessions) == 1
+            assert sessions[0]["event_count"] == 2
+
+            timeline = asyncio.run(graph.session_timeline("shared", namespaces={namespace}))
+            assert {e["content"] for e in timeline} == (
+                {"public event", "old demo event"} if namespace == "demo"
+                else {"private event", "old private event"}
+            )
+
+        # Even an internal request spanning both namespaces must reject an
+        # ambiguous session-id-only replay request.
+        assert asyncio.run(graph.session_timeline("shared", namespaces={"demo", "acme"})) == []
+
+
+def test_ingested_events_carry_explicit_namespace():
+    session = {
+        "session_id": "shared", "task": "t", "repo": {"name": "r"},
+        "events": [{"kind": "note", "content": "private"}], "memories": [],
+    }
+    nodes, _memories = ingest.build_nodes(session, namespace="acme")
+    events = [node for node in nodes if isinstance(node, ingest.SessionEvent)]
+    assert len(events) == 1
+    assert events[0].namespace == "acme"

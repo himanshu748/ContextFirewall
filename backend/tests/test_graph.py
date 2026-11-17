@@ -106,7 +106,8 @@ def test_list_sessions_redacts_legacy_summary_and_preserves_event_count(monkeypa
         ("other", {"type": "AgentSession", "namespace": "other", "session_id": "s-2",
                    "task": f"private {token}"}),
     ]
-    _patch_graph(monkeypatch, nodes)
+    # Legacy events without explicit namespaces still have a typed ownership edge.
+    _patch_graph(monkeypatch, nodes, [("event", "session", "session")])
 
     result = asyncio.run(graph.list_sessions(namespaces={"tenant"}))
 
@@ -126,7 +127,10 @@ def test_session_timeline_redacts_legacy_metadata_without_changing_order(monkeyp
         ("earlier", {"type": "SessionEvent", "session_id": "s-1", "event_id": "s-1:1",
                      "kind": "normal", "content": "safe", "ordinal": 1}),
     ]
-    _patch_graph(monkeypatch, nodes)
+    _patch_graph(monkeypatch, nodes, [
+        ("later", "session", "session"),
+        ("earlier", "session", "session"),
+    ])
 
     assert asyncio.run(graph.session_timeline("s-1", namespaces={"other"})) == []
     result = asyncio.run(graph.session_timeline("s-1", namespaces={"tenant"}))
