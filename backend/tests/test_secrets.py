@@ -43,6 +43,35 @@ def test_vercel_token_near_misses_are_not_flagged():
         assert not has_secret(ordinary), ordinary[:80]
 
 
+def test_gitlab_deploy_tokens_are_classified_and_redacted():
+    token = "gldt-" + "a1B2" * 8  # Synthetic, never an issued token.
+    raw = f"GitLab deploy credential: {token}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "gitlab_deploy_token"
+    assert redact_text(raw) == "GitLab deploy credential: «REDACTED:gitlab_deploy_token»"
+    assert token not in redact_text(raw)
+    assert redacted_kinds(redact_text(raw)) == ["gitlab_deploy_token"]
+    assert not has_secret(redact_text(raw))
+    assert label_for_kind("gitlab_deploy_token") == "GitLab deploy token"
+
+
+def test_gitlab_deploy_token_near_misses_remain_unchanged():
+    token = "gldt-" + "a1B2" * 8
+    for ordinary in (
+        "GitLab deploy token documentation",
+        "gldt-" + "a" * 15,
+        "gldt-" + "a" * 129,
+        "not" + token,
+        "prefix_" + token,
+        "gldt-" + "a" * 8 + "!" + "b" * 8,
+        "glpt-" + "a1B2" * 8,
+        "gldt-" + "a" * 100_000,
+    ):
+        assert not has_secret(ordinary), ordinary[:80]
+
+
+
 def _uri(scheme: str, user: str, pwd: str, host: str, tail: str = "") -> str:
     """Assemble a connection URI from fragments so no full credential-URI literal is committed."""
     return scheme + "://" + user + ":" + pwd + "@" + host + tail
@@ -262,6 +291,35 @@ def test_grafana_service_account_token_shape_and_boundaries():
         "glsa_" + "A" * 100_000 + "_a1b2c3d4",
     ):
         assert not has_secret(ordinary), ordinary[:80]
+
+
+def test_tailscale_key_types_are_detected_and_redacted():
+    # Synthetic two-component keys modeled on the documented tskey-* format.
+    # No live credential string is stored in the test suite.
+    for key_type in ("api", "auth", "client", "scim", "webhook"):
+        token = "tskey-" + key_type + "-" + "aB3D" * 3 + "-" + "C4dE" * 5
+        raw = "Tailscale credential: " + token
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "tailscale_token"
+        assert token not in findings[0].redacted
+        assert redact_text(raw) == "Tailscale credential: «REDACTED:tailscale_token»"
+        assert redacted_kinds(redact_text(raw)) == ["tailscale_token"]
+    assert label_for_kind("tailscale_token") == "Tailscale API, auth, or integration key"
+
+
+def test_tailscale_prefixes_and_near_misses_are_not_secrets():
+    token = "tskey-api-" + "A" * 12 + "-" + "B" * 20
+    for ordinary in (
+        "Configure your Tailscale tskey-api access token",
+        "tskey-api-" + "A" * 7 + "-" + "B" * 20,
+        "tskey-api-" + "A" * 12 + "-" + "B" * 11,
+        "tskey-unknown-" + "A" * 12 + "-" + "B" * 20,
+        "prefix_" + token,
+        token + "_suffix",
+    ):
+        assert not has_secret(ordinary), ordinary
+
 
 
 def test_detects_and_redacts_cloudflare_api_credentials():
@@ -523,6 +581,35 @@ def test_gitlab_prefix_without_a_full_token_is_not_a_secret():
     assert not has_secret("glpat-" + "a" * 19)
 
 
+def test_detects_gitlab_runner_authentication_tokens():
+    # GitLab documents glrt- and legacy-registration glrtr- prefixes.
+    for prefix in ("glrt-", "glrtr-"):
+        token = prefix + "a1b2c3d4" * 4
+        raw = f"Runner credential: {token}"
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "gitlab_runner_token"
+        assert token not in findings[0].redacted
+        assert redact_text(raw) == "Runner credential: «REDACTED:gitlab_runner_token»"
+        assert redacted_kinds(redact_text(raw)) == ["gitlab_runner_token"]
+    assert label_for_kind("gitlab_runner_token") == "GitLab runner authentication token"
+
+
+def test_gitlab_runner_token_near_misses_are_not_secrets():
+    token = "glrt-" + "a1b2c3d4" * 4
+    for ordinary in (
+        "Set your glrt- token in CI",
+        "glrt-" + "a" * 19,
+        "glrtr-" + "a" * 129,
+        "not" + token,
+        "prefix_" + token,
+        token + "_suffix",
+        "glrt-" + "A" * 100_000,
+    ):
+        assert not has_secret(ordinary), ordinary[:80]
+
+
+
 def test_detects_and_redacts_shopify_admin_access_token():
     token = "shpat_" + "a1B2" * 8  # Synthetic 32-character body.
     raw = f"Shopify credential: {token}"
@@ -602,6 +689,65 @@ def test_discord_webhook_url_near_misses_are_not_secrets():
         "https://discord.com" + path + "A" * 64 + "_suffix" * 11,
     ):
         assert not has_secret(ordinary), ordinary[:100]
+
+
+def test_detects_and_redacts_sentry_org_auth_token():
+    token = "sntrys_" + "Ab12" * 6 + "_" + "Cd34" * 8  # Synthetic payload and secret.
+    raw = f"Sentry organization auth: {token}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "sentry_org_auth_token"
+    assert token not in findings[0].redacted
+    assert redact_text(raw) == "Sentry organization auth: «REDACTED:sentry_org_auth_token»"
+    assert redacted_kinds(redact_text(raw)) == ["sentry_org_auth_token"]
+    assert label_for_kind("sentry_org_auth_token") == "Sentry organization auth token"
+
+
+def test_sentry_org_auth_token_near_misses_are_not_secrets():
+    token = "sntrys_" + "Ab12" * 6 + "_" + "Cd34" * 8
+    for ordinary in (
+        "Sentry organization auth token", "sntrys_" + "A" * 9 + "_" + "B" * 32,
+        "sntrys_" + "A" * 24 + "_" + "B" * 9,
+        "sentry_" + "Ab12" * 6 + "_" + "Cd34" * 8,
+        "not" + token,
+        token + "_suffix",
+    ):
+        assert not has_secret(ordinary), ordinary
+
+
+def test_sentry_org_auth_token_standard_base64_and_full_redaction():
+    # Sentry encodes the JSON payload with standard Base64, retaining padding,
+    # and the 32-byte secret with standard Base64, removing its final '='.
+    # All credentials are synthetic and assembled at runtime.
+    payloads = (
+        base64.b64encode(b'{"iat": 1234567890.123456, "org": "sample"}').decode("ascii"),
+        base64.b64encode(b'{"iat": 1234567890.123456, "org": "example"}').decode("ascii"),
+        base64.b64encode(b'{"iat": 123, "org": "~~~~~~~"}').decode("ascii"),
+        base64.b64encode(b'{"iat": 123, "org": "???????"}').decode("ascii"),
+    )
+    assert any(payload.endswith("==") for payload in payloads)
+    assert any(payload.endswith("=") and not payload.endswith("==") for payload in payloads)
+    assert any("+" in payload for payload in payloads)
+    assert any("/" in payload for payload in payloads)
+
+    secrets = (
+        base64.b64encode(bytes([251, 255]) * 16).decode("ascii").rstrip("="),
+        "A" * 42 + "+",  # Regression: do not leave a terminal '+' exposed.
+        "B" * 42 + "/",  # Regression: do not leave a terminal '/' exposed.
+    )
+    assert all(len(secret) == 43 for secret in secrets)
+    for payload in payloads:
+        for secret in secrets:
+            token = "sntrys_" + payload + "_" + secret
+            raw = "before " + token + " after"
+            findings = find_secrets(raw)
+            assert len(findings) == 1, (payload, secret)
+            assert findings[0].kind == "sentry_org_auth_token"
+            assert (findings[0].start, findings[0].end) == (7, 7 + len(token))
+            assert token not in findings[0].redacted
+            assert redact_text(raw) == "before «REDACTED:sentry_org_auth_token» after"
+            assert redacted_kinds(redact_text(raw)) == ["sentry_org_auth_token"]
+
 
 
 def test_detects_and_redacts_digitalocean_tokens():

@@ -88,6 +88,16 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("gitlab_ci_job_token", "GitLab CI/CD job token", re.compile(
         r"(?<![A-Za-z0-9_-])glcbt-[A-Za-z0-9_-]{20,128}(?![A-Za-z0-9_.-])"
     )),
+    # GitLab runner authentication tokens use glrt- (or glrtr- via legacy registration).
+    ("gitlab_runner_token", "GitLab runner authentication token", re.compile(
+        r"(?<![A-Za-z0-9_-])glrtr?-[A-Za-z0-9]{20,128}(?![A-Za-z0-9_-])"
+    )),
+    # GitLab deploy tokens have a distinct prefix from access/runner/job tokens.
+    # This conservative length bound is a detector, not a complete validator.
+    ("gitlab_deploy_token", "GitLab deploy token", re.compile(
+        r"(?<![A-Za-z0-9_-])gldt-[A-Za-z0-9_-]{16,128}(?![A-Za-z0-9_-])"
+    )),
+
     # Telegram bot IDs can require up to 52 bits (16 decimal digits).
     # Keep the /bot API path prefix outside the redacted credential.
     ("telegram_bot_token", "Telegram bot token", re.compile(
@@ -109,6 +119,13 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
         r"(?i)(?<![A-Za-z0-9._-])https://(?:discord\.com|discordapp\.com)/api(?:/v\d+)?/webhooks/"
         r"\d{17,20}/[A-Za-z0-9_-]{50,128}(?![A-Za-z0-9_-])"
     )),
+    # Sentry org auth tokens contain a standard-Base64 payload (which may end
+    # in = or ==) and an unpadded standard-Base64 secret, delimited by _.
+    # Both segments can contain + and /; the boundary must consume them too.
+    ("sentry_org_auth_token", "Sentry organization auth token", re.compile(
+        r"(?<![A-Za-z0-9_])sntrys_[A-Za-z0-9+/]{10,}={0,2}_[A-Za-z0-9+/]{10,}(?![A-Za-z0-9+/=_-])"
+    )),
+
     # DigitalOcean personal, OAuth and refresh tokens share a 64-char hex body.
     ("digitalocean_token", "DigitalOcean API token", re.compile(
         r"(?<![A-Za-z0-9_])(?:dop|doo|dor)_v1_[0-9a-f]{64}(?![A-Za-z0-9_])"
@@ -136,6 +153,13 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("hashicorp_vault_token", "HashiCorp Vault token", re.compile(
         r"(?<![A-Za-z0-9._-])hv[sbr]\.[A-Za-z0-9_-]{24,128}(?![A-Za-z0-9_-])"
     )),
+    # Tailscale documents these five typed key prefixes. Match the modern
+    # two-component key format to avoid mistaking prose for a credential.
+    ("tailscale_token", "Tailscale API, auth, or integration key", re.compile(
+        r"(?<![A-Za-z0-9_-])tskey-(?:api|auth|client|scim|webhook)-"
+        r"[A-Za-z0-9]{8,32}-[A-Za-z0-9]{12,128}(?![A-Za-z0-9_-])"
+    )),
+
     # Azure Storage account keys are 512-bit values (86 base64 chars plus ==).
     # Require the connection-string field name to avoid flagging unrelated data.
     ("azure_storage_account_key", "Azure Storage account key", re.compile(
