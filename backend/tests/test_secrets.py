@@ -595,6 +595,28 @@ def test_detects_gitlab_runner_authentication_tokens():
     assert label_for_kind("gitlab_runner_token") == "GitLab runner authentication token"
 
 
+def test_gitlab_runner_urlsafe_payloads_are_fully_redacted():
+    # GitLab's runner token generator can include URL-safe Base64 "_" and "-".
+    # A 20-character synthetic body deliberately stays below the generic
+    # high-entropy detector's 32-character minimum for the complete token.
+    for prefix in ("glrt-", "glrtr-"):
+        for character in ("_", "-"):
+            payload = "aB3d" * 2 + character + "aB3d" * 2 + "abc"
+            assert len(payload) == 20
+            token = prefix + payload
+            raw = f"Runner credential: {token}"
+            findings = find_secrets(raw)
+            assert len(findings) == 1
+            assert findings[0].kind == "gitlab_runner_token"
+            assert (findings[0].start, findings[0].end) == (
+                len("Runner credential: "), len(raw)
+            )
+            expected = "Runner credential: «REDACTED:gitlab_runner_token»"
+            assert redact_text(raw) == expected
+            assert token not in redact_text(raw)
+            assert redacted_kinds(expected) == ["gitlab_runner_token"]
+
+
 def test_gitlab_runner_token_near_misses_are_not_secrets():
     token = "glrt-" + "a1b2c3d4" * 4
     for ordinary in (
@@ -603,7 +625,8 @@ def test_gitlab_runner_token_near_misses_are_not_secrets():
         "glrtr-" + "a" * 129,
         "not" + token,
         "prefix_" + token,
-        token + "_suffix",
+        "glrt-" + "A" * 128 + "_suffix",  # exceeds max length, never partial
+        "glrtr-" + "A" * 128 + "-suffix",  # "-" is valid within a token
         "glrt-" + "A" * 100_000,
     ):
         assert not has_secret(ordinary), ordinary[:80]
