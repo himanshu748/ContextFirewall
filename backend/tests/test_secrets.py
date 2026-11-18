@@ -14,6 +14,34 @@ from unittest.mock import patch
 from app.firewall.secrets import find_secrets, has_secret, redact_text, redacted_kinds, label_for_kind
 
 
+def test_gitlab_deploy_tokens_are_classified_and_redacted():
+    token = "gldt-" + "a1B2" * 8  # Synthetic, never an issued token.
+    raw = f"GitLab deploy credential: {token}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "gitlab_deploy_token"
+    assert redact_text(raw) == "GitLab deploy credential: «REDACTED:gitlab_deploy_token»"
+    assert token not in redact_text(raw)
+    assert redacted_kinds(redact_text(raw)) == ["gitlab_deploy_token"]
+    assert not has_secret(redact_text(raw))
+    assert label_for_kind("gitlab_deploy_token") == "GitLab deploy token"
+
+
+def test_gitlab_deploy_token_near_misses_remain_unchanged():
+    token = "gldt-" + "a1B2" * 8
+    for ordinary in (
+        "GitLab deploy token documentation",
+        "gldt-" + "a" * 15,
+        "gldt-" + "a" * 129,
+        "not" + token,
+        "prefix_" + token,
+        "gldt-" + "a" * 8 + "!" + "b" * 8,
+        "glpt-" + "a1B2" * 8,
+        "gldt-" + "a" * 100_000,
+    ):
+        assert not has_secret(ordinary), ordinary[:80]
+
+
 def _uri(scheme: str, user: str, pwd: str, host: str, tail: str = "") -> str:
     """Assemble a connection URI from fragments so no full credential-URI literal is committed."""
     return scheme + "://" + user + ":" + pwd + "@" + host + tail
