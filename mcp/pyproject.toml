@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "Himanshu Kumar" }]
-dependencies = ["mcp>=1.2.0,<2"]
+dependencies = ["mcp>=1.2.0,<3"]
 
 [project.scripts]
 contextfirewall-mcp = "contextfirewall_mcp:main"
