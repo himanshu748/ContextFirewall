@@ -89,8 +89,9 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
         r"(?<![A-Za-z0-9_-])glcbt-[A-Za-z0-9_-]{20,128}(?![A-Za-z0-9_.-])"
     )),
     # GitLab runner authentication tokens use glrt- (or glrtr- via legacy registration).
+    # Devise.friendly_token produces URL-safe Base64: both "_" and "-" are valid.
     ("gitlab_runner_token", "GitLab runner authentication token", re.compile(
-        r"(?<![A-Za-z0-9_-])glrtr?-[A-Za-z0-9]{20,128}(?![A-Za-z0-9_-])"
+        r"(?<![A-Za-z0-9_-])glrtr?-[A-Za-z0-9_-]{20,128}(?![A-Za-z0-9_-])"
     )),
     # GitLab deploy tokens have a distinct prefix from access/runner/job tokens.
     # This conservative length bound is a detector, not a complete validator.
