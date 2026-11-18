@@ -14,6 +14,35 @@ from unittest.mock import patch
 from app.firewall.secrets import find_secrets, has_secret, redact_text, redacted_kinds, label_for_kind
 
 
+def test_vercel_prefixed_credentials_are_classified_and_redacted():
+    # Vercel's five credential prefixes were introduced in 2026.
+    for prefix in ("vcp", "vci", "vca", "vcr", "vck"):
+        token = prefix + "_" + "Ab3x" * 12  # Entirely synthetic body.
+        raw = f"Vercel credential: {token}"
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "vercel_credential"
+        assert redact_text(raw) == "Vercel credential: «REDACTED:vercel_credential»"
+        assert token not in redact_text(raw)
+        assert redacted_kinds(redact_text(raw)) == ["vercel_credential"]
+        assert not has_secret(redact_text(raw))
+    assert label_for_kind("vercel_credential") == "Vercel API credential"
+
+
+def test_vercel_token_near_misses_are_not_flagged():
+    token = "vcp_" + "Ab3x" * 12
+    for ordinary in (
+        "Vercel tokens should be private",
+        "vcp_" + "A" * 39,
+        "vca_" + "A" * 81,
+        "vcx_" + "Ab3x" * 12,
+        "prefix_" + token,
+        token + "_suffix",
+        "vcp_" + "A" * 100_000,
+    ):
+        assert not has_secret(ordinary), ordinary[:80]
+
+
 def _uri(scheme: str, user: str, pwd: str, host: str, tail: str = "") -> str:
     """Assemble a connection URI from fragments so no full credential-URI literal is committed."""
     return scheme + "://" + user + ":" + pwd + "@" + host + tail
