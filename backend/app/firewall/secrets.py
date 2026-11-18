@@ -136,6 +136,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     )),
     # PyPI's secret-reporting API documents at least 85 base64url characters after pypi-.
     ("pypi_token", "PyPI API token", re.compile(r"(?<![A-Za-z0-9_-])pypi-[A-Za-z0-9_-]{85,}(?![A-Za-z0-9_-])")),
+    # Vercel's 2026 token formats have distinct typed prefixes. The bounded
+    # opaque-body heuristic is not a validator for every possible key length.
+    ("vercel_credential", "Vercel API credential", re.compile(
+        r"(?<![A-Za-z0-9_-])vc[piark]_[A-Za-z0-9]{40,80}(?![A-Za-z0-9_-])"
+    )),
     # Public pk_live_ keys are intentionally excluded; only live secret or
     # restricted keys should block a memory.
     ("stripe_live_key", "Stripe live secret or restricted key", re.compile(r"\b(?:sk|rk)_live_[A-Za-z0-9]{16,}\b")),
