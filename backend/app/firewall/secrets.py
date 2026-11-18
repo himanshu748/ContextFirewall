@@ -248,6 +248,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
 
 # Long mixed-class token for the entropy fallback.
 _TOKEN_RE = re.compile(r"[A-Za-z0-9+/_\-]{32,}")
+# Publishable Supabase keys are intended for client-side use, not secrets.
+# Restrict the exemption to the documented 22-random + '_' + 8-checksum
+# shape. Other high-entropy text (including malformed or extended keys)
+# still goes through the normal fallback detector.
+_PUBLIC_SUPABASE_KEY_RE = re.compile(r"sb_publishable_[A-Za-z0-9_-]{22}_[A-Za-z0-9_-]{8}")
 
 
 def _redact(secret: str) -> str:
@@ -303,6 +308,8 @@ def find_secrets(text: str, *, entropy_threshold: float = 4.2) -> List[SecretFin
         if _overlaps(m.start(), m.end(), spans):
             continue
         tok = m.group(0)
+        if _PUBLIC_SUPABASE_KEY_RE.fullmatch(tok):
+            continue
         has_upper = any(c.isupper() for c in tok)
         has_lower = any(c.islower() for c in tok)
         has_digit = any(c.isdigit() for c in tok)

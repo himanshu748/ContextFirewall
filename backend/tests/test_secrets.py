@@ -40,6 +40,36 @@ def test_supabase_secret_key_near_misses_are_not_typed_as_secrets():
         assert all(f.kind != "supabase_secret_key" for f in find_secrets(ordinary)), ordinary[:80]
 
 
+def test_supabase_publishable_realistic_public_key_is_not_a_secret():
+    # Supabase publishes keys with 22 random characters and an 8-char checksum.
+    # This varied synthetic key has enough entropy to trip the generic scanner
+    # without the public-key shape exemption.
+    random_body = "uJ9pE3yL6dA8qX4kB1mY7v"
+    checksum = "R2nC5tS0"
+    assert len(random_body) == 22
+    assert len(checksum) == 8
+    public = "sb_publishable_" + random_body + "_" + checksum
+    secret = "sb_secret_" + random_body + "_" + checksum
+    assert [f.kind for f in find_secrets("rnd_" + random_body + "_" + checksum)] == [
+        "high_entropy_token"
+    ]
+
+    for raw in (public, f"createClient('{public}')", f"public key: {public}."):
+        assert find_secrets(raw) == []
+        assert not has_secret(raw)
+        assert redact_text(raw) == raw
+
+    mixed = f"Public key: {public}; private key: {secret}"
+    assert [f.kind for f in find_secrets(mixed)] == ["supabase_secret_key"]
+    assert redact_text(mixed) == (
+        f"Public key: {public}; private key: «REDACTED:supabase_secret_key»"
+    )
+
+    # Incomplete or extended lookalikes must not bypass generic scanning.
+    for malformed in (public + "_suffix", "not" + public):
+        assert [f.kind for f in find_secrets(malformed)] == ["high_entropy_token"]
+
+
 def test_vercel_prefixed_credentials_are_classified_and_redacted():
     # Vercel's five credential prefixes were introduced in 2026.
     for prefix in ("vcp", "vci", "vca", "vcr", "vck"):
