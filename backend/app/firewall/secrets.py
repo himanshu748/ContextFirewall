@@ -161,7 +161,8 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     # Incoming webhook URLs are bearer credentials: their final path segment
     # permits posting to a channel without a separate API token.
     ("slack_webhook_url", "Slack incoming webhook URL", re.compile(
-        r"(?i)(?<![A-Za-z0-9._-])https://hooks\.slack\.com/services/[TE][A-Z0-9]{8,}/B[A-Z0-9]{8,}/[A-Za-z0-9]{20,}(?![A-Za-z0-9])"
+        r"(?i)(?<![A-Za-z0-9._-])https://hooks\.(?:slack|slack-gov)\.com/services/"
+        r"[TE][A-Z0-9]{8,}/B[A-Z0-9]{8,}/[A-Za-z0-9]{20,}(?![A-Za-z0-9])"
     )),
     ("jwt", "JSON Web Token", re.compile(r"\beyJ[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\.[A-Za-z0-9_\-]{8,}\b")),
     (
