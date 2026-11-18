@@ -132,6 +132,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("azure_storage_account_key", "Azure Storage account key", re.compile(
         r"(?i)(?<![A-Za-z0-9_])AccountKey\s*=\s*([A-Za-z0-9+/]{86}==)(?![A-Za-z0-9+/=])"
     )),
+    # NVIDIA NGC API keys have a distinct nvapi- prefix. Bound the opaque
+    # payload to prevent matching prose identifiers or oversized partial keys.
+    ("nvidia_ngc_api_key", "NVIDIA NGC API key", re.compile(
+        r"(?<![A-Za-z0-9_-])nvapi-[A-Za-z0-9_-]{24,256}(?![A-Za-z0-9_-])"
+    )),
     # SendGrid API keys contain two base64url segments of fixed lengths.
     ("sendgrid_api_key", "SendGrid API key", re.compile(r"(?<![A-Za-z0-9_-])SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])")),
     ("npm_token", "npm access token", re.compile(r"(?<![A-Za-z0-9_])npm_[A-Za-z0-9]{36}(?![A-Za-z0-9])")),

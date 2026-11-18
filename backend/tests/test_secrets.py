@@ -155,6 +155,33 @@ def test_resend_api_key_does_not_match_short_or_embedded_identifiers():
 
 
 
+def test_nvidia_ngc_api_keys_are_classified_and_redacted():
+    # Synthetic credentials; NGC API keys use the nvapi- provider prefix.
+    token = "nvapi-" + "Ab3x" * 10
+    for raw in (token, f"NVIDIA key: {token}"):
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "nvidia_ngc_api_key"
+        assert token not in findings[0].redacted
+        assert redact_text(raw) == raw.replace(token, "«REDACTED:nvidia_ngc_api_key»")
+        assert redacted_kinds(redact_text(raw)) == ["nvidia_ngc_api_key"]
+        assert not has_secret(redact_text(raw))
+    assert label_for_kind("nvidia_ngc_api_key") == "NVIDIA NGC API key"
+
+
+def test_nvidia_ngc_api_key_near_misses_do_not_match():
+    token = "nvapi-" + "Ab3x" * 10
+    for ordinary in (
+        "The NVIDIA NGC API key uses an nvapi- prefix",
+        "nvapi-" + "A" * 23,
+        "nvapi_" + "A" * 40,
+        "prefix_" + token,
+        "word" + token,
+        "nvapi-" + "A" * 257,
+    ):
+        assert not has_secret(ordinary), ordinary[:80]
+
+
 # --- positives: each should be detected (values assembled at runtime) ---------
 def test_detects_and_redacts_slack_app_level_tokens():
     for prefix in ("xapp-", "xoxe.xapp-"):
