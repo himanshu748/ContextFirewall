@@ -74,6 +74,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
         r"(?<![A-Za-z0-9_])(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{40,})(?![A-Za-z0-9_])"
     )),
     ("gitlab_token", "GitLab access token", re.compile(r"\bglpat-[A-Za-z0-9_-]{20,}\b")),
+    # GitLab deploy tokens have a distinct prefix from access/runner/job tokens.
+    # This conservative length bound is a detector, not a complete validator.
+    ("gitlab_deploy_token", "GitLab deploy token", re.compile(
+        r"(?<![A-Za-z0-9_-])gldt-[A-Za-z0-9_-]{16,128}(?![A-Za-z0-9_-])"
+    )),
     # Telegram bot IDs can require up to 52 bits (16 decimal digits).
     # Keep the /bot API path prefix outside the redacted credential.
     ("telegram_bot_token", "Telegram bot token", re.compile(
