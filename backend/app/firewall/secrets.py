@@ -67,6 +67,10 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("resend_api_key", "Resend API key", re.compile(
         r"(?<![A-Za-z0-9_-])re_[A-Za-z0-9_-]{24,128}(?![A-Za-z0-9_-])"
     )),
+    # Databricks documents dapi-prefixed PATs with a 32-digit hexadecimal body.
+    ("databricks_pat", "Databricks personal access token", re.compile(
+        r"(?<![A-Za-z0-9_-])dapi[0-9a-fA-F]{32}(?![A-Za-z0-9_-])"
+    )),
     ("aws_access_key", "AWS access key id", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),
     ("google_api_key", "Google API key", re.compile(r"\bAIza[0-9A-Za-z_\-]{35}\b")),
     # Includes classic/OAuth/App credentials and fine-grained personal access tokens.
