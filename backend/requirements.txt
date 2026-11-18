@@ -5,7 +5,7 @@ cognee==1.2.2
 fastapi
 uvicorn[standard]
 # MCP server (streamable HTTP, mounted at /mcp) — the headline agent-facing surface
-mcp>=1.9.0,<2  # 2.x renamed FastMCP; see #36
+mcp>=2.3.0,<3  # 2.x renamed FastMCP; see #36
 # Config and HTTP
 python-dotenv
 httpx
