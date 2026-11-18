@@ -62,6 +62,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("groq_api_key", "Groq API key", re.compile(
         r"(?<![A-Za-z0-9_])gsk_[A-Za-z0-9]{30,}(?![A-Za-z0-9_])"
     )),
+    # xAI documents its xai- prefix but not a fixed key length; require
+    # identifier boundaries and a bounded opaque payload.
+    ("xai_api_key", "xAI API key", re.compile(
+        r"(?<![A-Za-z0-9_-])xai-[A-Za-z0-9_-]{24,128}(?![A-Za-z0-9_-])"
+    )),
     # Resend documents the re_ key prefix. Use a conservative payload length
     # because it does not document a fixed full-key length.
     ("resend_api_key", "Resend API key", re.compile(
