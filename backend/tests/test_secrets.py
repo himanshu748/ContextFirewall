@@ -14,6 +14,32 @@ from unittest.mock import patch
 from app.firewall.secrets import find_secrets, has_secret, redact_text, redacted_kinds, label_for_kind
 
 
+def test_supabase_secret_keys_are_classified_and_redacted():
+    # Assemble a synthetic server-only key; public sb_publishable_ keys are distinct.
+    token = "sb_" + "secret_" + "Ab3x" * 8
+    raw = f"Bearer {token}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "supabase_secret_key"
+    assert findings[0].label == "Supabase secret API key"
+    assert redact_text(raw) == "Bearer «REDACTED:supabase_secret_key»"
+    assert token not in redact_text(raw)
+    assert redacted_kinds(redact_text(raw)) == ["supabase_secret_key"]
+    assert not has_secret(redact_text(raw))
+    assert label_for_kind("supabase_secret_key") == "Supabase secret API key"
+
+
+def test_supabase_secret_key_near_misses_are_not_typed_as_secrets():
+    token = "sb_" + "secret_" + "Ab3x" * 8
+    for ordinary in (
+        "sb_" + "publishable_" + "Ab3x" * 8,
+        "sb_" + "secret_" + "a" * 23,
+        "prefix_" + token,
+        "sb_" + "secret_" + "a" * 129,
+    ):
+        assert all(f.kind != "supabase_secret_key" for f in find_secrets(ordinary)), ordinary[:80]
+
+
 def test_vercel_prefixed_credentials_are_classified_and_redacted():
     # Vercel's five credential prefixes were introduced in 2026.
     for prefix in ("vcp", "vci", "vca", "vcr", "vck"):

@@ -98,6 +98,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("gitlab_deploy_token", "GitLab deploy token", re.compile(
         r"(?<![A-Za-z0-9_-])gldt-[A-Za-z0-9_-]{16,128}(?![A-Za-z0-9_-])"
     )),
+    # Supabase's server-only API keys start with sb_secret_; sb_publishable_
+    # is intentionally excluded. The body length is a conservative heuristic.
+    ("supabase_secret_key", "Supabase secret API key", re.compile(
+        r"(?<![A-Za-z0-9_-])sb_secret_[A-Za-z0-9_-]{24,128}(?![A-Za-z0-9_-])"
+    )),
 
     # Telegram bot IDs can require up to 52 bits (16 decimal digits).
     # Keep the /bot API path prefix outside the redacted credential.
