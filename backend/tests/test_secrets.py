@@ -14,6 +14,37 @@ from unittest.mock import patch
 from app.firewall.secrets import find_secrets, has_secret, redact_text, redacted_kinds, label_for_kind
 
 
+def test_firecrawl_api_keys_are_classified_and_redacted():
+    token = "fc-" + "Ab3x" * 9  # Synthetic payload; never an issued credential.
+    raw = f"Firecrawl key: {token}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "firecrawl_api_key"
+    assert findings[0].label == "Firecrawl API key"
+    assert redact_text(raw) == "Firecrawl key: «REDACTED:firecrawl_api_key»"
+    assert token not in redact_text(raw)
+    assert redacted_kinds(redact_text(raw)) == ["firecrawl_api_key"]
+    assert not has_secret(redact_text(raw))
+    assert label_for_kind("firecrawl_api_key") == "Firecrawl API key"
+
+
+def test_firecrawl_key_near_misses_are_not_classified():
+    token = "fc-" + "Ab3x" * 9
+    for ordinary in (
+        "Firecrawl key format starts with fc-",
+        "fc-" + "a" * 23,
+        "fc-" + "a" * 257,
+        "fca-" + "a" * 36,
+        "prefix_" + token,
+        "fc-" + "a" * 100_000,
+    ):
+        assert all(f.kind != "firecrawl_api_key" for f in find_secrets(ordinary)), ordinary[:80]
+    # A trailing underscore is allowed in the opaque payload; never redact
+    # only a token prefix while leaving an unknown possible suffix visible.
+    extended = token + "_suffix"
+    assert redact_text(extended) == "«REDACTED:firecrawl_api_key»"
+
+
 def test_supabase_secret_keys_are_classified_and_redacted():
     # Assemble a synthetic server-only key; public sb_publishable_ keys are distinct.
     token = "sb_" + "secret_" + "Ab3x" * 8
