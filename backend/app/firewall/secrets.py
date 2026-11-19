@@ -196,6 +196,12 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
         r"[A-Za-z0-9]{8,32}-[A-Za-z0-9]{12,128}(?![A-Za-z0-9_-])"
     )),
 
+    # PostHog's private/personal, secret, OAuth access, and refresh token
+    # prefixes are sensitive. The phc_ project ingestion key is public.
+    ("posthog_secret_token", "PostHog private API token", re.compile(
+        r"(?<![A-Za-z0-9_-])(?:phx|phs|pha|phr)_[A-Za-z0-9_-]{20,128}(?![A-Za-z0-9_-])"
+    )),
+
     # Azure Storage account keys are 512-bit values (86 base64 chars plus ==).
     # Require the connection-string field name to avoid flagging unrelated data.
     ("azure_storage_account_key", "Azure Storage account key", re.compile(
@@ -278,6 +284,9 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
 
 # Long mixed-class token for the entropy fallback.
 _TOKEN_RE = re.compile(r"[A-Za-z0-9+/_\-]{32,}")
+# PostHog phc_ project ingestion keys are public. Only exempt the complete
+# token shape from entropy fallback; named secret patterns still take priority.
+_PUBLIC_POSTHOG_TOKEN_RE = re.compile(r"phc_[A-Za-z0-9_-]+")
 # Publishable Supabase keys are intended for client-side use, not secrets.
 # Restrict the exemption to the documented 22-random + '_' + 8-checksum
 # shape. Other high-entropy text (including malformed or extended keys)
@@ -338,6 +347,8 @@ def find_secrets(text: str, *, entropy_threshold: float = 4.2) -> List[SecretFin
         if _overlaps(m.start(), m.end(), spans):
             continue
         tok = m.group(0)
+        if _PUBLIC_POSTHOG_TOKEN_RE.fullmatch(tok):
+            continue
         if _PUBLIC_SUPABASE_KEY_RE.fullmatch(tok):
             continue
         has_upper = any(c.isupper() for c in tok)

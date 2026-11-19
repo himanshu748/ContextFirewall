@@ -585,6 +585,59 @@ def test_cloudflare_api_credential_shape_and_identifier_boundaries():
         assert not has_secret(ordinary), ordinary
 
 
+def test_detects_posthog_private_and_oauth_tokens():
+    # phc_ is deliberately absent: that is a public ingestion/project key.
+    for prefix in ("phx", "phs", "pha", "phr"):
+        token = prefix + "_" + "Ab3_" * 8
+        raw = f"PostHog private credential: {token}"
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "posthog_secret_token"
+        assert token not in findings[0].redacted
+        redacted = redact_text(raw)
+        assert redacted == "PostHog private credential: «REDACTED:posthog_secret_token»"
+        assert token not in redacted
+        assert redacted_kinds(redacted) == ["posthog_secret_token"]
+    assert label_for_kind("posthog_secret_token") == "PostHog private API token"
+
+
+def test_posthog_public_key_and_token_lookalikes_are_not_secret():
+    token = "phx_" + "Ab3_" * 8
+    for ordinary in (
+        "phc_" + "A" * 32,  # Public project ingestion key.
+        "phx_" + "A" * 19,
+        "phs_" + "A" * 129,
+        "prefix_" + token,
+        "phx_" + "A" * 128 + "_suffix",  # Entire identifier exceeds bound.
+        "PostHog API token setup",
+    ):
+        assert not has_secret(ordinary), ordinary
+
+
+def test_high_entropy_posthog_public_tokens_are_not_redacted():
+    # Varied synthetic bodies would trigger the generic entropy detector without
+    # the public-token exemption; repeated "A" characters would not.
+    for body in (
+        "uJ9pE3yL6dA8qX4kB1mY7vR2nC5tS0wH3fZ9gP6",
+        "F8w-2Nq_V5cM9rT1kY4zB7aE3pD6hJ0sL2xQ8",
+    ):
+        # Verify these fixtures actually exercise the default entropy fallback.
+        assert [f.kind for f in find_secrets("rnd_" + body)] == ["high_entropy_token"]
+
+        public = "phc_" + body
+        for raw in (public, f"posthog.init('{public}')", f"project token: {public}."):
+            assert find_secrets(raw) == []
+            assert not has_secret(raw)
+            assert redact_text(raw) == raw
+
+        # Exempting the public key must not hide private credentials nearby.
+        private = "pha_" + "Ab3_" * 8
+        mixed = f"Public: {public}; OAuth: {private}"
+        assert [f.kind for f in find_secrets(mixed)] == ["posthog_secret_token"]
+        assert redact_text(mixed) == f"Public: {public}; OAuth: «REDACTED:posthog_secret_token»"
+
+
+
 def test_detects_and_redacts_current_notion_integration_token():
     token = "ntn_" + "Ab3_" * 8  # Entirely synthetic bearer-token example.
     raw = f"Notion credential: {token}"
