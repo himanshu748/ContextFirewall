@@ -57,6 +57,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("huggingface_token", "Hugging Face token", re.compile(r"\bhf_[A-Za-z0-9]{16,}\b")),
     ("openai_key", "OpenAI API key", re.compile(r"\bsk-(?:proj-)?[A-Za-z0-9_\-]{20,}\b")),
     ("anthropic_key", "Anthropic API key", re.compile(r"\bsk-ant-[A-Za-z0-9_\-]{20,}\b")),
+    # Pinecone project API keys have the pcsk_ prefix. The body length is a
+    # conservative redaction heuristic, not a complete key-format validator.
+    ("pinecone_api_key", "Pinecone API key", re.compile(
+        r"(?<![A-Za-z0-9_-])pcsk_[A-Za-z0-9_-]{16,256}(?![A-Za-z0-9_-])"
+    )),
     # Groq API keys have their own prefix; a bare key should not depend on
     # being labelled GROQ_API_KEY or passing the entropy fallback.
     ("groq_api_key", "Groq API key", re.compile(
