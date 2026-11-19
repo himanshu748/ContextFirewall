@@ -127,6 +127,34 @@ def test_gitlab_deploy_token_near_misses_remain_unchanged():
         assert not has_secret(ordinary), ordinary[:80]
 
 
+def test_gitlab_pipeline_trigger_tokens_are_redacted():
+    token = "glptt-" + "Ab3_" * 8  # Synthetic; no real credentials.
+    for raw in (token, f"Pipeline trigger: {token}"):
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "gitlab_trigger_token"
+        assert findings[0].label == "GitLab pipeline trigger token"
+        assert redact_text(raw) == raw.replace(token, "«REDACTED:gitlab_trigger_token»")
+        assert redacted_kinds(redact_text(raw)) == ["gitlab_trigger_token"]
+        assert not has_secret(redact_text(raw))
+    assert label_for_kind("gitlab_trigger_token") == "GitLab pipeline trigger token"
+
+
+def test_gitlab_pipeline_trigger_token_near_misses_are_unchanged():
+    token = "glptt-" + "Ab3_" * 8
+    for ordinary in (
+        "GitLab trigger tokens start with glptt-",
+        "glptt-" + "A" * 19,
+        "glptt-" + "A" * 129,
+        "not" + token,
+        "prefix_" + token,
+        "glptt-" + "A" * 100_000,
+    ):
+        assert not has_secret(ordinary), ordinary[:80]
+    extended = token + "_suffix"
+    assert redact_text(extended) == "«REDACTED:gitlab_trigger_token»"
+
+
 
 def _uri(scheme: str, user: str, pwd: str, host: str, tail: str = "") -> str:
     """Assemble a connection URI from fragments so no full credential-URI literal is committed."""
