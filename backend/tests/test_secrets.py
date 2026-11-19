@@ -128,6 +128,183 @@ def test_gitlab_deploy_token_near_misses_remain_unchanged():
 
 
 
+def test_openrouter_api_keys_are_classified_without_openai_overlap():
+    token = "sk-" + "or-v1-" + "a1B2" * 16  # Synthetic 64-hex payload.
+    for raw in (token, f"Bearer {token}"):
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "openrouter_api_key"
+        assert findings[0].label == "OpenRouter API key"
+        assert redact_text(raw) == raw.replace(token, "«REDACTED:openrouter_api_key»")
+        assert token not in redact_text(raw)
+        assert redacted_kinds(redact_text(raw)) == ["openrouter_api_key"]
+        assert not has_secret(redact_text(raw))
+    assert label_for_kind("openrouter_api_key") == "OpenRouter API key"
+
+
+def test_openrouter_key_near_misses_do_not_match_openai_rule():
+    token = "sk-" + "or-v1-" + "a1B2" * 16
+    for ordinary in (
+        "sk-or-v1- is an OpenRouter key prefix",
+        "sk-" + "or-v1-" + "a" * 63,
+        "sk-" + "or-v1-" + "a" * 65,
+        "prefix_" + token,
+        token + "_suffix",
+        "sk-" + "or-v1-" + "z" * 64,
+        "sk-" + "or-v1-" + "a" * 100_000,
+    ):
+        assert all(f.kind not in {"openrouter_api_key", "openai_key"} for f in find_secrets(ordinary)), ordinary[:80]
+
+
+
+
+def test_firecrawl_api_keys_are_classified_and_redacted():
+    token = "fc-" + "Ab3x" * 9  # Synthetic payload; never an issued credential.
+    raw = f"Firecrawl key: {token}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "firecrawl_api_key"
+    assert findings[0].label == "Firecrawl API key"
+    assert redact_text(raw) == "Firecrawl key: «REDACTED:firecrawl_api_key»"
+    assert token not in redact_text(raw)
+    assert redacted_kinds(redact_text(raw)) == ["firecrawl_api_key"]
+    assert not has_secret(redact_text(raw))
+    assert label_for_kind("firecrawl_api_key") == "Firecrawl API key"
+
+
+def test_firecrawl_key_near_misses_are_not_classified():
+    token = "fc-" + "Ab3x" * 9
+    for ordinary in (
+        "Firecrawl key format starts with fc-",
+        "fc-" + "a" * 23,
+        "fc-" + "a" * 257,
+        "fca-" + "a" * 36,
+        "prefix_" + token,
+        "fc-" + "a" * 100_000,
+    ):
+        assert all(f.kind != "firecrawl_api_key" for f in find_secrets(ordinary)), ordinary[:80]
+    # A trailing underscore is allowed in the opaque payload; never redact
+    # only a token prefix while leaving an unknown possible suffix visible.
+    extended = token + "_suffix"
+    assert redact_text(extended) == "«REDACTED:firecrawl_api_key»"
+
+
+
+
+def test_pinecone_api_key_is_fully_classified_and_redacted():
+    token = "pcsk_" + "Ab3_x" * 8
+    raw = f"Pinecone credential: {token}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "pinecone_api_key"
+    assert findings[0].label == "Pinecone API key"
+    assert redact_text(raw) == "Pinecone credential: «REDACTED:pinecone_api_key»"
+    assert redacted_kinds(redact_text(raw)) == ["pinecone_api_key"]
+    assert not has_secret(redact_text(raw))
+    assert label_for_kind("pinecone_api_key") == "Pinecone API key"
+
+
+def test_pinecone_api_key_near_misses_are_not_typed_as_secrets():
+    token = "pcsk_" + "Ab3_x" * 8
+    for ordinary in (
+        "Configure your Pinecone pcsk_ credential",
+        "pcsk_" + "a" * 15,
+        "pcsk_" + "a" * 257,
+        "not" + token,
+        "prefix_" + token,
+        "pcsk_" + "a" * 8 + "!" + "b" * 8,
+    ):
+        assert all(f.kind != "pinecone_api_key" for f in find_secrets(ordinary))
+
+
+
+
+def test_langsmith_personal_and_service_keys_are_fully_redacted():
+    for kind in ("pt", "sk"):
+        token = "lsv2_" + kind + "_" + "Ab3x" * 12
+        raw = f"LangSmith credential: {token}"
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "langsmith_key"
+        assert findings[0].label == "LangSmith API key"
+        assert redact_text(raw) == "LangSmith credential: «REDACTED:langsmith_key»"
+        assert redacted_kinds(redact_text(raw)) == ["langsmith_key"]
+        assert not has_secret(redact_text(raw))
+    assert label_for_kind("langsmith_key") == "LangSmith API key"
+
+
+def test_langsmith_key_near_misses_are_not_typed_as_secrets():
+    token = "lsv2_pt_" + "Ab3x" * 12
+    for ordinary in (
+        "LangSmith personal access tokens start with lsv2_pt_",
+        "lsv2_pt_" + "A" * 23,
+        "lsv2_other_" + "A" * 48,
+        "prefix_" + token,
+        "lsv2_sk_" + "A" * 257,
+    ):
+        assert all(f.kind != "langsmith_key" for f in find_secrets(ordinary))
+
+
+
+
+def test_tavily_api_keys_are_classified_and_redacted():
+    token = "tvly-" + "Ab3x" * 10  # Synthetic; never use real API keys in tests.
+    for content in (token, f"Search credential: {token}", f"Bearer {token}"):
+        findings = find_secrets(content)
+        assert len(findings) == 1
+        assert findings[0].kind == "tavily_api_key"
+        assert findings[0].label == "Tavily API key"
+        redacted = redact_text(content)
+        assert redacted == content.replace(token, "«REDACTED:tavily_api_key»")
+        assert redacted_kinds(redacted) == ["tavily_api_key"]
+        assert not has_secret(redacted)
+    assert label_for_kind("tavily_api_key") == "Tavily API key"
+
+
+def test_tavily_token_boundaries_and_near_misses():
+    token = "tvly-" + "Ab3x" * 10
+    for near_miss in (
+        "tvly-" + "A" * 31,
+        "tvly-" + "A" * 129,
+        "prefix_" + token,
+        "not" + token,
+        "tvly-" + "A" * 100_000,
+    ):
+        assert all(f.kind != "tavily_api_key" for f in find_secrets(near_miss)), near_miss[:80]
+
+
+
+
+def test_gitlab_pipeline_trigger_tokens_are_redacted():
+    token = "glptt-" + "Ab3_" * 8  # Synthetic; no real credentials.
+    for raw in (token, f"Pipeline trigger: {token}"):
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "gitlab_trigger_token"
+        assert findings[0].label == "GitLab pipeline trigger token"
+        assert redact_text(raw) == raw.replace(token, "«REDACTED:gitlab_trigger_token»")
+        assert redacted_kinds(redact_text(raw)) == ["gitlab_trigger_token"]
+        assert not has_secret(redact_text(raw))
+    assert label_for_kind("gitlab_trigger_token") == "GitLab pipeline trigger token"
+
+
+def test_gitlab_pipeline_trigger_token_near_misses_are_unchanged():
+    token = "glptt-" + "Ab3_" * 8
+    for ordinary in (
+        "GitLab trigger tokens start with glptt-",
+        "glptt-" + "A" * 19,
+        "glptt-" + "A" * 129,
+        "not" + token,
+        "prefix_" + token,
+        "glptt-" + "A" * 100_000,
+    ):
+        assert not has_secret(ordinary), ordinary[:80]
+    extended = token + "_suffix"
+    assert redact_text(extended) == "«REDACTED:gitlab_trigger_token»"
+
+
+
+
 def _uri(scheme: str, user: str, pwd: str, host: str, tail: str = "") -> str:
     """Assemble a connection URI from fragments so no full credential-URI literal is committed."""
     return scheme + "://" + user + ":" + pwd + "@" + host + tail
