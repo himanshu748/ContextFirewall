@@ -57,6 +57,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("huggingface_token", "Hugging Face token", re.compile(r"\bhf_[A-Za-z0-9]{16,}\b")),
     ("openai_key", "OpenAI API key", re.compile(r"\bsk-(?:proj-)?[A-Za-z0-9_\-]{20,}\b")),
     ("anthropic_key", "Anthropic API key", re.compile(r"\bsk-ant-[A-Za-z0-9_\-]{20,}\b")),
+    # LangSmith personal and service keys have distinct documented prefixes.
+    # Match the full opaque body with boundaries; this is not a key validator.
+    ("langsmith_key", "LangSmith API key", re.compile(
+        r"(?<![A-Za-z0-9_-])lsv2_(?:pt|sk)_[A-Za-z0-9_-]{24,256}(?![A-Za-z0-9_-])"
+    )),
     # Groq API keys have their own prefix; a bare key should not depend on
     # being labelled GROQ_API_KEY or passing the entropy fallback.
     ("groq_api_key", "Groq API key", re.compile(
