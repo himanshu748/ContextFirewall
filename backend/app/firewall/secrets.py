@@ -283,11 +283,10 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
 ]
 
 # Long mixed-class token for the entropy fallback.
+_TOKEN_RE = re.compile(r"[A-Za-z0-9+/_\-]{32,}")
 # PostHog phc_ project ingestion keys are public. Only exempt the complete
 # token shape from entropy fallback; named secret patterns still take priority.
 _PUBLIC_POSTHOG_TOKEN_RE = re.compile(r"phc_[A-Za-z0-9_-]+")
-
-_TOKEN_RE = re.compile(r"[A-Za-z0-9+/_\-]{32,}")
 # Publishable Supabase keys are intended for client-side use, not secrets.
 # Restrict the exemption to the documented 22-random + '_' + 8-checksum
 # shape. Other high-entropy text (including malformed or extended keys)
