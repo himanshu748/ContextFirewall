@@ -55,12 +55,37 @@ def _is_discord_bot_token(candidate: str) -> bool:
 # isolates the secret value to redact (vs. the whole match).
 _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("huggingface_token", "Hugging Face token", re.compile(r"\bhf_[A-Za-z0-9]{16,}\b")),
-    ("openai_key", "OpenAI API key", re.compile(r"\bsk-(?:proj-)?[A-Za-z0-9_\-]{20,}\b")),
+    # OpenRouter uses a distinct sk-or-v1- prefix and 64 hex digits. Classify
+    # it before the broad OpenAI rule, which must not claim OpenRouter keys.
+    ("openrouter_api_key", "OpenRouter API key", re.compile(
+        r"(?<![A-Za-z0-9_-])sk-or-v1-[0-9a-fA-F]{64}(?![A-Za-z0-9_-])"
+    )),
+    ("openai_key", "OpenAI API key", re.compile(r"\bsk-(?!or-v1-)(?:proj-)?[A-Za-z0-9_\-]{20,}\b")),
     ("anthropic_key", "Anthropic API key", re.compile(r"\bsk-ant-[A-Za-z0-9_\-]{20,}\b")),
+    # Pinecone project API keys have the pcsk_ prefix. The body length is a
+    # conservative redaction heuristic, not a complete key-format validator.
+    ("pinecone_api_key", "Pinecone API key", re.compile(
+        r"(?<![A-Za-z0-9_-])pcsk_[A-Za-z0-9_-]{16,256}(?![A-Za-z0-9_-])"
+    )),
+    # LangSmith personal and service keys have distinct documented prefixes.
+    # Match the full opaque body with boundaries; this is not a key validator.
+    ("langsmith_key", "LangSmith API key", re.compile(
+        r"(?<![A-Za-z0-9_-])lsv2_(?:pt|sk)_[A-Za-z0-9_-]{24,256}(?![A-Za-z0-9_-])"
+    )),
     # Groq API keys have their own prefix; a bare key should not depend on
     # being labelled GROQ_API_KEY or passing the entropy fallback.
     ("groq_api_key", "Groq API key", re.compile(
         r"(?<![A-Za-z0-9_])gsk_[A-Za-z0-9]{30,}(?![A-Za-z0-9_])"
+    )),
+    # Firecrawl documents the fc- key prefix but not a fixed payload length.
+    # The conservative bound is a detection heuristic, not key validation.
+    ("firecrawl_api_key", "Firecrawl API key", re.compile(
+        r"(?<![A-Za-z0-9_-])fc-[A-Za-z0-9_-]{24,256}(?![A-Za-z0-9_-])"
+    )),
+    # Tavily documents the tvly- prefix; the payload bound is a conservative
+    # detection heuristic, not a validator of a fixed provider key length.
+    ("tavily_api_key", "Tavily API key", re.compile(
+        r"(?<![A-Za-z0-9_-])tvly-[A-Za-z0-9_-]{32,128}(?![A-Za-z0-9_-])"
     )),
     # xAI documents its xai- prefix but not a fixed key length; require
     # identifier boundaries and a bounded opaque payload.
@@ -97,6 +122,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     # This conservative length bound is a detector, not a complete validator.
     ("gitlab_deploy_token", "GitLab deploy token", re.compile(
         r"(?<![A-Za-z0-9_-])gldt-[A-Za-z0-9_-]{16,128}(?![A-Za-z0-9_-])"
+    )),
+    # GitLab pipeline trigger tokens have a separate documented glptt- prefix.
+    # Bound opaque content and enforce identifier boundaries to avoid partial matches.
+    ("gitlab_trigger_token", "GitLab pipeline trigger token", re.compile(
+        r"(?<![A-Za-z0-9_-])glptt-[A-Za-z0-9_-]{20,128}(?![A-Za-z0-9_-])"
     )),
     # Supabase's server-only API keys start with sb_secret_; sb_publishable_
     # is intentionally excluded. The body length is a conservative heuristic.
