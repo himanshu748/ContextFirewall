@@ -14,6 +14,32 @@ from unittest.mock import patch
 from app.firewall.secrets import find_secrets, has_secret, redact_text, redacted_kinds, label_for_kind
 
 
+def test_langsmith_personal_and_service_keys_are_fully_redacted():
+    for kind in ("pt", "sk"):
+        token = "lsv2_" + kind + "_" + "Ab3x" * 12
+        raw = f"LangSmith credential: {token}"
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "langsmith_key"
+        assert findings[0].label == "LangSmith API key"
+        assert redact_text(raw) == "LangSmith credential: «REDACTED:langsmith_key»"
+        assert redacted_kinds(redact_text(raw)) == ["langsmith_key"]
+        assert not has_secret(redact_text(raw))
+    assert label_for_kind("langsmith_key") == "LangSmith API key"
+
+
+def test_langsmith_key_near_misses_are_not_typed_as_secrets():
+    token = "lsv2_pt_" + "Ab3x" * 12
+    for ordinary in (
+        "LangSmith personal access tokens start with lsv2_pt_",
+        "lsv2_pt_" + "A" * 23,
+        "lsv2_other_" + "A" * 48,
+        "prefix_" + token,
+        "lsv2_sk_" + "A" * 257,
+    ):
+        assert all(f.kind != "langsmith_key" for f in find_secrets(ordinary))
+
+
 def test_supabase_secret_keys_are_classified_and_redacted():
     # Assemble a synthetic server-only key; public sb_publishable_ keys are distinct.
     token = "sb_" + "secret_" + "Ab3x" * 8
