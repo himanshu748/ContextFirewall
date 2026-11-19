@@ -23,6 +23,8 @@ import os
 from dataclasses import dataclass, field
 from typing import Optional, Set
 
+from app.deployment import api_key_db_ssl_mode
+
 DEMO_NAMESPACE = "demo"
 PUBLIC_NAMESPACE = "public"
 API_KEY_PREFIX = "cf_live_"
@@ -91,7 +93,7 @@ async def _get_pool():
         database=os.getenv("DB_NAME", "postgres"),
         user=os.getenv("DB_USERNAME", ""),
         password=os.getenv("DB_PASSWORD", ""),
-        ssl="require",
+        ssl=api_key_db_ssl_mode(),
         min_size=1,
         max_size=4,
     )

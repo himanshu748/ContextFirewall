@@ -38,6 +38,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.activity import get_activity, log_activity
+from app.deployment import cors_allowed_origins
 from app.identity import llm_checks_allowed, resolve_identity
 from app.cognee_runtime.bootstrap import configure_cognee
 from app.cognee_runtime.forget import forget_memory
@@ -93,7 +94,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # public demo API
+    allow_origins=cors_allowed_origins(),  # default * keeps the public demo working
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -203,6 +204,18 @@ async def health() -> HealthResponse:
     profile = configure_cognee()
     counts = await count_nodes(namespaces={"demo"})
     return HealthResponse(status="ok", profile=profile, counts=counts)
+
+
+@app.get("/healthz")
+async def liveness() -> dict:
+    """Cheap process liveness for frequent orchestrator probes (no storage calls)."""
+    return {"status": "ok"}
+
+
+@app.get("/readyz", response_model=HealthResponse)
+async def readiness() -> HealthResponse:
+    """Storage-backed readiness; reuse the console's existing health check."""
+    return await health()
 
 
 @app.get("/activity")
