@@ -14,6 +14,34 @@ from unittest.mock import patch
 from app.firewall.secrets import find_secrets, has_secret, redact_text, redacted_kinds, label_for_kind
 
 
+def test_openrouter_api_keys_are_classified_without_openai_overlap():
+    token = "sk-" + "or-v1-" + "a1B2" * 16  # Synthetic 64-hex payload.
+    for raw in (token, f"Bearer {token}"):
+        findings = find_secrets(raw)
+        assert len(findings) == 1
+        assert findings[0].kind == "openrouter_api_key"
+        assert findings[0].label == "OpenRouter API key"
+        assert redact_text(raw) == raw.replace(token, "«REDACTED:openrouter_api_key»")
+        assert token not in redact_text(raw)
+        assert redacted_kinds(redact_text(raw)) == ["openrouter_api_key"]
+        assert not has_secret(redact_text(raw))
+    assert label_for_kind("openrouter_api_key") == "OpenRouter API key"
+
+
+def test_openrouter_key_near_misses_do_not_match_openai_rule():
+    token = "sk-" + "or-v1-" + "a1B2" * 16
+    for ordinary in (
+        "sk-or-v1- is an OpenRouter key prefix",
+        "sk-" + "or-v1-" + "a" * 63,
+        "sk-" + "or-v1-" + "a" * 65,
+        "prefix_" + token,
+        token + "_suffix",
+        "sk-" + "or-v1-" + "z" * 64,
+        "sk-" + "or-v1-" + "a" * 100_000,
+    ):
+        assert all(f.kind not in {"openrouter_api_key", "openai_key"} for f in find_secrets(ordinary)), ordinary[:80]
+
+
 def test_supabase_secret_keys_are_classified_and_redacted():
     # Assemble a synthetic server-only key; public sb_publishable_ keys are distinct.
     token = "sb_" + "secret_" + "Ab3x" * 8
