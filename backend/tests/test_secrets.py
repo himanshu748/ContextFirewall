@@ -14,6 +14,32 @@ from unittest.mock import patch
 from app.firewall.secrets import find_secrets, has_secret, redact_text, redacted_kinds, label_for_kind
 
 
+def test_tavily_api_keys_are_classified_and_redacted():
+    token = "tvly-" + "Ab3x" * 10  # Synthetic; never use real API keys in tests.
+    for content in (token, f"Search credential: {token}", f"Bearer {token}"):
+        findings = find_secrets(content)
+        assert len(findings) == 1
+        assert findings[0].kind == "tavily_api_key"
+        assert findings[0].label == "Tavily API key"
+        redacted = redact_text(content)
+        assert redacted == content.replace(token, "«REDACTED:tavily_api_key»")
+        assert redacted_kinds(redacted) == ["tavily_api_key"]
+        assert not has_secret(redacted)
+    assert label_for_kind("tavily_api_key") == "Tavily API key"
+
+
+def test_tavily_token_boundaries_and_near_misses():
+    token = "tvly-" + "Ab3x" * 10
+    for near_miss in (
+        "tvly-" + "A" * 31,
+        "tvly-" + "A" * 129,
+        "prefix_" + token,
+        "not" + token,
+        "tvly-" + "A" * 100_000,
+    ):
+        assert all(f.kind != "tavily_api_key" for f in find_secrets(near_miss)), near_miss[:80]
+
+
 def test_supabase_secret_keys_are_classified_and_redacted():
     # Assemble a synthetic server-only key; public sb_publishable_ keys are distinct.
     token = "sb_" + "secret_" + "Ab3x" * 8
