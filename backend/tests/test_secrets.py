@@ -14,6 +14,32 @@ from unittest.mock import patch
 from app.firewall.secrets import find_secrets, has_secret, redact_text, redacted_kinds, label_for_kind
 
 
+def test_pinecone_api_key_is_fully_classified_and_redacted():
+    token = "pcsk_" + "Ab3_x" * 8
+    raw = f"Pinecone credential: {token}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "pinecone_api_key"
+    assert findings[0].label == "Pinecone API key"
+    assert redact_text(raw) == "Pinecone credential: «REDACTED:pinecone_api_key»"
+    assert redacted_kinds(redact_text(raw)) == ["pinecone_api_key"]
+    assert not has_secret(redact_text(raw))
+    assert label_for_kind("pinecone_api_key") == "Pinecone API key"
+
+
+def test_pinecone_api_key_near_misses_are_not_typed_as_secrets():
+    token = "pcsk_" + "Ab3_x" * 8
+    for ordinary in (
+        "Configure your Pinecone pcsk_ credential",
+        "pcsk_" + "a" * 15,
+        "pcsk_" + "a" * 257,
+        "not" + token,
+        "prefix_" + token,
+        "pcsk_" + "a" * 8 + "!" + "b" * 8,
+    ):
+        assert all(f.kind != "pinecone_api_key" for f in find_secrets(ordinary))
+
+
 def test_supabase_secret_keys_are_classified_and_redacted():
     # Assemble a synthetic server-only key; public sb_publishable_ keys are distinct.
     token = "sb_" + "secret_" + "Ab3x" * 8
