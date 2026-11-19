@@ -98,6 +98,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("gitlab_deploy_token", "GitLab deploy token", re.compile(
         r"(?<![A-Za-z0-9_-])gldt-[A-Za-z0-9_-]{16,128}(?![A-Za-z0-9_-])"
     )),
+    # GitLab pipeline trigger tokens have a separate documented glptt- prefix.
+    # Bound opaque content and enforce identifier boundaries to avoid partial matches.
+    ("gitlab_trigger_token", "GitLab pipeline trigger token", re.compile(
+        r"(?<![A-Za-z0-9_-])glptt-[A-Za-z0-9_-]{20,128}(?![A-Za-z0-9_-])"
+    )),
     # Supabase's server-only API keys start with sb_secret_; sb_publishable_
     # is intentionally excluded. The body length is a conservative heuristic.
     ("supabase_secret_key", "Supabase secret API key", re.compile(
