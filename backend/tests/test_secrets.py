@@ -1326,6 +1326,27 @@ def test_detects_private_key_block():
     assert has_secret(header + "\nMIIEog...")
 
 
+def test_pem_private_key_redaction_covers_body_and_preserves_following_text():
+    for kind in ("RSA PRIVATE KEY", "EC PRIVATE KEY", "OPENSSH PRIVATE KEY",
+                 "ENCRYPTED PRIVATE KEY", "PRIVATE KEY"):
+        begin = "-----BEGIN " + kind + "-----"
+        end = "-----END " + kind + "-----"
+        body = "MIIE" + "Ab12" * 16
+        raw = "before\n" + begin + "\n" + body + "\n" + end + "\nafter"
+        matches = [f for f in find_secrets(raw) if f.kind == "private_key_block"]
+        assert len(matches) == 1
+        assert raw[matches[0].start:matches[0].end] == begin + "\n" + body + "\n" + end
+        assert redact_text(raw) == "before\n«REDACTED:private_key_block»\nafter"
+
+
+def test_truncated_pem_private_key_is_masked_through_end_of_input():
+    begin = "-----BEGIN " + "RSA PRIVATE KEY" + "-----"
+    payload = "MIIE" + "Aa12" * 30
+    raw = "before\n" + begin + "\n" + payload
+    assert redact_text(raw) == "before\n«REDACTED:private_key_block»"
+    assert payload not in redact_text(raw)
+
+
 # --- redaction never leaks the value -----------------------------------------
 def test_redaction_hides_value():
     tok = "hf_" + "ABCdef0123456789ABCDEFGHIJ"
