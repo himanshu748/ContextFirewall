@@ -162,6 +162,13 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
         r"(?<![A-Za-z0-9_])sntrys_[A-Za-z0-9+/]{10,}={0,2}_[A-Za-z0-9+/]{10,}(?![A-Za-z0-9+/=_-])"
     )),
 
+    # CircleCI's documented token format is CCIPAT/CCIPRJ, a base58 UUID,
+    # then a 40-hex-character secret. Use a narrow UUID-length range as a
+    # detector heuristic while rejecting partial token matches.
+    ("circleci_api_token", "CircleCI API token", re.compile(
+        r"(?<![A-Za-z0-9_])CCI(?:PAT|PRJ)_[1-9A-HJ-NP-Za-km-z]{20,24}_[0-9a-fA-F]{40}(?![A-Za-z0-9_-])"
+    )),
+
     # DigitalOcean personal, OAuth and refresh tokens share a 64-char hex body.
     ("digitalocean_token", "DigitalOcean API token", re.compile(
         r"(?<![A-Za-z0-9_])(?:dop|doo|dor)_v1_[0-9a-f]{64}(?![A-Za-z0-9_])"

@@ -14,6 +14,38 @@ from unittest.mock import patch
 from app.firewall.secrets import find_secrets, has_secret, redact_text, redacted_kinds, label_for_kind
 
 
+def test_circleci_personal_and_project_tokens_are_fully_redacted():
+    # Matches CircleCI's published UUID + 40-hex suffix shape; fake values.
+    uid = "ULUhR6rJLxYbyzyrP19iMZ"
+    for prefix in ("CCIPAT", "CCIPRJ"):
+        token = f"{prefix}_{uid}_" + "a1b2c3d4" * 5
+        text = f"CircleCI credential: {token}"
+        findings = find_secrets(text)
+        assert len(findings) == 1
+        assert findings[0].kind == "circleci_api_token"
+        assert findings[0].label == "CircleCI API token"
+        masked = redact_text(text)
+        assert masked == "CircleCI credential: «REDACTED:circleci_api_token»"
+        assert token not in masked
+        assert redacted_kinds(masked) == ["circleci_api_token"]
+        assert not has_secret(masked)
+    assert label_for_kind("circleci_api_token") == "CircleCI API token"
+
+
+def test_circleci_token_near_misses_do_not_match_partial_credentials():
+    uid = "ULUhR6rJLxYbyzyrP19iMZ"
+    token = "CCIPAT_" + uid + "_" + "a1b2c3d4" * 5
+    for ordinary in (
+        "CCIPAT_ is CircleCI's personal token prefix",
+        "CCIPAT_" + uid + "_" + "a1b2c3d4" * 4,
+        "CCIPAT_" + uid + "_" + "z" * 40,
+        "prefix_" + token,
+        token + "_suffix",
+        "CCIPAT_" + uid + "0_" + "a1b2c3d4" * 5,
+    ):
+        assert all(f.kind != "circleci_api_token" for f in find_secrets(ordinary)), ordinary[:80]
+
+
 def test_supabase_secret_keys_are_classified_and_redacted():
     # Assemble a synthetic server-only key; public sb_publishable_ keys are distinct.
     token = "sb_" + "secret_" + "Ab3x" * 8
