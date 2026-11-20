@@ -14,6 +14,23 @@ from unittest.mock import patch
 from app.firewall.secrets import find_secrets, has_secret, redact_text, redacted_kinds, label_for_kind
 
 
+def test_named_and_high_entropy_spans_scale_without_quadratic_overlap_scans():
+    # A malicious memory can contain thousands of credential-shaped strings.
+    # Named tokens must not be double-counted by the generic entropy fallback.
+    named = "hf_" + "Ab3x" * 10  # Synthetic Hugging Face token.
+    opaque = "Ab1Cd2Ef3Gh4Ij5Kl6Mn7Op8Qr9St0Uv1Wx2Yz3"
+    raw = " ".join([named, opaque] * 3_000)
+    findings = find_secrets(raw)
+    assert len(findings) == 6_000
+    assert sum(f.kind == "huggingface_token" for f in findings) == 3_000
+    assert sum(f.kind == "high_entropy_token" for f in findings) == 3_000
+    assert all(a.start <= b.start for a, b in zip(findings, findings[1:]))
+    redacted = redact_text(raw)
+    assert named not in redacted and opaque not in redacted
+    assert redacted.count("«REDACTED:huggingface_token»") == 3_000
+    assert redacted.count("«REDACTED:high_entropy_token»") == 3_000
+
+
 def test_supabase_secret_keys_are_classified_and_redacted():
     # Assemble a synthetic server-only key; public sb_publishable_ keys are distinct.
     token = "sb_" + "secret_" + "Ab3x" * 8
