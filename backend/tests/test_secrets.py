@@ -1289,6 +1289,25 @@ def test_detects_neo4j_uri_password():
     assert has_secret(uri)
 
 
+def test_quoted_secret_assignments_redact_every_word():
+    for name, quote, value in (
+        ("DB_PASSWORD", '"', "first password with spaces"),
+        ("ACCESS_TOKEN", "'", "one two three confidential"),
+        ("PAYMENTS_CLIENT_SECRET", '"', r"secre\\\"t with spaces"),
+    ):
+        raw = f"{name}={quote}{value}{quote}; keep=visible"
+        redacted = redact_text(raw)
+        assert redacted == "«REDACTED:secret_assignment»; keep=visible"
+        assert value not in redacted
+        findings = find_secrets(raw)
+        assert any(f.kind == "secret_assignment" and f.redacted for f in findings)
+
+
+def test_unterminated_quoted_password_is_masked_to_line_end():
+    raw = 'DB_PASSWORD="a complex secret phrase' + "\n" + "next=visible"
+    assert redact_text(raw) == "«REDACTED:secret_assignment»\nnext=visible"
+
+
 def test_detects_inline_secret_assignment():
     pwd = "hunter2" + "-demo-only"
     assert any(x.kind == "secret_assignment" for x in find_secrets(f'config: password = "{pwd}"'))
