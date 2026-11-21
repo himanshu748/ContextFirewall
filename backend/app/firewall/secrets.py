@@ -275,7 +275,12 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     (
         "private_key_block",
         "private key block",
-        re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----"),
+        # Match the entire PEM block, not merely its BEGIN line. An incomplete
+        # capture is masked through EOF rather than exposing private-key bytes.
+        re.compile(
+            r"-----BEGIN (?P<key_type>(?:RSA |EC |OPENSSH |DSA |PGP |ENCRYPTED )?PRIVATE KEY)-----"
+            r"[\s\S]*?(?:-----END (?P=key_type)-----|\Z)"
+        ),
     ),
     (
         "connection_uri_password",
