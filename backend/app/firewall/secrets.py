@@ -377,7 +377,11 @@ def redact_text(text: str) -> str:
     out: list[str] = []
     last = 0
     for f in findings:
-        if f.start < last:  # skip overlaps already consumed
+        if f.start < last:
+            # A later finding may extend beyond the consumed text (for example,
+            # a PEM block overlapping an earlier generic secret assignment).
+            # Keep the already-emitted marker but consume the entire union.
+            last = max(last, f.end)
             continue
         out.append(text[last:f.start])
         out.append(f"«REDACTED:{f.kind}»")
