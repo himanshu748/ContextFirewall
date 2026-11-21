@@ -1335,6 +1335,42 @@ def test_detects_neo4j_uri_password():
     assert has_secret(uri)
 
 
+def test_quoted_secret_assignments_redact_every_word():
+    for name, quote, value in (
+        ("DB_PASSWORD", '"', "first password with spaces"),
+        ("ACCESS_TOKEN", "'", "one two three confidential"),
+        ("PAYMENTS_CLIENT_SECRET", '"', r"secre\\\"t with spaces"),
+    ):
+        raw = f"{name}={quote}{value}{quote}; keep=visible"
+        redacted = redact_text(raw)
+        assert redacted == "«REDACTED:secret_assignment»; keep=visible"
+        assert value not in redacted
+        findings = find_secrets(raw)
+        assert any(f.kind == "secret_assignment" and f.redacted for f in findings)
+
+
+def test_unterminated_quoted_password_is_masked_to_line_end():
+    raw = 'DB_PASSWORD="a complex secret phrase' + "\n" + "next=visible"
+    assert redact_text(raw) == "«REDACTED:secret_assignment»\nnext=visible"
+
+
+def test_trailing_escape_in_truncated_quoted_assignments_preserves_next_line():
+    for name, quote in (("DB_PASSWORD", '"'), ("ACCESS_TOKEN", "'")):
+        # Neither LF nor CRLF may be swallowed by the incomplete escape.
+        for newline in ("\n", "\r\n"):
+            secret_line = f"{name}={quote}a complex secret phrase" + "\\"
+            raw = secret_line + newline + "next=visible"
+            findings = find_secrets(raw)
+            assert len(findings) == 1
+            assert findings[0].kind == "secret_assignment"
+            assert findings[0].end == len(secret_line)
+            assert redact_text(raw) == "«REDACTED:secret_assignment»" + newline + "next=visible"
+
+        # A truncated escape at EOF is still part of the sensitive value.
+        raw = f"{name}={quote}a complex secret phrase" + "\\"
+        assert redact_text(raw) == "«REDACTED:secret_assignment»"
+
+
 def test_detects_inline_secret_assignment():
     pwd = "hunter2" + "-demo-only"
     assert any(x.kind == "secret_assignment" for x in find_secrets(f'config: password = "{pwd}"'))
