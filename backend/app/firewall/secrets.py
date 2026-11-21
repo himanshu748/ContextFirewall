@@ -305,6 +305,9 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ),
 ]
 
+# Typed redaction markers are inert when encountered on a later scan.
+_MARKER_RE = re.compile(r"«REDACTED:([A-Za-z0-9_]+)»")
+
 # Long mixed-class token for the entropy fallback.
 _TOKEN_RE = re.compile(r"[A-Za-z0-9+/_\-]{32,}")
 # PostHog phc_ project ingestion keys are public. Only exempt the complete
@@ -360,10 +363,15 @@ def find_secrets(text: str, *, entropy_threshold: float = 4.2) -> List[SecretFin
                 continue
             if kind == "telegram_bot_token" and int(m.group(0).split(":", 1)[0]) >= (1 << 52):
                 continue
-            # A complete, named credential wins over a generic assignment;
-            # retain the broad match for partial overlaps so suffixes cannot leak.
-            if kind == "secret_assignment" and m.span(1) in named_value_spans:
-                continue
+            # An existing typed marker is not a new secret, even when labelled.
+            # Only skip a complete marker; marker plus a suffix stays sensitive.
+            if kind == "secret_assignment":
+                if _MARKER_RE.fullmatch(m.group(1)):
+                    continue
+                # A complete named credential wins over a generic assignment.
+                # Keep the broad match for partial overlaps to hide any suffix.
+                if m.span(1) in named_value_spans:
+                    continue
             value = m.group(m.lastindex) if m.lastindex else m.group(0)
             findings.append(SecretFinding(kind, label, _redact(value), m.start(), m.end()))
             spans.append((m.start(), m.end()))
@@ -422,7 +430,6 @@ def has_secret(text: str) -> bool:
 
 _KIND_LABEL = {kind: label for kind, label, _ in _PATTERNS}
 _KIND_LABEL["high_entropy_token"] = "high-entropy token"
-_MARKER_RE = re.compile(r"«REDACTED:([A-Za-z0-9_]+)»")
 
 
 def redacted_kinds(text: str) -> List[str]:

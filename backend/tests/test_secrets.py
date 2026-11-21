@@ -54,6 +54,7 @@ def test_google_oauth_client_secrets_are_classified_and_fully_redacted():
         assert token not in redacted
         assert redacted_kinds(redacted) == ["google_oauth_client_secret"]
         assert not has_secret(redacted)
+        assert redact_text(redacted) == redacted
     assert label_for_kind("google_oauth_client_secret") == "Google OAuth client secret"
 
 
@@ -71,6 +72,18 @@ def test_google_oauth_client_secret_partial_assignment_match_redacts_full_value(
     assert token not in redacted
     assert "additional-secret-data" not in redacted
     assert not has_secret(redacted)
+
+
+def test_google_oauth_redaction_marker_is_inert_but_not_a_bypass():
+    marker = "«REDACTED:google_oauth_client_secret»"
+    labelled = f"client_secret={marker}"
+    assert not has_secret(labelled)
+    assert redact_text(labelled) == labelled
+
+    # The marker is only inert as the full value, never as a secret prefix.
+    with_suffix = labelled + "/still-sensitive"
+    assert [f.kind for f in find_secrets(with_suffix)] == ["secret_assignment"]
+    assert redact_text(with_suffix) == "«REDACTED:secret_assignment»"
 
 
 def test_google_oauth_client_secret_boundaries_exclude_near_misses():
