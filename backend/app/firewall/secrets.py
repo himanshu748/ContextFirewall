@@ -219,6 +219,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("notion_token", "Notion integration token", re.compile(
         r"(?<![A-Za-z0-9_-])ntn_[A-Za-z0-9_-]{20,}(?![A-Za-z0-9_-])"
     )),
+    # Legacy Notion integration tokens use secret_ plus 43 alphanumeric
+    # characters. Keep a fixed length to avoid masking generic identifiers.
+    ("notion_token", "Notion integration token", re.compile(
+        r"(?<![A-Za-z0-9_-])secret_[A-Za-z0-9]{43}(?![A-Za-z0-9_-])"
+    )),
     # Docker Hub's personal and organization credentials have distinct prefixes.
     ("docker_hub_token", "Docker Hub access token", re.compile(
         r"(?<![A-Za-z0-9_-])dckr_(?:pat|oat)_[A-Za-z0-9_-]{20,128}(?![A-Za-z0-9_-])"

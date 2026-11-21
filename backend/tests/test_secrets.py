@@ -667,6 +667,35 @@ def test_detects_and_redacts_current_notion_integration_token():
     assert label_for_kind("notion_token") == "Notion integration token"
 
 
+def test_detects_and_redacts_legacy_notion_integration_token():
+    # Notion issued secret_-prefixed tokens before the modern ntn_ format.
+    token = "secret_" + "Ab3" * 14 + "X"  # 43 synthetic alphanumeric characters.
+    raw = f"Notion credential: {token}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "notion_token"
+    assert findings[0].label == "Notion integration token"
+    assert redact_text(raw) == "Notion credential: «REDACTED:notion_token»"
+    assert redacted_kinds(redact_text(raw)) == ["notion_token"]
+    assert token not in redact_text(raw)
+    assert not has_secret(redact_text(raw))
+
+
+def test_legacy_notion_token_near_misses_are_not_typed_as_credentials():
+    token = "secret_" + "Ab3" * 14 + "X"
+    for text in (
+        "secret_key",
+        "secret_token_value",
+        "secret_" + "A" * 42,
+        "secret_" + "A" * 44,
+        "not" + token,
+        "prefix_" + token,
+        token + "_suffix",
+        "secret_" + "A" * 100_000,
+    ):
+        assert all(f.kind != "notion_token" for f in find_secrets(text)), text[:60]
+
+
 def test_detects_and_redacts_1password_service_account_token():
     # Prefix and payload shape match the published detector; fake bytes only.
     token = "ops_eyJ" + "Ab3/" * 63
