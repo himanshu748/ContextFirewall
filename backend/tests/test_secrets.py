@@ -1347,6 +1347,26 @@ def test_truncated_pem_private_key_is_masked_through_end_of_input():
     assert payload not in redact_text(raw)
 
 
+def test_overlapping_generic_finding_redacts_full_pem_key():
+    # The assignment begins first and consumes part of the BEGIN delimiter.
+    # The later PEM finding must still mask everything through its END delimiter.
+    kind = "RSA PRIVATE KEY"
+    begin = "-----BEGIN " + kind + "-----"
+    end = "-----END " + kind + "-----"
+    body = "MIIE" + "Ab12" * 16
+    raw = "before\npassword=" + begin + "\n" + body + "\n" + end + "\nafter"
+
+    findings = find_secrets(raw)
+    generic = next(f for f in findings if f.kind == "secret_assignment")
+    pem = next(f for f in findings if f.kind == "private_key_block")
+    assert generic.start < pem.start < generic.end < pem.end
+
+    redacted = redact_text(raw)
+    assert redacted == "before\n«REDACTED:secret_assignment»\nafter"
+    assert body not in redacted
+    assert end not in redacted
+
+
 # --- redaction never leaks the value -----------------------------------------
 def test_redaction_hides_value():
     tok = "hf_" + "ABCdef0123456789ABCDEFGHIJ"
