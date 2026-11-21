@@ -228,6 +228,13 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     # SendGrid API keys contain two base64url segments of fixed lengths.
     ("sendgrid_api_key", "SendGrid API key", re.compile(r"(?<![A-Za-z0-9_-])SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])")),
     ("npm_token", "npm access token", re.compile(r"(?<![A-Za-z0-9_])npm_[A-Za-z0-9]{36}(?![A-Za-z0-9])")),
+
+    # npmrc scoped auth directives can contain opaque low-entropy credentials.
+    # Ignore variable references, but mask actual _authToken and _password values.
+    ("npmrc_auth", "npm registry authentication credential", re.compile(
+        r"(?i)(?<![A-Za-z0-9_])_(?:authToken|password)[ \t]*=[ \t]*(?!\$\{)"
+        r"[A-Za-z0-9+/_=.-]{1,256}(?![A-Za-z0-9+/_=.-])"
+    )),
     # Figma PATs are commonly emitted with a figd_ prefix. Figma does not
     # publish a fixed token shape, so treat the 40–200 character payload as a
     # conservative redaction heuristic, not a token validity check.
