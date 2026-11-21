@@ -17,14 +17,44 @@ from app.firewall.secrets import find_secrets, has_secret, redact_text, redacted
 
 def test_google_oauth_client_secrets_are_classified_and_fully_redacted():
     token = "GOCSPX-" + "Ab3x" * 7  # Synthetic, never an issued credential.
-    for raw in (token, f"client secret: {token} here", f'"{token}"'):
+    # A complete named match wins over the generic assignment detector,
+    # preserving the surrounding label and yielding a provider-specific marker.
+    for raw in (
+        token,
+        f"client secret: {token} here",
+        f"client_secret={token}",
+        f"CLIENT_SECRET='{token}'",
+        f'{{"client_secret": "{token}"}}',
+        f'"{token}"',
+    ):
         findings = find_secrets(raw)
         assert [f.kind for f in findings] == ["google_oauth_client_secret"]
         assert [f.label for f in findings] == ["Google OAuth client secret"]
-        assert redact_text(raw) == raw.replace(token, "«REDACTED:google_oauth_client_secret»")
-        assert redacted_kinds(redact_text(raw)) == ["google_oauth_client_secret"]
-        assert not has_secret(redact_text(raw))
+        assert [(f.start, f.end) for f in findings] == [
+            (raw.index(token), raw.index(token) + len(token))
+        ]
+        redacted = redact_text(raw)
+        assert redacted == raw.replace(token, "«REDACTED:google_oauth_client_secret»")
+        assert token not in redacted
+        assert redacted_kinds(redacted) == ["google_oauth_client_secret"]
+        assert not has_secret(redacted)
     assert label_for_kind("google_oauth_client_secret") == "Google OAuth client secret"
+
+
+def test_google_oauth_client_secret_partial_assignment_match_redacts_full_value():
+    token = "GOCSPX-" + "Ab3x" * 7
+    # A named match covering only part of an assignment must not leave the
+    # unmatched remainder visible. In this case the generic detector wins.
+    raw = f"client_secret={token}/additional-secret-data"
+    assert [f.kind for f in find_secrets(raw)] == [
+        "secret_assignment",
+        "google_oauth_client_secret",
+    ]
+    redacted = redact_text(raw)
+    assert redacted == "«REDACTED:secret_assignment»"
+    assert token not in redacted
+    assert "additional-secret-data" not in redacted
+    assert not has_secret(redacted)
 
 
 def test_google_oauth_client_secret_boundaries_exclude_near_misses():
