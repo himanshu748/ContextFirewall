@@ -343,6 +343,13 @@ def find_secrets(text: str, *, entropy_threshold: float = 4.2) -> List[SecretFin
                 continue
             if kind == "telegram_bot_token" and int(m.group(0).split(":", 1)[0]) >= (1 << 52):
                 continue
+            # Prefer a named credential when it covers the entire value of a
+            # generic assignment. Keep the assignment when only part matches,
+            # so redaction cannot expose an otherwise-unmatched suffix.
+            if kind == "secret_assignment" and any(
+                (f.start, f.end) == m.span(1) for f in findings
+            ):
+                continue
             value = m.group(m.lastindex) if m.lastindex else m.group(0)
             findings.append(SecretFinding(kind, label, _redact(value), m.start(), m.end()))
             spans.append((m.start(), m.end()))
