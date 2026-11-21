@@ -280,8 +280,9 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
             # Quoted secrets may contain spaces or escaped quotes. Mask the
             # entire value, including truncated end-of-line captures; otherwise
             # only the first word is removed and later words remain exposed.
-            r"\s*[:=]\s*(?:\"((?:\\.|[^\"\\\r\n])+)(?:\"|(?=\r?$))"
-            r"|'((?:\\.|[^'\\\r\n])+)(?:'|(?=\r?$))"
+            # A dangling escape is also secret data, but line endings must survive.
+            r"\s*[:=]\s*(?:\"((?:\\[^\r\n]|\\(?=\r?$)|[^\"\\\r\n])+)(?:\"|(?=\r?$))"
+            r"|'((?:\\[^\r\n]|\\(?=\r?$)|[^'\\\r\n])+)(?:'|(?=\r?$))"
             r"|([^\s\"',;]{8,}))",
             re.MULTILINE,
         ),
