@@ -319,10 +319,6 @@ def _shannon_entropy(s: str) -> float:
     return -sum((c / n) * math.log2(c / n) for c in counts.values())
 
 
-def _overlaps(start: int, end: int, spans: list[tuple[int, int]]) -> bool:
-    return any(s < end and start < e for s, e in spans)
-
-
 def find_secrets(text: str, *, entropy_threshold: float = 4.2) -> List[SecretFinding]:
     """Return all secret findings in ``text`` (possibly empty)."""
     if not text:
@@ -341,10 +337,20 @@ def find_secrets(text: str, *, entropy_threshold: float = 4.2) -> List[SecretFin
             findings.append(SecretFinding(kind, label, _redact(value), m.start(), m.end()))
             spans.append((m.start(), m.end()))
 
+    # The named patterns may overlap, and they are visited in pattern order
+    # rather than text order. Sort once, then sweep in input order alongside
+    # _TOKEN_RE instead of scanning every prior finding for each token.
+    # _TOKEN_RE yields non-overlapping matches, so fallback findings need not
+    # be added to this named-pattern exclusion set.
+    named_spans = sorted(spans)
+    span_index = 0
+
     # Entropy fallback: only long, mixed-class, high-entropy tokens not already
     # covered. Requires upper+lower+digit to avoid git SHAs (hex) and UUIDs.
     for m in _TOKEN_RE.finditer(text):
-        if _overlaps(m.start(), m.end(), spans):
+        while span_index < len(named_spans) and named_spans[span_index][1] <= m.start():
+            span_index += 1
+        if span_index < len(named_spans) and named_spans[span_index][0] < m.end():
             continue
         tok = m.group(0)
         if _PUBLIC_POSTHOG_TOKEN_RE.fullmatch(tok):
@@ -358,8 +364,6 @@ def find_secrets(text: str, *, entropy_threshold: float = 4.2) -> List[SecretFin
             findings.append(
                 SecretFinding("high_entropy_token", "high-entropy token", _redact(tok), m.start(), m.end())
             )
-            spans.append((m.start(), m.end()))
-
     findings.sort(key=lambda f: (f.start, f.end))
     return findings
 
