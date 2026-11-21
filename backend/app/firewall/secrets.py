@@ -215,6 +215,12 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     # SendGrid API keys contain two base64url segments of fixed lengths.
     ("sendgrid_api_key", "SendGrid API key", re.compile(r"(?<![A-Za-z0-9_-])SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])")),
     ("npm_token", "npm access token", re.compile(r"(?<![A-Za-z0-9_])npm_[A-Za-z0-9]{36}(?![A-Za-z0-9])")),
+    # Figma PATs are commonly emitted with a figd_ prefix. Figma does not
+    # publish a fixed token shape, so treat the 32–200 character payload as a
+    # conservative redaction heuristic, not a token validity check.
+    ("figma_personal_access_token", "Figma personal access token", re.compile(
+        r"(?<![A-Za-z0-9_-])figd_[A-Za-z0-9_-]{32,200}(?![A-Za-z0-9_-])"
+    )),
     # Notion's current API tokens use ntn_ (legacy secret_ tokens still work).
     ("notion_token", "Notion integration token", re.compile(
         r"(?<![A-Za-z0-9_-])ntn_[A-Za-z0-9_-]{20,}(?![A-Za-z0-9_-])"
