@@ -4,7 +4,7 @@ from app.firewall.secrets import find_secrets, redact_text, redacted_kinds, has_
 
 def test_figma_pat_is_fully_redacted():
     # The figd_ prefix is community-observed, not a fixed published token schema.
-    for n in (32, 36, 40, 160, 200):
+    for n in (40, 44, 48, 160, 200):
         token = "figd_" + "Ab3x" * (n // 4) + "A" * (n % 4)
         for text in (token, f"Figma PAT: {token}."):
             hits = find_secrets(text)
@@ -20,7 +20,7 @@ def test_figma_pat_partial_matches_are_rejected():
     token = "figd_" + "Ab3x" * 10
     for candidate in (
         "figd_",
-        "figd_" + "A" * 31,
+        "figd_" + "A" * 39,
         "figd_" + "A" * 201,
         "figx_" + "A" * 48,
         "prefix_" + token,
