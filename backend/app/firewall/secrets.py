@@ -174,6 +174,13 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
         r"(?<![A-Za-z0-9_])sntrys_[A-Za-z0-9+/]{10,}={0,2}_[A-Za-z0-9+/]{10,}(?![A-Za-z0-9+/=_-])"
     )),
 
+    # CircleCI's documented token format is CCIPAT/CCIPRJ, a base58 UUID,
+    # then a 40-hex-character secret. Use a narrow UUID-length range as a
+    # detector heuristic while rejecting partial token matches.
+    ("circleci_api_token", "CircleCI API token", re.compile(
+        r"(?<![A-Za-z0-9_])CCI(?:PAT|PRJ)_[1-9A-HJ-NP-Za-km-z]{20,24}_[0-9a-fA-F]{40}(?![A-Za-z0-9_-])"
+    )),
+
     # DigitalOcean personal, OAuth and refresh tokens share a 64-char hex body.
     ("digitalocean_token", "DigitalOcean API token", re.compile(
         r"(?<![A-Za-z0-9_])(?:dop|doo|dor)_v1_[0-9a-f]{64}(?![A-Za-z0-9_])"
@@ -281,7 +288,12 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     (
         "private_key_block",
         "private key block",
-        re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----"),
+        # Match the entire PEM block, not merely its BEGIN line. An incomplete
+        # capture is masked through EOF rather than exposing private-key bytes.
+        re.compile(
+            r"-----BEGIN (?P<key_type>(?:RSA |EC |OPENSSH |DSA |PGP |ENCRYPTED )?PRIVATE KEY)-----"
+            r"[\s\S]*?(?:-----END (?P=key_type)-----|\Z)"
+        ),
     ),
     (
         "connection_uri_password",
@@ -300,7 +312,14 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
             # the sensitive suffix must still be a whole identifier component.
             r"(?i)(?<![A-Za-z0-9_])(?:[A-Za-z][A-Za-z0-9]*[_-])*"
             r"(?:password|passwd|pwd|secret|api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret)\b"
-            r"\s*[:=]\s*[\"']?([^\s\"',;]{8,})"
+            # Quoted secrets may contain spaces or escaped quotes. Mask the
+            # entire value, including truncated end-of-line captures; otherwise
+            # only the first word is removed and later words remain exposed.
+            # A dangling escape is also secret data, but line endings must survive.
+            r"\s*[:=]\s*(?:\"((?:\\[^\r\n]|\\(?=\r?$)|[^\"\\\r\n])+)(?:\"|(?=\r?$))"
+            r"|'((?:\\[^\r\n]|\\(?=\r?$)|[^'\\\r\n])+)(?:'|(?=\r?$))"
+            r"|([^\s\"',;]{8,}))",
+            re.MULTILINE,
         ),
     ),
 ]
@@ -415,7 +434,11 @@ def redact_text(text: str) -> str:
     out: list[str] = []
     last = 0
     for f in findings:
-        if f.start < last:  # skip overlaps already consumed
+        if f.start < last:
+            # A later finding may extend beyond the consumed text (for example,
+            # a PEM block overlapping an earlier generic secret assignment).
+            # Keep the already-emitted marker but consume the entire union.
+            last = max(last, f.end)
             continue
         out.append(text[last:f.start])
         out.append(f"«REDACTED:{f.kind}»")

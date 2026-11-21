@@ -31,6 +31,38 @@ def test_named_and_high_entropy_spans_scale_without_quadratic_overlap_scans():
     assert redacted.count("«REDACTED:high_entropy_token»") == 3_000
 
 
+def test_circleci_personal_and_project_tokens_are_fully_redacted():
+    # Matches CircleCI's published UUID + 40-hex suffix shape; fake values.
+    uid = "ULUhR6rJLxYbyzyrP19iMZ"
+    for prefix in ("CCIPAT", "CCIPRJ"):
+        token = f"{prefix}_{uid}_" + "a1b2c3d4" * 5
+        text = f"CircleCI credential: {token}"
+        findings = find_secrets(text)
+        assert len(findings) == 1
+        assert findings[0].kind == "circleci_api_token"
+        assert findings[0].label == "CircleCI API token"
+        masked = redact_text(text)
+        assert masked == "CircleCI credential: «REDACTED:circleci_api_token»"
+        assert token not in masked
+        assert redacted_kinds(masked) == ["circleci_api_token"]
+        assert not has_secret(masked)
+    assert label_for_kind("circleci_api_token") == "CircleCI API token"
+
+
+def test_circleci_token_near_misses_do_not_match_partial_credentials():
+    uid = "ULUhR6rJLxYbyzyrP19iMZ"
+    token = "CCIPAT_" + uid + "_" + "a1b2c3d4" * 5
+    for ordinary in (
+        "CCIPAT_ is CircleCI's personal token prefix",
+        "CCIPAT_" + uid + "_" + "a1b2c3d4" * 4,
+        "CCIPAT_" + uid + "_" + "z" * 40,
+        "prefix_" + token,
+        token + "_suffix",
+        "CCIPAT_" + uid + "0_" + "a1b2c3d4" * 5,
+    ):
+        assert all(f.kind != "circleci_api_token" for f in find_secrets(ordinary)), ordinary[:80]
+
+
 def test_google_oauth_client_secrets_are_classified_and_fully_redacted():
     token = "GOCSPX-" + "Ab3x" * 7  # Synthetic, never an issued credential.
     # A complete named match wins over the generic assignment detector,
@@ -1402,6 +1434,42 @@ def test_detects_neo4j_uri_password():
     assert has_secret(uri)
 
 
+def test_quoted_secret_assignments_redact_every_word():
+    for name, quote, value in (
+        ("DB_PASSWORD", '"', "first password with spaces"),
+        ("ACCESS_TOKEN", "'", "one two three confidential"),
+        ("PAYMENTS_CLIENT_SECRET", '"', r"secre\\\"t with spaces"),
+    ):
+        raw = f"{name}={quote}{value}{quote}; keep=visible"
+        redacted = redact_text(raw)
+        assert redacted == "«REDACTED:secret_assignment»; keep=visible"
+        assert value not in redacted
+        findings = find_secrets(raw)
+        assert any(f.kind == "secret_assignment" and f.redacted for f in findings)
+
+
+def test_unterminated_quoted_password_is_masked_to_line_end():
+    raw = 'DB_PASSWORD="a complex secret phrase' + "\n" + "next=visible"
+    assert redact_text(raw) == "«REDACTED:secret_assignment»\nnext=visible"
+
+
+def test_trailing_escape_in_truncated_quoted_assignments_preserves_next_line():
+    for name, quote in (("DB_PASSWORD", '"'), ("ACCESS_TOKEN", "'")):
+        # Neither LF nor CRLF may be swallowed by the incomplete escape.
+        for newline in ("\n", "\r\n"):
+            secret_line = f"{name}={quote}a complex secret phrase" + "\\"
+            raw = secret_line + newline + "next=visible"
+            findings = find_secrets(raw)
+            assert len(findings) == 1
+            assert findings[0].kind == "secret_assignment"
+            assert findings[0].end == len(secret_line)
+            assert redact_text(raw) == "«REDACTED:secret_assignment»" + newline + "next=visible"
+
+        # A truncated escape at EOF is still part of the sensitive value.
+        raw = f"{name}={quote}a complex secret phrase" + "\\"
+        assert redact_text(raw) == "«REDACTED:secret_assignment»"
+
+
 def test_detects_inline_secret_assignment():
     pwd = "hunter2" + "-demo-only"
     assert any(x.kind == "secret_assignment" for x in find_secrets(f'config: password = "{pwd}"'))
@@ -1437,6 +1505,47 @@ def test_provider_prefixed_assignment_negatives():
 def test_detects_private_key_block():
     header = "-----BEGIN " + "RSA PRIVATE KEY" + "-----"
     assert has_secret(header + "\nMIIEog...")
+
+
+def test_pem_private_key_redaction_covers_body_and_preserves_following_text():
+    for kind in ("RSA PRIVATE KEY", "EC PRIVATE KEY", "OPENSSH PRIVATE KEY",
+                 "ENCRYPTED PRIVATE KEY", "PRIVATE KEY"):
+        begin = "-----BEGIN " + kind + "-----"
+        end = "-----END " + kind + "-----"
+        body = "MIIE" + "Ab12" * 16
+        raw = "before\n" + begin + "\n" + body + "\n" + end + "\nafter"
+        matches = [f for f in find_secrets(raw) if f.kind == "private_key_block"]
+        assert len(matches) == 1
+        assert raw[matches[0].start:matches[0].end] == begin + "\n" + body + "\n" + end
+        assert redact_text(raw) == "before\n«REDACTED:private_key_block»\nafter"
+
+
+def test_truncated_pem_private_key_is_masked_through_end_of_input():
+    begin = "-----BEGIN " + "RSA PRIVATE KEY" + "-----"
+    payload = "MIIE" + "Aa12" * 30
+    raw = "before\n" + begin + "\n" + payload
+    assert redact_text(raw) == "before\n«REDACTED:private_key_block»"
+    assert payload not in redact_text(raw)
+
+
+def test_overlapping_generic_finding_redacts_full_pem_key():
+    # The assignment begins first and consumes part of the BEGIN delimiter.
+    # The later PEM finding must still mask everything through its END delimiter.
+    kind = "RSA PRIVATE KEY"
+    begin = "-----BEGIN " + kind + "-----"
+    end = "-----END " + kind + "-----"
+    body = "MIIE" + "Ab12" * 16
+    raw = "before\npassword=" + begin + "\n" + body + "\n" + end + "\nafter"
+
+    findings = find_secrets(raw)
+    generic = next(f for f in findings if f.kind == "secret_assignment")
+    pem = next(f for f in findings if f.kind == "private_key_block")
+    assert generic.start < pem.start < generic.end < pem.end
+
+    redacted = redact_text(raw)
+    assert redacted == "before\n«REDACTED:secret_assignment»\nafter"
+    assert body not in redacted
+    assert end not in redacted
 
 
 # --- redaction never leaks the value -----------------------------------------
