@@ -25,7 +25,13 @@ def test_figma_pat_partial_matches_are_rejected():
         "figx_" + "A" * 48,
         "prefix_" + token,
         "x" + token,
-        token + "_suffix",
         "figd_" + "A" * 100_000,
     ):
         assert all(f.kind != "figma_personal_access_token" for f in find_secrets(candidate)), candidate[:60]
+
+
+def test_figma_pat_with_opaque_underscore_suffix_is_redacted_whole():
+    # Underscores are valid payload characters; suffixes must not leak.
+    token = "figd_" + "Ab3x" * 10 + "_suffix"
+    assert [f.kind for f in find_secrets(token)] == ["figma_personal_access_token"]
+    assert redact_text(token) == "«REDACTED:figma_personal_access_token»"
