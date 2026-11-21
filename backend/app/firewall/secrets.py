@@ -108,6 +108,16 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
         r"(?<![A-Za-z0-9_.-])dp\.(?:(?:ct|pt|sa|said|scim|audit)\.|st\.(?:[a-z0-9_-]{2,35}\.)?)[A-Za-z0-9]{40,44}(?![A-Za-z0-9_.-])"
     )),
     ("aws_access_key", "AWS access key id", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),
+
+    # Canonical database-client environment variables omit ordinary PASSWORD
+    # suffix delimiters. Mask low-entropy and quoted values through line end.
+    ("service_password_env", "service password environment variable", re.compile(
+        r"(?im)(?<![A-Za-z0-9_])(?:PGPASSWORD|MYSQL_PWD|REDISCLI_AUTH)[ \t]*=[ \t]*"
+        r"(?!\$\{)(?:\"((?:\\[^\r\n]|\\(?=\r?$)|[^\"\\\r\n])+)(?:\"|(?=\r?$))"
+        r"|'((?:\\[^\r\n]|\\(?=\r?$)|[^'\\\r\n])+)(?:'|(?=\r?$))"
+        r"|([^\s\"',;]+))"
+    )),
+
     ("google_api_key", "Google API key", re.compile(r"\bAIza[0-9A-Za-z_\-]{35}\b")),
     # Includes classic/OAuth/App credentials and fine-grained personal access tokens.
     ("github_token", "GitHub token", re.compile(
