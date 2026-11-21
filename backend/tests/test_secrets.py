@@ -1308,7 +1308,6 @@ def test_unterminated_quoted_password_is_masked_to_line_end():
     assert redact_text(raw) == "«REDACTED:secret_assignment»\nnext=visible"
 
 
-
 def test_trailing_escape_in_truncated_quoted_assignments_preserves_next_line():
     for name, quote in (("DB_PASSWORD", '"'), ("ACCESS_TOKEN", "'")):
         # Neither LF nor CRLF may be swallowed by the incomplete escape.
@@ -1324,6 +1323,7 @@ def test_trailing_escape_in_truncated_quoted_assignments_preserves_next_line():
         # A truncated escape at EOF is still part of the sensitive value.
         raw = f"{name}={quote}a complex secret phrase" + "\\"
         assert redact_text(raw) == "«REDACTED:secret_assignment»"
+
 
 def test_detects_inline_secret_assignment():
     pwd = "hunter2" + "-demo-only"
