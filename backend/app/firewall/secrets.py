@@ -305,7 +305,7 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
             # Allow provider prefixes such as TWILIO_AUTH_TOKEN and DB_PASSWORD;
             # the sensitive suffix must still be a whole identifier component.
             r"(?i)(?<![A-Za-z0-9_])(?:[A-Za-z][A-Za-z0-9]*[_-])*"
-            r"(?:password|passwd|pwd|secret|api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret)\b"
+            r"(?:password|passwd|pwd|secret[_-]?access[_-]?key|secret|api[_-]?(?:key|token)|access[_-]?token|auth[_-]?token|refresh[_-]?token|session[_-]?token|client[_-]?secret)\b"
             # Quoted secrets may contain spaces or escaped quotes. Mask the
             # entire value, including truncated end-of-line captures; otherwise
             # only the first word is removed and later words remain exposed.
