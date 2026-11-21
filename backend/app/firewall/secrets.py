@@ -101,6 +101,12 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("databricks_pat", "Databricks personal access token", re.compile(
         r"(?<![A-Za-z0-9_-])dapi[0-9a-fA-F]{32}(?![A-Za-z0-9_-])"
     )),
+    # Doppler documents exact formats for CLI, personal, service, service
+    # account, identity, SCIM and audit tokens. For service tokens, the
+    # optional 2–35-character environment segment precedes the secret.
+    ("doppler_auth_token", "Doppler authentication token", re.compile(
+        r"(?<![A-Za-z0-9_.-])dp\.(?:(?:ct|pt|sa|said|scim|audit)\.|st\.(?:[a-z0-9_-]{2,35}\.)?)[A-Za-z0-9]{40,44}(?![A-Za-z0-9_.-])"
+    )),
     ("aws_access_key", "AWS access key id", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),
     ("google_api_key", "Google API key", re.compile(r"\bAIza[0-9A-Za-z_\-]{35}\b")),
     # Includes classic/OAuth/App credentials and fine-grained personal access tokens.
