@@ -14,6 +14,22 @@ from unittest.mock import patch
 from app.firewall.secrets import find_secrets, has_secret, redact_text, redacted_kinds, label_for_kind
 
 
+def test_named_and_high_entropy_spans_scale_without_quadratic_overlap_scans():
+    # A malicious memory can contain thousands of credential-shaped strings.
+    # Named tokens must not be double-counted by the generic entropy fallback.
+    named = "hf_" + "Ab3x" * 10  # Synthetic Hugging Face token.
+    opaque = "Ab1Cd2Ef3Gh4Ij5Kl6Mn7Op8Qr9St0Uv1Wx2Yz3"
+    raw = " ".join([named, opaque] * 3_000)
+    findings = find_secrets(raw)
+    assert len(findings) == 6_000
+    assert sum(f.kind == "huggingface_token" for f in findings) == 3_000
+    assert sum(f.kind == "high_entropy_token" for f in findings) == 3_000
+    assert all(a.start <= b.start for a, b in zip(findings, findings[1:]))
+    redacted = redact_text(raw)
+    assert named not in redacted and opaque not in redacted
+    assert redacted.count("«REDACTED:huggingface_token»") == 3_000
+    assert redacted.count("«REDACTED:high_entropy_token»") == 3_000
+
 
 def test_google_oauth_client_secrets_are_classified_and_fully_redacted():
     token = "GOCSPX-" + "Ab3x" * 7  # Synthetic, never an issued credential.
@@ -703,6 +719,35 @@ def test_detects_and_redacts_current_notion_integration_token():
     assert redact_text(raw) == "Notion credential: «REDACTED:notion_token»"
     assert redacted_kinds(redact_text(raw)) == ["notion_token"]
     assert label_for_kind("notion_token") == "Notion integration token"
+
+
+def test_detects_and_redacts_legacy_notion_integration_token():
+    # Notion issued secret_-prefixed tokens before the modern ntn_ format.
+    token = "secret_" + "Ab3" * 14 + "X"  # 43 synthetic alphanumeric characters.
+    raw = f"Notion credential: {token}"
+    findings = find_secrets(raw)
+    assert len(findings) == 1
+    assert findings[0].kind == "notion_token"
+    assert findings[0].label == "Notion integration token"
+    assert redact_text(raw) == "Notion credential: «REDACTED:notion_token»"
+    assert redacted_kinds(redact_text(raw)) == ["notion_token"]
+    assert token not in redact_text(raw)
+    assert not has_secret(redact_text(raw))
+
+
+def test_legacy_notion_token_near_misses_are_not_typed_as_credentials():
+    token = "secret_" + "Ab3" * 14 + "X"
+    for text in (
+        "secret_key",
+        "secret_token_value",
+        "secret_" + "A" * 42,
+        "secret_" + "A" * 44,
+        "not" + token,
+        "prefix_" + token,
+        token + "_suffix",
+        "secret_" + "A" * 100_000,
+    ):
+        assert all(f.kind != "notion_token" for f in find_secrets(text)), text[:60]
 
 
 def test_detects_and_redacts_1password_service_account_token():

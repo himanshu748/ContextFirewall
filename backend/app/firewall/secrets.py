@@ -107,6 +107,12 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("databricks_pat", "Databricks personal access token", re.compile(
         r"(?<![A-Za-z0-9_-])dapi[0-9a-fA-F]{32}(?![A-Za-z0-9_-])"
     )),
+    # Doppler documents exact formats for CLI, personal, service, service
+    # account, identity, SCIM and audit tokens. For service tokens, the
+    # optional 2–35-character environment segment precedes the secret.
+    ("doppler_auth_token", "Doppler authentication token", re.compile(
+        r"(?<![A-Za-z0-9_.-])dp\.(?:(?:ct|pt|sa|said|scim|audit)\.|st\.(?:[a-z0-9_-]{2,35}\.)?)[A-Za-z0-9]{40,44}(?![A-Za-z0-9_.-])"
+    )),
     ("aws_access_key", "AWS access key id", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),
     ("google_api_key", "Google API key", re.compile(r"\bAIza[0-9A-Za-z_\-]{35}\b")),
     # Includes classic/OAuth/App credentials and fine-grained personal access tokens.
@@ -221,9 +227,20 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     # SendGrid API keys contain two base64url segments of fixed lengths.
     ("sendgrid_api_key", "SendGrid API key", re.compile(r"(?<![A-Za-z0-9_-])SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])")),
     ("npm_token", "npm access token", re.compile(r"(?<![A-Za-z0-9_])npm_[A-Za-z0-9]{36}(?![A-Za-z0-9])")),
+    # Figma PATs are commonly emitted with a figd_ prefix. Figma does not
+    # publish a fixed token shape, so treat the 40–200 character payload as a
+    # conservative redaction heuristic, not a token validity check.
+    ("figma_personal_access_token", "Figma personal access token", re.compile(
+        r"(?<![A-Za-z0-9_-])figd_[A-Za-z0-9_-]{40,200}(?![A-Za-z0-9_-])"
+    )),
     # Notion's current API tokens use ntn_ (legacy secret_ tokens still work).
     ("notion_token", "Notion integration token", re.compile(
         r"(?<![A-Za-z0-9_-])ntn_[A-Za-z0-9_-]{20,}(?![A-Za-z0-9_-])"
+    )),
+    # Legacy Notion integration tokens use secret_ plus 43 alphanumeric
+    # characters. Keep a fixed length to avoid masking generic identifiers.
+    ("notion_token", "Notion integration token", re.compile(
+        r"(?<![A-Za-z0-9_-])secret_[A-Za-z0-9]{43}(?![A-Za-z0-9_-])"
     )),
     # Docker Hub's personal and organization credentials have distinct prefixes.
     ("docker_hub_token", "Docker Hub access token", re.compile(
@@ -325,10 +342,6 @@ def _shannon_entropy(s: str) -> float:
     return -sum((c / n) * math.log2(c / n) for c in counts.values())
 
 
-def _overlaps(start: int, end: int, spans: list[tuple[int, int]]) -> bool:
-    return any(s < end and start < e for s, e in spans)
-
-
 def find_secrets(text: str, *, entropy_threshold: float = 4.2) -> List[SecretFinding]:
     """Return all secret findings in ``text`` (possibly empty)."""
     if not text:
@@ -338,26 +351,37 @@ def find_secrets(text: str, *, entropy_threshold: float = 4.2) -> List[SecretFin
     spans: list[tuple[int, int]] = []
 
     for kind, label, pat in _PATTERNS:
+        # Named patterns are visited before the generic assignment rule.
+        # Build a set once so exact-value precedence remains O(1) per match.
+        if kind == "secret_assignment":
+            named_value_spans = set(spans)
         for m in pat.finditer(text):
             if kind == "discord_bot_token" and not _is_discord_bot_token(m.group(0)):
                 continue
             if kind == "telegram_bot_token" and int(m.group(0).split(":", 1)[0]) >= (1 << 52):
                 continue
-            # Prefer a named credential when it covers the entire value of a
-            # generic assignment. Keep the assignment when only part matches,
-            # so redaction cannot expose an otherwise-unmatched suffix.
-            if kind == "secret_assignment" and any(
-                (f.start, f.end) == m.span(1) for f in findings
-            ):
+            # A complete, named credential wins over a generic assignment;
+            # retain the broad match for partial overlaps so suffixes cannot leak.
+            if kind == "secret_assignment" and m.span(1) in named_value_spans:
                 continue
             value = m.group(m.lastindex) if m.lastindex else m.group(0)
             findings.append(SecretFinding(kind, label, _redact(value), m.start(), m.end()))
             spans.append((m.start(), m.end()))
 
+    # The named patterns may overlap, and they are visited in pattern order
+    # rather than text order. Sort once, then sweep in input order alongside
+    # _TOKEN_RE instead of scanning every prior finding for each token.
+    # _TOKEN_RE yields non-overlapping matches, so fallback findings need not
+    # be added to this named-pattern exclusion set.
+    named_spans = sorted(spans)
+    span_index = 0
+
     # Entropy fallback: only long, mixed-class, high-entropy tokens not already
     # covered. Requires upper+lower+digit to avoid git SHAs (hex) and UUIDs.
     for m in _TOKEN_RE.finditer(text):
-        if _overlaps(m.start(), m.end(), spans):
+        while span_index < len(named_spans) and named_spans[span_index][1] <= m.start():
+            span_index += 1
+        if span_index < len(named_spans) and named_spans[span_index][0] < m.end():
             continue
         tok = m.group(0)
         if _PUBLIC_POSTHOG_TOKEN_RE.fullmatch(tok):
@@ -371,8 +395,6 @@ def find_secrets(text: str, *, entropy_threshold: float = 4.2) -> List[SecretFin
             findings.append(
                 SecretFinding("high_entropy_token", "high-entropy token", _redact(tok), m.start(), m.end())
             )
-            spans.append((m.start(), m.end()))
-
     findings.sort(key=lambda f: (f.start, f.end))
     return findings
 
