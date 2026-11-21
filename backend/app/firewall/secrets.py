@@ -54,6 +54,12 @@ def _is_discord_bot_token(candidate: str) -> bool:
 # (kind, human label, regex). The optional last capture group, when present,
 # isolates the secret value to redact (vs. the whole match).
 _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
+    # Netlify's 2023 token formats use five nf*- families in a 40-character
+    # envelope (four-character prefix and 36 opaque characters). Reject adjacent
+    # identifier characters rather than masking a partial credential.
+    ("netlify_access_token", "Netlify authentication token", re.compile(
+        r"(?<![A-Za-z0-9_-])nf[pcoub]_[A-Za-z0-9_-]{36}(?![A-Za-z0-9_-])"
+    )),
     ("huggingface_token", "Hugging Face token", re.compile(r"\bhf_[A-Za-z0-9]{16,}\b")),
     # OpenRouter uses a distinct sk-or-v1- prefix and 64 hex digits. Classify
     # it before the broad OpenAI rule, which must not claim OpenRouter keys.
