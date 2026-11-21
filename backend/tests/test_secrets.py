@@ -1372,6 +1372,47 @@ def test_detects_private_key_block():
     assert has_secret(header + "\nMIIEog...")
 
 
+def test_pem_private_key_redaction_covers_body_and_preserves_following_text():
+    for kind in ("RSA PRIVATE KEY", "EC PRIVATE KEY", "OPENSSH PRIVATE KEY",
+                 "ENCRYPTED PRIVATE KEY", "PRIVATE KEY"):
+        begin = "-----BEGIN " + kind + "-----"
+        end = "-----END " + kind + "-----"
+        body = "MIIE" + "Ab12" * 16
+        raw = "before\n" + begin + "\n" + body + "\n" + end + "\nafter"
+        matches = [f for f in find_secrets(raw) if f.kind == "private_key_block"]
+        assert len(matches) == 1
+        assert raw[matches[0].start:matches[0].end] == begin + "\n" + body + "\n" + end
+        assert redact_text(raw) == "before\n«REDACTED:private_key_block»\nafter"
+
+
+def test_truncated_pem_private_key_is_masked_through_end_of_input():
+    begin = "-----BEGIN " + "RSA PRIVATE KEY" + "-----"
+    payload = "MIIE" + "Aa12" * 30
+    raw = "before\n" + begin + "\n" + payload
+    assert redact_text(raw) == "before\n«REDACTED:private_key_block»"
+    assert payload not in redact_text(raw)
+
+
+def test_overlapping_generic_finding_redacts_full_pem_key():
+    # The assignment begins first and consumes part of the BEGIN delimiter.
+    # The later PEM finding must still mask everything through its END delimiter.
+    kind = "RSA PRIVATE KEY"
+    begin = "-----BEGIN " + kind + "-----"
+    end = "-----END " + kind + "-----"
+    body = "MIIE" + "Ab12" * 16
+    raw = "before\npassword=" + begin + "\n" + body + "\n" + end + "\nafter"
+
+    findings = find_secrets(raw)
+    generic = next(f for f in findings if f.kind == "secret_assignment")
+    pem = next(f for f in findings if f.kind == "private_key_block")
+    assert generic.start < pem.start < generic.end < pem.end
+
+    redacted = redact_text(raw)
+    assert redacted == "before\n«REDACTED:secret_assignment»\nafter"
+    assert body not in redacted
+    assert end not in redacted
+
+
 # --- redaction never leaks the value -----------------------------------------
 def test_redaction_hides_value():
     tok = "hf_" + "ABCdef0123456789ABCDEFGHIJ"

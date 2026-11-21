@@ -275,7 +275,12 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     (
         "private_key_block",
         "private key block",
-        re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |PGP )?PRIVATE KEY-----"),
+        # Match the entire PEM block, not merely its BEGIN line. An incomplete
+        # capture is masked through EOF rather than exposing private-key bytes.
+        re.compile(
+            r"-----BEGIN (?P<key_type>(?:RSA |EC |OPENSSH |DSA |PGP |ENCRYPTED )?PRIVATE KEY)-----"
+            r"[\s\S]*?(?:-----END (?P=key_type)-----|\Z)"
+        ),
     ),
     (
         "connection_uri_password",
@@ -393,7 +398,11 @@ def redact_text(text: str) -> str:
     out: list[str] = []
     last = 0
     for f in findings:
-        if f.start < last:  # skip overlaps already consumed
+        if f.start < last:
+            # A later finding may extend beyond the consumed text (for example,
+            # a PEM block overlapping an earlier generic secret assignment).
+            # Keep the already-emitted marker but consume the entire union.
+            last = max(last, f.end)
             continue
         out.append(text[last:f.start])
         out.append(f"«REDACTED:{f.kind}»")
