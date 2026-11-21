@@ -221,6 +221,12 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     # SendGrid API keys contain two base64url segments of fixed lengths.
     ("sendgrid_api_key", "SendGrid API key", re.compile(r"(?<![A-Za-z0-9_-])SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])")),
     ("npm_token", "npm access token", re.compile(r"(?<![A-Za-z0-9_])npm_[A-Za-z0-9]{36}(?![A-Za-z0-9])")),
+    # Cookie and Set-Cookie can carry session credentials too short for entropy
+    # detection. Require a real name=value header, not ordinary cookie prose.
+    ("http_cookie_header", "HTTP cookie header", re.compile(
+        r"(?im)^[ \t]*(?:Cookie|Set-Cookie)[ \t]*:[ \t]*[^=;\r\n \t]+=[^\r\n]+"
+    )),
+
     # Figma PATs are commonly emitted with a figd_ prefix. Figma does not
     # publish a fixed token shape, so treat the 40–200 character payload as a
     # conservative redaction heuristic, not a token validity check.
@@ -351,7 +357,7 @@ def find_secrets(text: str, *, entropy_threshold: float = 4.2) -> List[SecretFin
             if kind == "telegram_bot_token" and int(m.group(0).split(":", 1)[0]) >= (1 << 52):
                 continue
             value = m.group(m.lastindex) if m.lastindex else m.group(0)
-            findings.append(SecretFinding(kind, label, _redact(value), m.start(), m.end()))
+            findings.append(SecretFinding(kind, label, "***" if kind == "http_cookie_header" else _redact(value), m.start(), m.end()))
             spans.append((m.start(), m.end()))
 
     # The named patterns may overlap, and they are visited in pattern order
