@@ -14,6 +14,31 @@ from unittest.mock import patch
 from app.firewall.secrets import find_secrets, has_secret, redact_text, redacted_kinds, label_for_kind
 
 
+
+def test_google_oauth_client_secrets_are_classified_and_fully_redacted():
+    token = "GOCSPX-" + "Ab3x" * 7  # Synthetic, never an issued credential.
+    for raw in (token, f"client secret: {token} here", f'"{token}"'):
+        findings = find_secrets(raw)
+        assert [f.kind for f in findings] == ["google_oauth_client_secret"]
+        assert [f.label for f in findings] == ["Google OAuth client secret"]
+        assert redact_text(raw) == raw.replace(token, "«REDACTED:google_oauth_client_secret»")
+        assert redacted_kinds(redact_text(raw)) == ["google_oauth_client_secret"]
+        assert not has_secret(redact_text(raw))
+    assert label_for_kind("google_oauth_client_secret") == "Google OAuth client secret"
+
+
+def test_google_oauth_client_secret_boundaries_exclude_near_misses():
+    token = "GOCSPX-" + "Ab3x" * 7
+    for ordinary in (
+        "Google OAuth client secrets start with GOCSPX-",
+        "GOCSPX-" + "a" * 27,
+        "GOCSPX-" + "a" * 29,
+        "prefix_" + token,
+        token + "_suffix",
+        "GOCSPX-" + "a" * 100_000,
+    ):
+        assert all(f.kind != "google_oauth_client_secret" for f in find_secrets(ordinary)), ordinary[:80]
+
 def test_supabase_secret_keys_are_classified_and_redacted():
     # Assemble a synthetic server-only key; public sb_publishable_ keys are distinct.
     token = "sb_" + "secret_" + "Ab3x" * 8
