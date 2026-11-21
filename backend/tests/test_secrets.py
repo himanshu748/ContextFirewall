@@ -72,6 +72,7 @@ def test_google_oauth_client_secrets_are_classified_and_fully_redacted():
         f"client secret: {token} here",
         f"client_secret={token}",
         f"CLIENT_SECRET='{token}'",
+        f'client_secret="{token}"',
         f'{{"client_secret": "{token}"}}',
         f'"{token}"',
     ):
@@ -94,16 +95,19 @@ def test_google_oauth_client_secret_partial_assignment_match_redacts_full_value(
     token = "GOCSPX-" + "Ab3x" * 7
     # A named match covering only part of an assignment must not leave the
     # unmatched remainder visible. In this case the generic detector wins.
-    raw = f"client_secret={token}/additional-secret-data"
-    assert [f.kind for f in find_secrets(raw)] == [
-        "secret_assignment",
-        "google_oauth_client_secret",
-    ]
-    redacted = redact_text(raw)
-    assert redacted == "«REDACTED:secret_assignment»"
-    assert token not in redacted
-    assert "additional-secret-data" not in redacted
-    assert not has_secret(redacted)
+    for raw in (
+        f"client_secret={token}/additional-secret-data",
+        f'client_secret="{token} additional-secret-data"',
+    ):
+        assert [f.kind for f in find_secrets(raw)] == [
+            "secret_assignment",
+            "google_oauth_client_secret",
+        ]
+        redacted = redact_text(raw)
+        assert redacted == "«REDACTED:secret_assignment»"
+        assert token not in redacted
+        assert "additional-secret-data" not in redacted
+        assert not has_secret(redacted)
 
 
 def test_google_oauth_redaction_marker_is_inert_but_not_a_bypass():

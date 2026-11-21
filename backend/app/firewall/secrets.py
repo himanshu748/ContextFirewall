@@ -382,16 +382,18 @@ def find_secrets(text: str, *, entropy_threshold: float = 4.2) -> List[SecretFin
                 continue
             if kind == "telegram_bot_token" and int(m.group(0).split(":", 1)[0]) >= (1 << 52):
                 continue
+            # The secret_assignment pattern has separate capture groups for
+            # quoted and unquoted values. Use whichever group matched.
+            value = m.group(m.lastindex) if m.lastindex else m.group(0)
             # An existing typed marker is not a new secret, even when labelled.
             # Only skip a complete marker; marker plus a suffix stays sensitive.
             if kind == "secret_assignment":
-                if _MARKER_RE.fullmatch(m.group(1)):
+                if _MARKER_RE.fullmatch(value):
                     continue
                 # A complete named credential wins over a generic assignment.
                 # Keep the broad match for partial overlaps to hide any suffix.
-                if m.span(1) in named_value_spans:
+                if m.span(m.lastindex) in named_value_spans:
                     continue
-            value = m.group(m.lastindex) if m.lastindex else m.group(0)
             findings.append(SecretFinding(kind, label, _redact(value), m.start(), m.end()))
             spans.append((m.start(), m.end()))
 
