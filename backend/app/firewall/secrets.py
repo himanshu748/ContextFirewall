@@ -55,6 +55,12 @@ def _is_discord_bot_token(candidate: str) -> bool:
 # isolates the secret value to redact (vs. the whole match).
 _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("huggingface_token", "Hugging Face token", re.compile(r"\bhf_[A-Za-z0-9]{16,}\b")),
+    # Google OAuth 2.0 client secrets have a recognizable GOCSPX- prefix
+    # and 28 opaque URL-safe characters. Match complete tokens only.
+    ("google_oauth_client_secret", "Google OAuth client secret", re.compile(
+        r"(?<![A-Za-z0-9_-])GOCSPX-[A-Za-z0-9_-]{28}(?![A-Za-z0-9_-])"
+    )),
+
     # OpenRouter uses a distinct sk-or-v1- prefix and 64 hex digits. Classify
     # it before the broad OpenAI rule, which must not claim OpenRouter keys.
     ("openrouter_api_key", "OpenRouter API key", re.compile(
