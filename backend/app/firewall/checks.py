@@ -120,6 +120,13 @@ def secret_check(mem: Dict[str, Any]) -> CheckOutcome:
 
 # --- check 2: staleness -------------------------------------------------------
 def staleness_check(mem: Dict[str, Any], cluster: List[Dict[str, Any]]) -> CheckOutcome:
+    if mem.get("peer_group_incomplete"):
+        return CheckOutcome(
+            "staleness",
+            False,
+            "Cannot establish currency: same-subject memories exceeded the audit limit.",
+            "block",
+        )
     peers = _same_subject_peers(mem, cluster)
     newer = [
         peer
