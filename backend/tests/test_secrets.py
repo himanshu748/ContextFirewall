@@ -1556,6 +1556,37 @@ def test_unquoted_short_secret_assignments_are_not_leaked():
         assert not has_secret(ordinary), ordinary
 
 
+def test_empty_unquoted_secret_assignments_preserve_following_line():
+    # Empty assignments must never consume ordinary text across LF or CRLF.
+    for newline in ("\n", "\r\n"):
+        for empty_line in ("password=", "DB_PASSWORD = ", "client_secret:\t"):
+            raw = empty_line + newline + "ordinary text"
+            assert find_secrets(raw) == [], repr(raw)
+            assert not has_secret(raw), repr(raw)
+            assert redact_text(raw) == raw
+
+        # Neither the separator nor a value may be split onto another line.
+        assert not has_secret("password" + newline + "=12")
+
+
+def test_short_unquoted_secret_assignments_preserve_following_line():
+    marker = "«REDACTED:secret_assignment»"
+    for newline in ("\n", "\r\n"):
+        for assignment in ("password=x", "DB_PASSWORD = 12", "client_secret:\t0"):
+            raw = "before" + newline + assignment + newline + "ordinary text"
+            findings = find_secrets(raw)
+            assert len(findings) == 1, repr(raw)
+            assert findings[0].kind == "secret_assignment"
+            assert findings[0].start == len("before" + newline)
+            assert findings[0].end == len("before" + newline + assignment)
+            assert redact_text(raw) == "before" + newline + marker + newline + "ordinary text"
+
+        # Consecutive assignments should each redact without consuming a newline.
+        raw = "password=12" + newline + "api_key=abc"
+        assert len(find_secrets(raw)) == 2
+        assert redact_text(raw) == marker + newline + marker
+
+
 # --- negatives: should NOT be flagged ----------------------------------------
 def test_ignores_plain_prose():
     assert not has_secret("The deploy command changed from make deploy-v1 to make deploy-v2.")
