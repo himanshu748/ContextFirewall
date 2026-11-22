@@ -376,7 +376,10 @@ def find_secrets(text: str, *, entropy_threshold: float = 4.2) -> List[SecretFin
             if kind == "telegram_bot_token" and int(m.group(0).split(":", 1)[0]) >= (1 << 52):
                 continue
             value = m.group(m.lastindex) if m.lastindex else m.group(0)
-            findings.append(SecretFinding(kind, label, _redact(value), m.start(), m.end()))
+            # A URL prefix inflates the apparent length of even a short password.
+            # Never show its suffix in a diagnostic preview.
+            preview = "***" if kind == "http_url_password" else _redact(value)
+            findings.append(SecretFinding(kind, label, preview, m.start(), m.end()))
             spans.append((m.start(), m.end()))
 
     # The named patterns may overlap, and they are visited in pattern order
