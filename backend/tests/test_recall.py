@@ -112,6 +112,7 @@ def test_subject_peer_cap_never_approves_stale_memory(monkeypatch, new_first):
     assert len(records) == recall_module._MAX_CLUSTER
     old = next(rec for rec in records if rec["node_id"] == "old-0")
     assert old["peer_group_incomplete"] is True
+    assert "peer_group_incomplete" not in nodes["old-0"]
     verdict = staleness_check(old, records)
     assert verdict.passed is False
     assert verdict.severity == "block"
