@@ -19,13 +19,18 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import logging
 import os
+from fastapi import HTTPException
 from dataclasses import dataclass, field
 from typing import Optional, Set
 
 DEMO_NAMESPACE = "demo"
 PUBLIC_NAMESPACE = "public"
 API_KEY_PREFIX = "cf_live_"
+logger = logging.getLogger(__name__)
+_INVALID_KEY = "Invalid or revoked ContextFirewall API key. Create a new key in Account & keys."
+_STORE_UNAVAILABLE = "API key verification is temporarily unavailable. Try again later."
 
 
 def hash_api_key(raw_key: str) -> str:
@@ -99,15 +104,16 @@ async def _get_pool():
 
 
 async def _namespace_for_key(raw_key: str) -> Optional[str]:
-    """Resolve a key to its namespace, failing CLOSED on any store error.
+    """Resolve an API key; distinguish unknown/revoked keys from store outages.
 
-    If the key table is unreachable (missing migration, connection loss), the
-    caller is treated as anonymous — never a 500, and never a write grant.
+    An unavailable key store must not silently substitute public demo memory
+    for an authenticated caller's private data.
     """
     try:
         pool = await _get_pool()
         if pool is None:
-            return None
+            logger.error("API key verification unavailable: no key store configured")
+            raise HTTPException(status_code=503, detail=_STORE_UNAVAILABLE)
         key_hash = hash_api_key(raw_key)
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
@@ -125,15 +131,19 @@ async def _namespace_for_key(raw_key: str) -> Optional[str]:
             except Exception:  # noqa: BLE001
                 pass
         return str(row["namespace"])
-    except Exception:  # noqa: BLE001
-        return None
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        # Never log key material, SQL parameters or raw DB exception messages.
+        logger.error("API key verification failed (%s)", type(exc).__name__)
+        raise HTTPException(status_code=503, detail=_STORE_UNAVAILABLE) from None
 
 
 async def resolve_identity(authorization: Optional[str], env_write_token: Optional[str] = None) -> Identity:
     """Resolve the caller from the Authorization header.
 
-    Order: a valid API key wins (its account namespace); otherwise the optional
-    ``CF_WRITE_TOKEN`` admin override; otherwise anonymous demo-read.
+    A valid API key wins (its private namespace), then the optional admin
+    override. Only an absent Authorization header may use anonymous demo-read.
     """
     token = bearer_token(authorization)
     if looks_like_api_key(token):
@@ -146,7 +156,7 @@ async def resolve_identity(authorization: Optional[str], env_write_token: Option
                 allow_demo_write=False,
                 read_namespaces={ns},
             )
-        return _anonymous()  # unknown/revoked key -> no privileges
+        raise HTTPException(status_code=401, detail=_INVALID_KEY)
     env_token = env_write_token if env_write_token is not None else os.getenv("CF_WRITE_TOKEN")
     if env_token and token and hmac.compare_digest(token.encode(), env_token.encode()):
         return Identity(
@@ -156,4 +166,6 @@ async def resolve_identity(authorization: Optional[str], env_write_token: Option
             allow_demo_write=False,
             read_namespaces={DEMO_NAMESPACE, PUBLIC_NAMESPACE},
         )
+    if authorization:
+        raise HTTPException(status_code=401, detail=_INVALID_KEY)
     return _anonymous()
