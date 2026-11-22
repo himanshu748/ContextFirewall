@@ -305,12 +305,13 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
             r"[\s\S]*?(?:-----END (?P=key_type)-----|\Z)"
         ),
     ),
+    # Even a one-character password in a database URI is a credential.
     (
         "connection_uri_password",
         "database connection URI with inline password",
         re.compile(
             r"\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|neo4j(?:\+s|\+ssc)?|bolt(?:\+s)?)"
-            r"://[^\s:@/]+:([^\s:@/]{3,})@",
+            r"://[^\s:@/]+:([^\s:@/]{1,})@",
             re.IGNORECASE,
         ),
     ),
