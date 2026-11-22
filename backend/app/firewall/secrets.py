@@ -316,6 +316,12 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
             r"[\s\S]*?(?:-----END (?P=key_type)-----|\Z)"
         ),
     ),
+    # HTTP(S) URL userinfo ends at the LAST @ before /, ? or #. The username
+    # may be empty, and passwords may contain additional ':' or '@' separators.
+    # Mask scheme and userinfo together, retaining the host, port and path.
+    ("http_url_password", "HTTP URL containing embedded credentials", re.compile(
+        r"(?i)(?<![A-Za-z0-9._-])https?://[^\s/:?#]*:[^\s/?#]+@"
+    )),
     # Even a one-character password in a database URI is a credential.
     (
         "service_uri_password",
@@ -430,7 +436,10 @@ def find_secrets(text: str, *, entropy_threshold: float = 4.2) -> List[SecretFin
                 # Keep the broad match for partial overlaps to hide any suffix.
                 if m.span(m.lastindex) in named_value_spans:
                     continue
-            findings.append(SecretFinding(kind, label, _redact(value), m.start(), m.end()))
+            # A URL prefix inflates the apparent length of even a short password.
+            # Never show its suffix in a diagnostic preview.
+            preview = "***" if kind == "http_url_password" else _redact(value)
+            findings.append(SecretFinding(kind, label, preview, m.start(), m.end()))
             spans.append((m.start(), m.end()))
 
     # The named patterns may overlap, and they are visited in pattern order
