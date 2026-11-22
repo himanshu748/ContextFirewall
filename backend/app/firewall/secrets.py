@@ -114,6 +114,12 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
         r"(?<![A-Za-z0-9_.-])dp\.(?:(?:ct|pt|sa|said|scim|audit)\.|st\.(?:[a-z0-9_-]{2,35}\.)?)[A-Za-z0-9]{40,44}(?![A-Za-z0-9_.-])"
     )),
     ("aws_access_key", "AWS access key id", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),
+    # SigV4 presigned URL query signatures confer temporary access to S3
+    # objects. They are hex-only and evade the mixed-class entropy fallback.
+    # Keep the query parameter name visible, masking the exact signature value.
+    ("aws_presigned_signature", "AWS SigV4 presigned URL signature", re.compile(
+        r"(?i)(?<=X-Amz-Signature=)[0-9a-f]{64}(?![A-Za-z0-9_%])"
+    )),
 
     # Canonical database-client environment variables omit ordinary PASSWORD
     # suffix delimiters. Mask low-entropy and quoted values through line end.
