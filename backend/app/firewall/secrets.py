@@ -55,6 +55,12 @@ def _is_discord_bot_token(candidate: str) -> bool:
 # isolates the secret value to redact (vs. the whole match).
 _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("huggingface_token", "Hugging Face token", re.compile(r"\bhf_[A-Za-z0-9]{16,}\b")),
+    # Google OAuth 2.0 client secrets have a recognizable GOCSPX- prefix
+    # and 28 opaque URL-safe characters. Match complete tokens only.
+    ("google_oauth_client_secret", "Google OAuth client secret", re.compile(
+        r"(?<![A-Za-z0-9_-])GOCSPX-[A-Za-z0-9_-]{28}(?![A-Za-z0-9_-])"
+    )),
+
     # OpenRouter uses a distinct sk-or-v1- prefix and 64 hex digits. Classify
     # it before the broad OpenAI rule, which must not claim OpenRouter keys.
     ("openrouter_api_key", "OpenRouter API key", re.compile(
@@ -318,6 +324,9 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ),
 ]
 
+# Typed redaction markers are inert when encountered on a later scan.
+_MARKER_RE = re.compile(r"«REDACTED:([A-Za-z0-9_]+)»")
+
 # Long mixed-class token for the entropy fallback.
 _TOKEN_RE = re.compile(r"[A-Za-z0-9+/_\-]{32,}")
 # PostHog phc_ project ingestion keys are public. Only exempt the complete
@@ -364,12 +373,27 @@ def find_secrets(text: str, *, entropy_threshold: float = 4.2) -> List[SecretFin
     spans: list[tuple[int, int]] = []
 
     for kind, label, pat in _PATTERNS:
+        # Named patterns are visited before the generic assignment rule.
+        # Build a set once so exact-value precedence remains O(1) per match.
+        if kind == "secret_assignment":
+            named_value_spans = set(spans)
         for m in pat.finditer(text):
             if kind == "discord_bot_token" and not _is_discord_bot_token(m.group(0)):
                 continue
             if kind == "telegram_bot_token" and int(m.group(0).split(":", 1)[0]) >= (1 << 52):
                 continue
+            # The secret_assignment pattern has separate capture groups for
+            # quoted and unquoted values. Use whichever group matched.
             value = m.group(m.lastindex) if m.lastindex else m.group(0)
+            # An existing typed marker is not a new secret, even when labelled.
+            # Only skip a complete marker; marker plus a suffix stays sensitive.
+            if kind == "secret_assignment":
+                if _MARKER_RE.fullmatch(value):
+                    continue
+                # A complete named credential wins over a generic assignment.
+                # Keep the broad match for partial overlaps to hide any suffix.
+                if m.span(m.lastindex) in named_value_spans:
+                    continue
             findings.append(SecretFinding(kind, label, _redact(value), m.start(), m.end()))
             spans.append((m.start(), m.end()))
 
@@ -431,7 +455,6 @@ def has_secret(text: str) -> bool:
 
 _KIND_LABEL = {kind: label for kind, label, _ in _PATTERNS}
 _KIND_LABEL["high_entropy_token"] = "high-entropy token"
-_MARKER_RE = re.compile(r"«REDACTED:([A-Za-z0-9_]+)»")
 
 
 def redacted_kinds(text: str) -> List[str]:
