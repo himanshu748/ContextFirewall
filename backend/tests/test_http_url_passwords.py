@@ -22,6 +22,7 @@ def test_http_basic_auth_urls_are_fully_redacted_without_leaking_password():
         raw = "link=" + url
         findings = [f for f in find_secrets(raw) if f.kind == "http_url_password"]
         assert len(findings) == 1, url
+        assert findings[0].redacted == "***"  # No password suffix in audit previews.
         assert raw[findings[0].start : findings[0].end] == url[: -len(expected_suffix)]
 
         redacted = redact_text(raw)
