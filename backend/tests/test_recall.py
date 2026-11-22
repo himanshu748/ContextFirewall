@@ -74,6 +74,59 @@ def test_ranked_hits_still_include_same_subject_peers(monkeypatch):
     assert [record["node_id"] for record in result] == ["n1", "n3"]
 
 
+@pytest.mark.parametrize("new_first", [False, True])
+def test_subject_peer_cap_never_approves_stale_memory(monkeypatch, new_first):
+    from app.firewall.checks import staleness_check
+
+    older = {
+        f"old-{i}": {
+            **_memory(f"old-{i}", "deploy"),
+            "created_at": "2025-01-01",
+            "trust_score": 0.9,
+            "evidence_event_ids": ["source"],
+        }
+        for i in range(200)
+    }
+    newest = {
+        "new": {
+            **_memory("new", "deploy"),
+            "created_at": "2026-01-01",
+            "trust_score": 0.9,
+            "evidence_event_ids": ["source"],
+        }
+    }
+    nodes = {**newest, **older} if new_first else {**older, **newest}
+
+    async def load_graph(namespaces=None):
+        assert namespaces == {"demo"}
+        return nodes
+
+    async def rank(query, top_k):
+        return ["old-0"]
+
+    monkeypatch.setattr(recall_module, "configure_cognee", lambda: {})
+    monkeypatch.setattr(recall_module, "_load_graph_memories", load_graph)
+    monkeypatch.setattr(recall_module, "_vector_rank", rank)
+
+    records = asyncio.run(recall_module.recall_memory_candidates("deploy", top_k=1))
+    assert len(records) == recall_module._MAX_CLUSTER
+    old = next(rec for rec in records if rec["node_id"] == "old-0")
+    assert old["peer_group_incomplete"] is True
+    verdict = staleness_check(old, records)
+    assert verdict.passed is False
+    assert verdict.severity == "block"
+    assert "exceeded the audit limit" in verdict.reason
+
+
+def test_complete_subject_cluster_retains_normal_staleness_check(monkeypatch):
+    from app.firewall.checks import staleness_check
+
+    _install(monkeypatch, _RankedVectorEngine())
+    records = asyncio.run(recall_module.recall_memory_candidates("deploy"))
+    assert all("peer_group_incomplete" not in rec for rec in records)
+    assert staleness_check(records[0], records).passed
+
+
 def test_unknown_vector_ids_do_not_dump_the_graph(monkeypatch):
     _install(monkeypatch, _ForeignIdsVectorEngine())
     result = asyncio.run(recall_module.recall_memory_candidates("deploy to production"))
