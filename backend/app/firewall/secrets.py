@@ -119,6 +119,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("doppler_auth_token", "Doppler authentication token", re.compile(
         r"(?<![A-Za-z0-9_.-])dp\.(?:(?:ct|pt|sa|said|scim|audit)\.|st\.(?:[a-z0-9_-]{2,35}\.)?)[A-Za-z0-9]{40,44}(?![A-Za-z0-9_.-])"
     )),
+    # Mailchimp Marketing API keys carry a data-center suffix (-usN) and
+    # grant account access. A bare 32-character hex string is not sufficient.
+    ("mailchimp_api_key", "Mailchimp Marketing API key", re.compile(
+        r"(?<![A-Za-z0-9_-])[0-9a-fA-F]{32}-us[0-9]{1,3}(?![A-Za-z0-9_-])"
+    )),
     ("aws_access_key", "AWS access key id", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),
 
     # Canonical database-client environment variables omit ordinary PASSWORD
