@@ -173,6 +173,8 @@ The MCP tools are the primary surface; these REST endpoints back them and power 
 |--------|------|---------|
 | `ANY` | `/mcp` | **MCP server (streamable HTTP): the six firewall tools** |
 | `GET` | `/health` | live profile (providers, model) + node counts |
+| `GET` | `/healthz` | lightweight process liveness (no database or graph scan) |
+| `GET` | `/readyz` | storage-backed readiness (same profile and demo counts as `/health`) |
 | `POST` | `/pack` | gated trusted context pack (and the ungoverned baseline) |
 | `POST` | `/audit` | recall + run the four checks, per-memory verdicts |
 | `POST` | `/remember` · `/ingest` | remember one fact / a recorded session |
@@ -250,6 +252,9 @@ Every environment variable read by `backend/app` and `frontend/`. The backend lo
 | `DB_NAME` | `postgres` | Postgres database (Cognee + API-key store). | Prod |
 | `DB_USERNAME` | `""` | Postgres user (Cognee + API-key store). | Prod |
 | `DB_PASSWORD` | `""` | Postgres password (Cognee + API-key store). | Prod |
+| `CF_DB_SSLMODE` | `require` | TLS mode for the API-key store's asyncpg connection. Use `disable` only for a trusted local Postgres; this does not configure Cognee's separate DB connection. | Self-host |
+| `CF_CORS_ORIGINS` | `*` | Comma-separated browser origins; set to explicit console origins when self-hosting. An empty value disables cross-origin requests. | Self-host |
+| `FORWARDED_ALLOW_IPS` | `*` (Space Docker image) | Trusted proxy addresses for Uvicorn's forwarded headers. Set the ingress IP(s) for self-hosted deployments. | Self-host |
 | `VECTOR_DB_PROVIDER` | none (LanceDB default) | Vector store provider, e.g. `pgvector`. | Prod |
 | `CF_ADMIN_TOKEN` | none | A matching `X-Admin-Token` authorizes `/reset`, lifts the demo-immutability guard for `/forget` (write and namespace checks still apply), and enables `POST /demo/seed?reset=true` to wipe all Cognee stores, not just demo data, before reseeding. Without a valid token, `/reset` returns 403 and demo seeding ignores `reset=true`. | Optional |
 | `CF_WRITE_TOKEN` | none | Bearer token granting admin write access to the public namespace when no valid API key is sent. | Optional |

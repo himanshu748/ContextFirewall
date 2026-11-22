@@ -32,4 +32,6 @@ EXPOSE 7860
 # X-Forwarded-Proto (https). Without it, the /mcp -> /mcp/ redirect Location is
 # emitted as http://, the MCP client follows to http, the Space 301s it back to
 # https as a GET, the POST body is lost, and the MCP handshake hangs.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860", "--proxy-headers", "--forwarded-allow-ips=*"]
+# Override FORWARDED_ALLOW_IPS with the trusted reverse proxy IP(s) when self-hosting.
+# Default * preserves the Hugging Face Space proxy behavior.
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port 7860 --proxy-headers --forwarded-allow-ips=\"${FORWARDED_ALLOW_IPS:-*}\""]

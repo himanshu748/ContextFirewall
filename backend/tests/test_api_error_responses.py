@@ -11,6 +11,35 @@ from fastapi.testclient import TestClient
 from app import main
 
 
+def test_healthz_is_cheap_and_does_not_touch_storage(monkeypatch):
+    def fail_configuration():
+        raise AssertionError("liveness must not configure storage")
+
+    async def fail_scan(**_kwargs):
+        raise AssertionError("liveness must not scan the graph")
+
+    monkeypatch.setattr(main, "configure_cognee", fail_configuration)
+    monkeypatch.setattr(main, "count_nodes", fail_scan)
+    response = TestClient(main.app).get("/healthz")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+def test_readyz_uses_storage_backed_demo_health(monkeypatch):
+    observed = []
+
+    async def counts(*, namespaces):
+        observed.append(namespaces)
+        return {"Memory": 3}
+
+    monkeypatch.setattr(main, "configure_cognee", lambda: {"graph": "test"})
+    monkeypatch.setattr(main, "count_nodes", counts)
+    response = TestClient(main.app).get("/readyz")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "profile": {"graph": "test"}, "counts": {"Memory": 3}}
+    assert observed == [{"demo"}]
+
+
 @pytest.fixture
 def client(monkeypatch):
     async def allow(_authorization):
