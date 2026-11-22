@@ -290,6 +290,16 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
         ),
     ),
     (
+        "service_uri_password",
+        "Redis or AMQP service URI with inline password",
+        # Redis commonly omits the username, whereas AMQP requires one.
+        # A TLS rediss:// URI is not covered by the existing redis:// rule.
+        re.compile(
+            r"\b(?:rediss://[^\s:@/]*|redis://|amqps?://[^\s:@/]+):([^\s:@/]+)@",
+            re.IGNORECASE,
+        ),
+    ),
+    (
         "connection_uri_password",
         "database connection URI with inline password",
         re.compile(
