@@ -233,6 +233,15 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
 
     # Azure Storage account keys are 512-bit values (86 base64 chars plus ==).
     # Require the connection-string field name to avoid flagging unrelated data.
+    # Azure Storage SAS URLs convey delegated resource access via the sig query
+    # parameter. Only match Azure Storage hosts; the capture is the signature
+    # itself, so redaction can preserve the nonsecret URL/query context.
+    ("azure_sas_signature", "Azure Storage SAS query signature", re.compile(
+        r"(?i)(?<![A-Za-z0-9_.-])https://[A-Za-z0-9-]+\."
+        r"(?:blob|dfs|file|queue|table)\.core\.windows\.net/"
+        r"[^\s?#]*\?(?:[^\s#&]*&)*sig="
+        r"(?P<secret>[A-Za-z0-9+/%=]{40,128})(?![A-Za-z0-9+/%=])"
+    )),
     ("azure_storage_account_key", "Azure Storage account key", re.compile(
         r"(?i)(?<![A-Za-z0-9_])AccountKey\s*=\s*([A-Za-z0-9+/]{86}==)(?![A-Za-z0-9+/=])"
     )),
@@ -415,8 +424,10 @@ def find_secrets(text: str, *, entropy_threshold: float = 4.2) -> List[SecretFin
                 # Keep the broad match for partial overlaps to hide any suffix.
                 if m.span(m.lastindex) in named_value_spans:
                     continue
-            findings.append(SecretFinding(kind, label, _redact(value), m.start(), m.end()))
-            spans.append((m.start(), m.end()))
+            # The SAS URL is only context: mask the captured signature value.
+            span = m.span("secret") if kind == "azure_sas_signature" else m.span()
+            findings.append(SecretFinding(kind, label, _redact(value), *span))
+            spans.append(span)
 
     # The named patterns may overlap, and they are visited in pattern order
     # rather than text order. Sort once, then sweep in input order alongside
