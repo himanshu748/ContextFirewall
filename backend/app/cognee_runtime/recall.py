@@ -250,9 +250,10 @@ async def recall_memory_candidates(
             for rec in ordered[_MAX_CLUSTER:]
             if (rec.get("subject") or "").strip()
         }
-        for rec in kept:
+        for idx, rec in enumerate(kept):
             if (rec.get("subject") or "").strip().lower() in omitted_subjects:
-                rec["peer_group_incomplete"] = True
+                # Graph records may be cached/reused; never mutate their metadata.
+                kept[idx] = {**rec, "peer_group_incomplete": True}
     return kept
 
 
