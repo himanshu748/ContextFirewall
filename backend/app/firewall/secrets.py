@@ -125,6 +125,12 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     )),
 
     ("google_api_key", "Google API key", re.compile(r"\bAIza[0-9A-Za-z_\-]{35}\b")),
+    # Cloud Storage V4 signed URLs grant bearer-like access through an
+    # X-Goog-Signature query parameter. HMAC signatures are 64 hex chars;
+    # RSA signatures are longer. Hex-only values evade the entropy fallback.
+    ("gcs_signed_url_signature", "Google Cloud Storage signed URL signature", re.compile(
+        r"(?i)(?<=X-Goog-Signature=)[0-9a-f]{64,1024}(?![A-Za-z0-9_%])"
+    )),
     # Includes classic/OAuth/App credentials and fine-grained personal access tokens.
     ("github_token", "GitHub token", re.compile(
         r"(?<![A-Za-z0-9_])(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{40,})(?![A-Za-z0-9_])"
