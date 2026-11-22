@@ -229,11 +229,17 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("sendgrid_api_key", "SendGrid API key", re.compile(r"(?<![A-Za-z0-9_-])SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])")),
     ("npm_token", "npm access token", re.compile(r"(?<![A-Za-z0-9_])npm_[A-Za-z0-9]{36}(?![A-Za-z0-9])")),
 
-    # npmrc scoped auth directives can contain opaque low-entropy credentials.
-    # Ignore variable references, but mask actual _authToken and _password values.
+    # npmrc is parsed as INI: values may be quoted, include whitespace and
+    # punctuation, or escape inline # / ; comment delimiters. Consume the
+    # complete value rather than masking just a credential-shaped prefix.
+    # A missing closing quote is treated conservatively through end of line.
     ("npmrc_auth", "npm registry authentication credential", re.compile(
-        r"(?i)(?<![A-Za-z0-9_])_(?:authToken|password)[ \t]*=[ \t]*(?!\$\{)"
-        r"[A-Za-z0-9+/_=.-]{1,256}(?![A-Za-z0-9+/_=.-])"
+        r"(?im)(?<![A-Za-z0-9_])_(?:authToken|password)[ \t]*=[ \t]*"
+        r"(?P<npmrc_value>(?:"
+        r'"(?:\\[^\r\n]|\\(?=\r?$)|[^"\\\r\n])*(?:"|(?=\r?$))'
+        r"|'(?:\\[^\r\n]|\\(?=\r?$)|[^'\\\r\n])*(?:'|(?=\r?$))"
+        r"|(?:\\[^\r\n]|[^\\;#\r\n])+?"
+        r"))(?=[ \t]*(?:[;#]|\r?$))"
     )),
     # Figma PATs are commonly emitted with a figd_ prefix. Figma does not
     # publish a fixed token shape, so treat the 40–200 character payload as a
@@ -325,6 +331,10 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ),
 ]
 
+# npm expands whole environment references, with or without surrounding quotes.
+# These are configuration indirections, not embedded credentials.
+_NPMRC_ENV_REF_RE = re.compile(r"\$\{[^{}\r\n]+\}\Z")
+
 # Long mixed-class token for the entropy fallback.
 _TOKEN_RE = re.compile(r"[A-Za-z0-9+/_\-]{32,}")
 # PostHog phc_ project ingestion keys are public. Only exempt the complete
@@ -376,6 +386,13 @@ def find_secrets(text: str, *, entropy_threshold: float = 4.2) -> List[SecretFin
                 continue
             if kind == "telegram_bot_token" and int(m.group(0).split(":", 1)[0]) >= (1 << 52):
                 continue
+            if kind == "npmrc_auth":
+                value = m.group("npmrc_value")
+                # npm permits bare, single-quoted and double-quoted references.
+                if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                    value = value[1:-1]
+                if not value.strip() or _NPMRC_ENV_REF_RE.fullmatch(value):
+                    continue
             value = m.group(m.lastindex) if m.lastindex else m.group(0)
             findings.append(SecretFinding(kind, label, _redact(value), m.start(), m.end()))
             spans.append((m.start(), m.end()))
