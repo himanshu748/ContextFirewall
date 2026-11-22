@@ -239,7 +239,22 @@ async def recall_memory_candidates(
         if subj and subj in subjects:
             ordered.append(rec)
             seen.add(nid)
-    return ordered[:_MAX_CLUSTER]
+    # The audit compares each candidate with its same-subject peers. Silently
+    # truncating that group can hide a later superseding memory and cause the
+    # staleness check to approve an obsolete claim. Mark affected retained
+    # candidates so the check can abstain (block), rather than infer "current".
+    kept = ordered[:_MAX_CLUSTER]
+    if len(ordered) > _MAX_CLUSTER:
+        omitted_subjects = {
+            (rec.get("subject") or "").strip().lower()
+            for rec in ordered[_MAX_CLUSTER:]
+            if (rec.get("subject") or "").strip()
+        }
+        for idx, rec in enumerate(kept):
+            if (rec.get("subject") or "").strip().lower() in omitted_subjects:
+                # Graph records may be cached/reused; never mutate their metadata.
+                kept[idx] = {**rec, "peer_group_incomplete": True}
+    return kept
 
 
 async def recall_answer(query: str) -> str:

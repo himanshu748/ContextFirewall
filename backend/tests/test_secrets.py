@@ -63,6 +63,77 @@ def test_circleci_token_near_misses_do_not_match_partial_credentials():
         assert all(f.kind != "circleci_api_token" for f in find_secrets(ordinary)), ordinary[:80]
 
 
+def test_google_oauth_client_secrets_are_classified_and_fully_redacted():
+    token = "GOCSPX-" + "Ab3x" * 7  # Synthetic, never an issued credential.
+    # A complete named match wins over the generic assignment detector,
+    # preserving the surrounding label and yielding a provider-specific marker.
+    for raw in (
+        token,
+        f"client secret: {token} here",
+        f"client_secret={token}",
+        f"CLIENT_SECRET='{token}'",
+        f'client_secret="{token}"',
+        f'{{"client_secret": "{token}"}}',
+        f'"{token}"',
+    ):
+        findings = find_secrets(raw)
+        assert [f.kind for f in findings] == ["google_oauth_client_secret"]
+        assert [f.label for f in findings] == ["Google OAuth client secret"]
+        assert [(f.start, f.end) for f in findings] == [
+            (raw.index(token), raw.index(token) + len(token))
+        ]
+        redacted = redact_text(raw)
+        assert redacted == raw.replace(token, "«REDACTED:google_oauth_client_secret»")
+        assert token not in redacted
+        assert redacted_kinds(redacted) == ["google_oauth_client_secret"]
+        assert not has_secret(redacted)
+        assert redact_text(redacted) == redacted
+    assert label_for_kind("google_oauth_client_secret") == "Google OAuth client secret"
+
+
+def test_google_oauth_client_secret_partial_assignment_match_redacts_full_value():
+    token = "GOCSPX-" + "Ab3x" * 7
+    # A named match covering only part of an assignment must not leave the
+    # unmatched remainder visible. In this case the generic detector wins.
+    for raw in (
+        f"client_secret={token}/additional-secret-data",
+        f'client_secret="{token} additional-secret-data"',
+    ):
+        assert [f.kind for f in find_secrets(raw)] == [
+            "secret_assignment",
+            "google_oauth_client_secret",
+        ]
+        redacted = redact_text(raw)
+        assert redacted == "«REDACTED:secret_assignment»"
+        assert token not in redacted
+        assert "additional-secret-data" not in redacted
+        assert not has_secret(redacted)
+
+
+def test_google_oauth_redaction_marker_is_inert_but_not_a_bypass():
+    marker = "«REDACTED:google_oauth_client_secret»"
+    labelled = f"client_secret={marker}"
+    assert not has_secret(labelled)
+    assert redact_text(labelled) == labelled
+
+    # The marker is only inert as the full value, never as a secret prefix.
+    with_suffix = labelled + "/still-sensitive"
+    assert [f.kind for f in find_secrets(with_suffix)] == ["secret_assignment"]
+    assert redact_text(with_suffix) == "«REDACTED:secret_assignment»"
+
+
+def test_google_oauth_client_secret_boundaries_exclude_near_misses():
+    token = "GOCSPX-" + "Ab3x" * 7
+    for ordinary in (
+        "Google OAuth client secrets start with GOCSPX-",
+        "GOCSPX-" + "a" * 27,
+        "GOCSPX-" + "a" * 29,
+        "prefix_" + token,
+        token + "_suffix",
+        "GOCSPX-" + "a" * 100_000,
+    ):
+        assert all(f.kind != "google_oauth_client_secret" for f in find_secrets(ordinary)), ordinary[:80]
+
 def test_supabase_secret_keys_are_classified_and_redacted():
     # Assemble a synthetic server-only key; public sb_publishable_ keys are distinct.
     token = "sb_" + "secret_" + "Ab3x" * 8

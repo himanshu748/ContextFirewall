@@ -55,6 +55,12 @@ def _is_discord_bot_token(candidate: str) -> bool:
 # isolates the secret value to redact (vs. the whole match).
 _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("huggingface_token", "Hugging Face token", re.compile(r"\bhf_[A-Za-z0-9]{16,}\b")),
+    # Google OAuth 2.0 client secrets have a recognizable GOCSPX- prefix
+    # and 28 opaque URL-safe characters. Match complete tokens only.
+    ("google_oauth_client_secret", "Google OAuth client secret", re.compile(
+        r"(?<![A-Za-z0-9_-])GOCSPX-[A-Za-z0-9_-]{28}(?![A-Za-z0-9_-])"
+    )),
+
     # OpenRouter uses a distinct sk-or-v1- prefix and 64 hex digits. Classify
     # it before the broad OpenAI rule, which must not claim OpenRouter keys.
     ("openrouter_api_key", "OpenRouter API key", re.compile(
@@ -108,6 +114,16 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
         r"(?<![A-Za-z0-9_.-])dp\.(?:(?:ct|pt|sa|said|scim|audit)\.|st\.(?:[a-z0-9_-]{2,35}\.)?)[A-Za-z0-9]{40,44}(?![A-Za-z0-9_.-])"
     )),
     ("aws_access_key", "AWS access key id", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),
+
+    # Canonical database-client environment variables omit ordinary PASSWORD
+    # suffix delimiters. Mask low-entropy and quoted values through line end.
+    ("service_password_env", "service password environment variable", re.compile(
+        r"(?im)(?<![A-Za-z0-9_])(?:PGPASSWORD|MYSQL_PWD|REDISCLI_AUTH)[ \t]*=[ \t]*"
+        r"(?!\$\{)(?:\"((?:\\[^\r\n]|\\(?=\r?$)|[^\"\\\r\n])+)(?:\"|(?=\r?$))"
+        r"|'((?:\\[^\r\n]|\\(?=\r?$)|[^'\\\r\n])+)(?:'|(?=\r?$))"
+        r"|([^\s\"',;]+))"
+    )),
+
     ("google_api_key", "Google API key", re.compile(r"\bAIza[0-9A-Za-z_\-]{35}\b")),
     # Includes classic/OAuth/App credentials and fine-grained personal access tokens.
     ("github_token", "GitHub token", re.compile(
@@ -295,12 +311,23 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
     ("http_url_password", "HTTP URL containing embedded credentials", re.compile(
         r"(?i)(?<![A-Za-z0-9._-])https?://[^\s/:?#]*:[^\s/?#]+@"
     )),
+    # Even a one-character password in a database URI is a credential.
+    (
+        "service_uri_password",
+        "Redis or AMQP service URI with inline password",
+        # Redis commonly omits the username, whereas AMQP requires one.
+        # A TLS rediss:// URI is not covered by the existing redis:// rule.
+        re.compile(
+            r"\b(?:rediss://[^\s:@/]*|redis://|amqps?://[^\s:@/]+):([^\s:@/]+)@",
+            re.IGNORECASE,
+        ),
+    ),
     (
         "connection_uri_password",
         "database connection URI with inline password",
         re.compile(
             r"\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|neo4j(?:\+s|\+ssc)?|bolt(?:\+s)?)"
-            r"://[^\s:@/]+:([^\s:@/]{3,})@",
+            r"://[^\s:@/]+:([^\s:@/]{1,})@",
             re.IGNORECASE,
         ),
     ),
@@ -311,7 +338,7 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
             # Allow provider prefixes such as TWILIO_AUTH_TOKEN and DB_PASSWORD;
             # the sensitive suffix must still be a whole identifier component.
             r"(?i)(?<![A-Za-z0-9_])(?:[A-Za-z][A-Za-z0-9]*[_-])*"
-            r"(?:password|passwd|pwd|secret|api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret)\b"
+            r"(?:password|passwd|pwd|secret[_-]?access[_-]?key|secret|api[_-]?(?:key|token)|access[_-]?token|auth[_-]?token|refresh[_-]?token|session[_-]?token|client[_-]?secret)\b"
             # Quoted secrets may contain spaces or escaped quotes. Mask the
             # entire value, including truncated end-of-line captures; otherwise
             # only the first word is removed and later words remain exposed.
@@ -323,6 +350,9 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
         ),
     ),
 ]
+
+# Typed redaction markers are inert when encountered on a later scan.
+_MARKER_RE = re.compile(r"«REDACTED:([A-Za-z0-9_]+)»")
 
 # Long mixed-class token for the entropy fallback.
 _TOKEN_RE = re.compile(r"[A-Za-z0-9+/_\-]{32,}")
@@ -370,12 +400,27 @@ def find_secrets(text: str, *, entropy_threshold: float = 4.2) -> List[SecretFin
     spans: list[tuple[int, int]] = []
 
     for kind, label, pat in _PATTERNS:
+        # Named patterns are visited before the generic assignment rule.
+        # Build a set once so exact-value precedence remains O(1) per match.
+        if kind == "secret_assignment":
+            named_value_spans = set(spans)
         for m in pat.finditer(text):
             if kind == "discord_bot_token" and not _is_discord_bot_token(m.group(0)):
                 continue
             if kind == "telegram_bot_token" and int(m.group(0).split(":", 1)[0]) >= (1 << 52):
                 continue
+            # The secret_assignment pattern has separate capture groups for
+            # quoted and unquoted values. Use whichever group matched.
             value = m.group(m.lastindex) if m.lastindex else m.group(0)
+            # An existing typed marker is not a new secret, even when labelled.
+            # Only skip a complete marker; marker plus a suffix stays sensitive.
+            if kind == "secret_assignment":
+                if _MARKER_RE.fullmatch(value):
+                    continue
+                # A complete named credential wins over a generic assignment.
+                # Keep the broad match for partial overlaps to hide any suffix.
+                if m.span(m.lastindex) in named_value_spans:
+                    continue
             # A URL prefix inflates the apparent length of even a short password.
             # Never show its suffix in a diagnostic preview.
             preview = "***" if kind == "http_url_password" else _redact(value)
@@ -440,7 +485,6 @@ def has_secret(text: str) -> bool:
 
 _KIND_LABEL = {kind: label for kind, label, _ in _PATTERNS}
 _KIND_LABEL["high_entropy_token"] = "high-entropy token"
-_MARKER_RE = re.compile(r"«REDACTED:([A-Za-z0-9_]+)»")
 
 
 def redacted_kinds(text: str) -> List[str]:
