@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ShieldCheck, ShieldX, Loader2, Circle, Upload } from "lucide-react";
 import { ApiError, api } from "@/lib/api";
+import { getActiveApiKey } from "@/lib/activeKey";
 import type {
   CheckName,
   GraphResponse,
@@ -81,7 +82,14 @@ function ConsoleInner() {
 
   const writeErrorMessage = useCallback((e: unknown, fallback: string) => {
     if (e instanceof ApiError) {
-      if (e.status === 401) return writeGateMessage;
+      if (e.status === 401) {
+        return getActiveApiKey()
+          ? "Your saved API key is invalid or revoked. Open Account & keys to replace it."
+          : writeGateMessage;
+      }
+      if (e.status === 503 && getActiveApiKey()) {
+        return "Your API key cannot be verified right now. Try again later; no demo data was substituted.";
+      }
       return e.body || fallback;
     }
     if (e instanceof Error) return e.message || fallback;
@@ -101,12 +109,12 @@ function ConsoleInner() {
     setError(null);
     try {
       setPack(await api.pack(q));
-    } catch (e: any) {
-      setError(e.message || "request failed");
+    } catch (e: unknown) {
+      setError(writeErrorMessage(e, "Request failed."));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [writeErrorMessage]);
 
   const refreshHealth = useCallback(async () => {
     try {
