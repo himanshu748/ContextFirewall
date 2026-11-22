@@ -312,7 +312,7 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
             # A dangling escape is also secret data, but line endings must survive.
             r"\s*[:=]\s*(?:\"((?:\\[^\r\n]|\\(?=\r?$)|[^\"\\\r\n])+)(?:\"|(?=\r?$))"
             r"|'((?:\\[^\r\n]|\\(?=\r?$)|[^'\\\r\n])+)(?:'|(?=\r?$))"
-            r"|([^\s\"',;]{8,}))",
+            r"|([^\s\"',;]{1,}))",
             re.MULTILINE,
         ),
     ),
