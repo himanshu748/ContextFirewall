@@ -350,9 +350,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
             # entire value, including truncated end-of-line captures; otherwise
             # only the first word is removed and later words remain exposed.
             # A dangling escape is also secret data, but line endings must survive.
-            r"\s*[:=]\s*(?:\"((?:\\[^\r\n]|\\(?=\r?$)|[^\"\\\r\n])+)(?:\"|(?=\r?$))"
+            # Keep separators and values on the same line; \s also matches CR/LF.
+            # Otherwise a blank assignment can redact ordinary text below it.
+            r"[ \t]*[:=][ \t]*(?:\"((?:\\[^\r\n]|\\(?=\r?$)|[^\"\\\r\n])+)(?:\"|(?=\r?$))"
             r"|'((?:\\[^\r\n]|\\(?=\r?$)|[^'\\\r\n])+)(?:'|(?=\r?$))"
-            r"|([^\s\"',;]{8,}))",
+            r"|([^\s\"',;]{1,}))",
             re.MULTILINE,
         ),
     ),
