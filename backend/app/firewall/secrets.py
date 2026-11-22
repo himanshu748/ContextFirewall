@@ -331,7 +331,9 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
         "connection_uri_password",
         "database connection URI with inline password",
         re.compile(
-            r"\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|neo4j(?:\+s|\+ssc)?|bolt(?:\+s)?)"
+            # SQLAlchemy appends +driver to PostgreSQL, MySQL and SQL Server
+            # schemes. Such URLs still carry inline passwords and must be redacted.
+            r"\b(?:postgres(?:ql)?(?:\+[a-z][a-z0-9_]{0,31})?|mysql(?:\+[a-z][a-z0-9_]{0,31})?|mssql(?:\+[a-z][a-z0-9_]{0,31})?|mongodb(?:\+srv)?|redis|neo4j(?:\+s|\+ssc)?|bolt(?:\+s)?)"
             r"://[^\s:@/]+:([^\s:@/]{1,})@",
             re.IGNORECASE,
         ),

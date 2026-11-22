@@ -14,6 +14,26 @@ from unittest.mock import patch
 from app.firewall.secrets import find_secrets, has_secret, redact_text, redacted_kinds, label_for_kind
 
 
+def test_redacts_sqlalchemy_driver_uri_passwords():
+    # Use a two-character synthetic password to avoid the entropy fallback.
+    # SQLAlchemy dialect+driver schemes must not bypass the URI detector.
+    for scheme in (
+        "postgresql+psycopg2", "postgresql+psycopg", "postgresql+asyncpg",
+        "mysql+pymysql", "mysql+mysqlconnector", "mssql+pyodbc", "mssql+pymssql",
+    ):
+        uri = f"{scheme}://app:pw@database.example/clinical"
+        raw = f"Connection: {uri}"
+        findings = find_secrets(raw)
+        assert [f.kind for f in findings] == ["connection_uri_password"], scheme
+        masked = redact_text(raw)
+        assert masked == "Connection: «REDACTED:connection_uri_password»database.example/clinical"
+        assert "app:pw@" not in masked
+        assert not has_secret(masked)
+
+    # Driver delimiters without userinfo are not credentials.
+    assert not has_secret("postgresql+psycopg2://database.example/clinical")
+
+
 def test_named_and_high_entropy_spans_scale_without_quadratic_overlap_scans():
     # A malicious memory can contain thousands of credential-shaped strings.
     # Named tokens must not be double-counted by the generic entropy fallback.
