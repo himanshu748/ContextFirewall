@@ -289,10 +289,11 @@ _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
             r"[\s\S]*?(?:-----END (?P=key_type)-----|\Z)"
         ),
     ),
-    # HTTP(S) URLs with userinfo credentials leak a password even when the
-    # value is short or low-entropy. Mask the entire scheme/userinfo prefix.
+    # HTTP(S) URL userinfo ends at the LAST @ before /, ? or #. The username
+    # may be empty, and passwords may contain additional ':' or '@' separators.
+    # Mask scheme and userinfo together, retaining the host, port and path.
     ("http_url_password", "HTTP URL containing embedded credentials", re.compile(
-        r"(?i)(?<![A-Za-z0-9._-])https?://[^\s:@/]+:[^\s:@/]+@"
+        r"(?i)(?<![A-Za-z0-9._-])https?://[^\s/:?#]*:[^\s/?#]+@"
     )),
     (
         "connection_uri_password",
