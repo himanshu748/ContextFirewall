@@ -1534,6 +1534,28 @@ def test_short_secrets_never_expose_prefix_suffix_or_length():
         assert find_secrets("password=" + "A" * 20)[0].redacted == "AAAA…AAA (20 chars)"
 
 
+def test_unquoted_short_secret_assignments_are_not_leaked():
+    # Explicitly named credentials are sensitive even below eight characters.
+    for name, value in (
+        ("password", "x"),
+        ("DB_PASSWORD", "12"),
+        ("api_key", "abc"),
+        ("TWILIO_AUTH_TOKEN", "1234567"),
+        ("client_secret", "0"),
+    ):
+        raw = f"{name}={value}"
+        findings = find_secrets(raw)
+        assert len(findings) == 1, raw
+        assert findings[0].kind == "secret_assignment"
+        assert findings[0].redacted == "***"
+        assert redact_text(raw) == "«REDACTED:secret_assignment»"
+        assert not has_secret(redact_text(raw))
+
+    # Adjacent non-secret identifier components must remain unchanged.
+    for ordinary in ("PASSWORD_HINT=x", "NOT_A_PASSWORD_FIELD=y", "API_KEY_NAME=abc"):
+        assert not has_secret(ordinary), ordinary
+
+
 # --- negatives: should NOT be flagged ----------------------------------------
 def test_ignores_plain_prose():
     assert not has_secret("The deploy command changed from make deploy-v1 to make deploy-v2.")
