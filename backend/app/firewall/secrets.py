@@ -54,6 +54,10 @@ def _is_discord_bot_token(candidate: str) -> bool:
 # (kind, human label, regex). The optional last capture group, when present,
 # isolates the secret value to redact (vs. the whole match).
 _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
+    # WakaTime's waka_-prefixed UUID credential; use bounded complete-token matches to avoid partial redaction.
+    ("wakatime_api_key", "WakaTime API key", re.compile(
+        r"(?<![A-Za-z0-9_-])waka_[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}(?![A-Za-z0-9_-])"
+    )),
     # Netlify's 2023 token formats use five nf*- families in a 40-character
     # envelope (four-character prefix and 36 opaque characters). Reject adjacent
     # identifier characters rather than masking a partial credential.
