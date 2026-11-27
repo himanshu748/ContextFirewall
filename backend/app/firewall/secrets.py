@@ -54,6 +54,10 @@ def _is_discord_bot_token(candidate: str) -> bool:
 # (kind, human label, regex). The optional last capture group, when present,
 # isolates the secret value to redact (vs. the whole match).
 _PATTERNS: list[tuple[str, str, re.Pattern[str]]] = [
+    # Honeycomb complete ingest keys (not the public hcaik_ identifiers); use bounded complete-token matches to avoid partial redaction.
+    ("honeycomb_ingest_key", "Honeycomb ingest API key", re.compile(
+        r"(?<![A-Za-z0-9_-])hc[a-z]i[kc]_[a-z0-9]{58}(?![A-Za-z0-9_-])"
+    )),
     # Netlify's 2023 token formats use five nf*- families in a 40-character
     # envelope (four-character prefix and 36 opaque characters). Reject adjacent
     # identifier characters rather than masking a partial credential.
